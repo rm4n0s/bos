@@ -1,0 +1,81 @@
+{{define "content"}}<section data-signals='{"_armed":0,"commands":{"open":false},"cmd":{"valid":false}}'>
+  <p class="muted"><a href="/projects">Projects</a> › {{.Data.Project.Name}}</p>
+  <div class="bar">
+    <h1>{{.Data.Project.Name}}</h1>
+    <button type="button" data-on:click="@get('/ui/projects/{{.Data.Project.ID}}/commands/new')">Add command</button>
+  </div>
+  <p class="hint">Each command is one line of the command language and makes a batch of jobs. Commands run in the order shown.</p>
+  {{template "commands_table" .Data}}
+  <div class="modal" data-class:open="$commands.open">
+    <form class="dialog wide stack" id="commands-form" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/projects/{{.Data.Project.ID}}/commands', {contentType: 'form'})">
+      <div id="command-form-body">{{template "command_form" .Data.Blank}}</div>
+      <p class="error" id="commands-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$commands.open=false">Cancel</button>
+        <button type="submit" data-attr="{disabled: !$cmd.valid}">Save command</button>
+      </div>
+    </form>
+  </div>
+</section>{{end}}
+
+{{define "commands_table"}}<div id="commands-table">
+{{if not .Items}}<p class="empty">No commands yet — add one.</p>{{else}}
+<table>
+  <thead><tr><th>#</th><th>Name</th><th>Command</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {{range .Items}}<tr id="command-{{.ID}}">
+    <td>{{.Order}}</td>
+    <td><a href="/commands/{{.ID}}/jobs">{{if .Name}}{{.Name}}{{else}}(unnamed){{end}}</a>{{if .Description}}<div class="muted clip">{{.Description}}</div>{{end}}</td>
+    <td class="clip"><code>{{.CommandCode}}</code></td>
+    <td>{{template "command_progress" .}}</td>
+    <td class="actions">
+      <button type="button" class="secondary" title="Move up" data-on:click="@post('/ui/commands/{{.ID}}/up?page={{$.Pager.Page}}')">↑</button>
+      <button type="button" class="secondary" title="Move down" data-on:click="@post('/ui/commands/{{.ID}}/down?page={{$.Pager.Page}}')">↓</button>
+      <button type="button" data-on:click="@post('/ui/commands/{{.ID}}/run?page={{$.Pager.Page}}')">Run</button>
+      <button type="button" class="secondary" data-on:click="@post('/ui/commands/{{.ID}}/stop?page={{$.Pager.Page}}')">Stop</button>
+      <button type="button" class="secondary" data-on:click="@post('/ui/commands/{{.ID}}/recreate?page={{$.Pager.Page}}')">Recreate</button>
+      {{if eq (statusOf .Status) "finished"}}<a href="/commands/{{.ID}}/download"><button type="button" class="secondary">Download</button></a>{{end}}
+      <button type="button" class="secondary" data-on:click="@get('/ui/commands/{{.ID}}/edit')">Edit</button>
+      {{template "delete_button" (dict "ID" .ID "URL" (printf "/ui/commands/%d?page=%d" .ID $.Pager.Page))}}
+    </td>
+  </tr>{{end}}
+  </tbody>
+</table>
+{{template "pager" .Pager}}
+{{end}}
+</div>{{end}}
+
+{{define "command_progress"}}<span id="cmd-progress-{{.ID}}"><span class="badge {{statusOf .Status}}">{{.Status}}</span> <span class="muted">{{.FinishedJobs}}/{{.TotalJobs}}</span></span>{{end}}
+
+{{define "command_form"}}
+<h2>{{if .ID}}Edit command{{else}}Add command{{end}}</h2>
+<input type="hidden" name="id" value="{{.ID}}">
+<div class="row">
+  <label>Name <input name="name" maxlength="100" value="{{.Name}}"></label>
+  {{if not .ID}}<label>Position (empty: at the end) <input name="insert_at" type="number" min="1"></label>{{end}}
+</div>
+<label>Description <input name="description" value="{{.Description}}"></label>
+<label>Command
+  <textarea name="code" rows="3" spellcheck="false" placeholder="gpu1 -$ anime: characters * poses" data-on:input__debounce.400ms="@post('/ui/commands/preview', {contentType: 'form'})">{{.Code}}</textarea>
+</label>
+<p class="hint">Servers, then <code>-$</code>, then the generator, a colon and the terms. Groups multiply with <code>*</code>; <code>where</code>, <code>limit</code>, <code>sample</code>, <code>repeat</code> and <code>with</code> shape the batch.</p>
+{{template "command_preview" .Preview}}
+{{end}}
+
+{{define "command_preview"}}<div id="command-preview" class="preview">
+{{if .Empty}}<p class="muted">Type a command to see what it would make.</p>
+{{else if .Valid}}
+  <p class="ok">The command is valid.</p>
+  <ul class="facts">
+    <li>{{.Counts.Combinations}} combination{{if ne .Counts.Combinations 1}}s{{end}}</li>
+    <li>{{.Counts.AfterWhere}} after <code>where</code></li>
+    <li>{{.Counts.Kept}} kept</li>
+    <li><strong>{{.Counts.Jobs}} job{{if ne .Counts.Jobs 1}}s{{end}}</strong></li>
+  </ul>
+  {{if .Dynamic}}<p class="muted">Jobs go to whichever server is free.</p>{{else if .PerServer}}<ul class="facts">{{range .PerServer}}<li><code>{{.Server}}</code>: {{.Jobs}} job{{if ne .Jobs 1}}s{{end}}</li>{{end}}</ul>{{end}}
+  {{range .Warnings}}<p class="warn">⚠ {{.Message}}</p>{{end}}
+{{else}}
+  <ul class="problems">{{range .Problems}}<li><strong>{{.Rule}}</strong> {{.Message}}</li>{{end}}</ul>
+  <pre class="trace">{{range .Segments}}{{if .Mark}}<mark class="mark">{{.Text}}</mark>{{else}}{{.Text}}{{end}}{{end}}</pre>
+{{end}}
+</div>{{end}}

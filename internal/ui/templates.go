@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"embed"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -129,7 +130,7 @@ func (u *UI) fragment(name string, data any) (string, error) {
 func (u *UI) funcs() template.FuncMap {
 	return template.FuncMap{
 		"fileURL":  u.fileURL,
-		"statusOf": func(s any) string { return strings.ToLower(strings.TrimSpace(toString(s))) },
+		"statusOf": func(s any) string { return strings.ToLower(strings.TrimSpace(fmt.Sprint(s))) },
 		"add":      func(a, b int) int { return a + b },
 		"sub":      func(a, b int) int { return a - b },
 		"when":     formatTime,
@@ -144,16 +145,6 @@ func (u *UI) funcs() template.FuncMap {
 		"dict": dict,
 		"itoa": func(n int64) string { return strconv.FormatInt(n, 10) },
 	}
-}
-
-func toString(v any) string {
-	if s, ok := v.(interface{ String() string }); ok {
-		return s.String()
-	}
-	if s, ok := v.(string); ok {
-		return s
-	}
-	return ""
 }
 
 func formatTime(t time.Time) string {

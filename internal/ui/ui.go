@@ -102,6 +102,7 @@ func (u *UI) registerAll() {
 	u.projectRoutes()
 	u.groupRoutes()
 	u.itemRoutes()
+	u.commandRoutes()
 	u.fileRoutes()
 }
 

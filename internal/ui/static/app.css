@@ -74,3 +74,7 @@ button.chip { background: var(--line); color: var(--fg); border: none; padding: 
 .thumb.empty-thumb { display: inline-block; }
 .nowrap { white-space: nowrap; }
 .clip { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); }
+.preview .facts { margin: 6px 0; gap: 18px; }
+.problems { margin: 0 0 8px; padding-left: 18px; color: var(--danger); }
+.warn { color: var(--warn); margin: 4px 0; }
