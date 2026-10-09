@@ -190,11 +190,11 @@ The harness is temporary and is removed in step 12.
 - Deviations from the spec:
   - The script policy has `'unsafe-eval'`, which Datastar needs. SPEC §16.6 says so now.
   - Saving a server is one `POST /ui/servers` that updates when the form carries an id, not a separate `PUT`. SPEC §16.2 says so now.
-  - The pages were checked by rendering and by their emitted events, not in a browser; Datastar's expression syntax is the part a test of the server cannot cover.
+  - The pages were first checked by rendering and by their emitted events; the browser run of step 10b (headless Firefox, outside the repository) then confirmed the Datastar syntax of this screen too.
 
 ## Step 10b – Web UI: the catalogue screens
 - Branch: feat/ui-catalogue
-- Last code commit: PENDING
+- Last code commit: a4ee545
 - Date: 2026-10-10
 - Delivered: generators (paste or load a workflow, **Analyze** fills the output type, node and attributes and offers the node titles as suggestions without overwriting what was typed), fixers (the same, with image-input and image-output pickers), groups (thumbnail, tag chips that filter, feature chips, import from text or a text file, autocomplete for tags), items (the editor shows the sections of the group's features: LoRAs, IP-Adapter, three ControlNet slots, mask regions with the generated keywords, box regions, output settings; image previews from `/files/…`), projects, and the tag panel (rename or merge a group or item tag; the commands that mention a renamed item tag are listed). Dialogs are rendered by the server and patched in (`/ui/<x>/new` and `/ui/<x>/{id}/edit`), so no user text is put in an attribute expression and large workflows are not kept in signals; they submit as `multipart/form-data` (Datastar sends files only when the form says `enctype` — a test now checks every dialog form) and the handler reads the form before the stream opens. Delete asks again in place. `internal/uploads` holds what the REST API and the interface share (accepted parts and types, the content check, `ApplyItem` and the rule that clients upload files but never name them; the REST API now uses it). Tests: every screen on its patches, uploads and their cleanup, unchanged re-saves keep every file, dropping a ControlNet slot, refused saves, hostile text on every page and fragment, a forgery check on **every** registered write route, and the same flows in a real browser (headless Firefox over WebDriver, outside the repository) for generators, groups, items, tags and projects.
 - Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
