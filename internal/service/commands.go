@@ -417,3 +417,22 @@ func (s *CommandService) Stop(ctx context.Context, id domain.ID) (int, error) {
 	}
 	return n, nil
 }
+
+// Summary returns a command with the progress of its jobs, as the command list
+// shows it.
+func (s *CommandService) Summary(ctx context.Context, id domain.ID) (*domain.CommandSummary, error) {
+	r := s.Store.Repos()
+	cmd, err := r.Commands().Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	counts, err := r.Jobs().StatusCounts(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	sum := &domain.CommandSummary{Command: *cmd, FinishedJobs: counts[domain.StatusFinished]}
+	for _, n := range counts {
+		sum.TotalJobs += n
+	}
+	return sum, nil
+}

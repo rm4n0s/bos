@@ -206,3 +206,28 @@ func TestWithoutADispatcherNothingBreaks(t *testing.T) {
 	_, err := e.Commands.Run(ctx(t), cmd.ID)
 	check(t, err)
 }
+
+func TestSummaryAndCounts(t *testing.T) {
+	e := newEnv(t)
+	w := e.world(t)
+	cmd := e.add(t, w, "gpu1 -$ anime: characters")
+	jobs := e.jobsOf(t, cmd.ID)
+	e.setJob(t, jobs[0].ID, func(j *domain.Job) { j.Status = domain.StatusFinished })
+	e.setJob(t, jobs[1].ID, func(j *domain.Job) { j.Status = domain.StatusError })
+
+	sum, err := e.Commands.Summary(ctx(t), cmd.ID)
+	check(t, err)
+	if sum.TotalJobs != 3 || sum.FinishedJobs != 1 || sum.ID != cmd.ID {
+		t.Errorf("summary = %+v", sum)
+	}
+	counts, err := e.Jobs.Counts(ctx(t), cmd.ID)
+	check(t, err)
+	if counts[domain.StatusFinished] != 1 || counts[domain.StatusError] != 1 || counts[domain.StatusIdle] != 1 {
+		t.Errorf("counts = %v", counts)
+	}
+
+	_, err = e.Commands.Summary(ctx(t), 999)
+	wantRoute(t, err, "CommandService.Summary", "CommandNotFound")
+	_, err = e.Jobs.Counts(ctx(t), 999)
+	wantRoute(t, err, "JobService.Counts", "CommandNotFound")
+}

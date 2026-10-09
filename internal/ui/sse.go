@@ -16,6 +16,9 @@ import (
 type stream struct {
 	*datastar.ServerSentEventGenerator
 	u *UI
+	// eventID, when set, is attached to the patches of a live stream so that a
+	// reconnecting browser can say where it stopped.
+	eventID string
 }
 
 func (u *UI) newStream(w http.ResponseWriter, r *http.Request) *stream {
@@ -28,6 +31,9 @@ func (s *stream) render(name string, data any, opts ...datastar.PatchElementOpti
 	html, err := s.u.fragment(name, data)
 	if err != nil {
 		return err
+	}
+	if s.eventID != "" {
+		opts = append(opts, datastar.WithPatchElementsEventID(s.eventID))
 	}
 	return s.PatchElements(html, opts...)
 }

@@ -106,7 +106,7 @@ func (u *UI) authRoutes() {
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
-		u.renderPage(w, r, "login", page{Title: "Sign in"})
+		u.renderPage(w, r, "login", page{Title: "Sign in", NoStream: true})
 	})
 	u.handle("POST /login", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
@@ -117,7 +117,7 @@ func (u *UI) authRoutes() {
 		got := []byte(r.PostForm.Get("token"))
 		if u.AuthToken == "" || subtle.ConstantTimeCompare(got, []byte(u.AuthToken)) != 1 {
 			w.WriteHeader(http.StatusUnauthorized)
-			u.renderPage(w, r, "login", page{Title: "Sign in", Error: "That token is not right."})
+			u.renderPage(w, r, "login", page{Title: "Sign in", NoStream: true, Error: "That token is not right."})
 			return
 		}
 		http.SetCookie(w, &http.Cookie{

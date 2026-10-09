@@ -78,3 +78,6 @@ button.chip { background: var(--line); color: var(--fg); border: none; padding: 
 .preview .facts { margin: 6px 0; gap: 18px; }
 .problems { margin: 0 0 8px; padding-left: 18px; color: var(--danger); }
 .warn { color: var(--warn); margin: 4px 0; }
+.progress { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.filters { margin: 8px 0; }
+details { margin: 8px 0; }

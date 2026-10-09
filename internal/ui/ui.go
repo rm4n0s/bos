@@ -34,6 +34,9 @@ type Deps struct {
 	Logger      *slog.Logger
 	// KeepAlive is the interval of the live streams' comment lines.
 	KeepAlive time.Duration
+	// Coalesce is how long a burst of events is gathered before a live stream
+	// draws it; the default is 250 ms.
+	Coalesce time.Duration
 }
 
 // UI is the web interface.
@@ -103,6 +106,8 @@ func (u *UI) registerAll() {
 	u.groupRoutes()
 	u.itemRoutes()
 	u.commandRoutes()
+	u.jobRoutes()
+	u.streamRoutes()
 	u.fileRoutes()
 }
 

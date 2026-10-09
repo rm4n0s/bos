@@ -1,0 +1,73 @@
+{{define "content"}}<section data-signals='{"_armed":0,"jobs":{"open":false}}' data-init="@get('/ui/stream/commands/{{.Data.Command.ID}}', {retry: 'always', retryMaxCount: 1000000, openWhenHidden: true})">
+  <p class="muted"><a href="/projects">Projects</a> › <a href="/projects/{{.Data.Command.ProjectID}}/commands">{{.Data.Project.Name}}</a> › {{if .Data.Command.Name}}{{.Data.Command.Name}}{{else}}command {{.Data.Command.ID}}{{end}}</p>
+  <div class="bar">
+    <h1>{{if .Data.Command.Name}}{{.Data.Command.Name}}{{else}}Command {{.Data.Command.ID}}{{end}}</h1>
+    {{template "command_header" .Data.Header}}
+  </div>
+  <p><code>{{.Data.Command.CommandCode}}</code></p>
+  <div class="tags filters">
+    <button type="button" class="chip" data-on:click="@get('/ui/commands/{{.Data.Command.ID}}/jobs/table')">all</button>
+    {{range .Data.Statuses}}<button type="button" class="chip" data-on:click="@get('/ui/commands/{{$.Data.Command.ID}}/jobs/table?status={{.}}')">{{.}}</button>{{end}}
+  </div>
+  {{template "jobs_table" .Data}}
+  <div class="modal" data-class:open="$jobs.open">
+    <form class="dialog wide stack" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/jobs/save', {contentType: 'form'})">
+      <div id="job-detail-body"></div>
+      <p class="error" id="jobs-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$jobs.open=false">Close</button>
+        <button type="submit">Save prompts</button>
+      </div>
+    </form>
+  </div>
+</section>{{end}}
+
+{{define "command_header"}}<div id="command-progress" class="progress">
+  <span class="badge {{statusOf .Command.Status}}">{{.Command.Status}}</span>
+  <strong>{{.Finished}}/{{.Total}}</strong> finished
+  {{range .Counts}}<span class="chip">{{.Count}} {{.Status}}</span>{{end}}
+</div>{{end}}
+
+{{define "jobs_table"}}<div id="jobs-table">
+{{if not .Items}}<p class="empty">{{if .Status}}No job is {{.Status}}.{{else}}This command has no jobs.{{end}}</p>{{else}}
+<table>
+  <thead><tr><th>#</th><th>Result</th><th>Status</th><th>Server</th><th>Prompt</th><th>Seed</th><th></th></tr></thead>
+  <tbody>{{range .Items}}{{template "job_row" .}}{{end}}</tbody>
+</table>
+{{template "pager" .Pager}}
+{{end}}
+</div>{{end}}
+
+{{define "job_row"}}<tr id="job-{{.ID}}">
+  <td>{{.ID}}</td>
+  <td>{{if .ResultURL}}{{if .IsImage}}<a href="{{.ResultURL}}" target="_blank" rel="noopener"><img class="thumb" src="{{.ResultURL}}" alt="result of job {{.ID}}"></a>{{else}}<a href="{{.ResultURL}}" target="_blank" rel="noopener">open</a>{{end}}{{else}}<span class="thumb empty-thumb"></span>{{end}}</td>
+  <td><span class="badge {{statusOf .Status}}">{{.Status}}</span>{{if .Error}}<div class="error clip" title="{{.Error}}">{{.Error}}</div>{{end}}{{if .FixerCount}}<div class="muted">fixers {{.FinishedFixers}}/{{.FixerCount}}</div>{{end}}</td>
+  <td>{{if .ServerHost}}{{.ServerHost}}{{else}}<span class="muted">—</span>{{end}}</td>
+  <td class="clip">{{.PositivePrompt}}</td>
+  <td>{{if .SeedText}}<code>{{.SeedText}}</code>{{end}}</td>
+  <td class="actions">
+    <button type="button" class="secondary" data-on:click="@get('/ui/jobs/{{.ID}}/open')">Open</button>
+    <button type="button" data-on:click="@post('/ui/jobs/{{.ID}}/run')">Run</button>
+    <button type="button" class="secondary" data-on:click="@post('/ui/jobs/{{.ID}}/stop')">Stop</button>
+  </td>
+</tr>{{end}}
+
+{{define "job_detail"}}
+<h2>Job {{.ID}} <span class="badge {{statusOf .Status}}">{{.Status}}</span></h2>
+<input type="hidden" name="id" value="{{.ID}}">
+{{if .ResultURL}}{{if .IsImage}}<a href="{{.ResultURL}}" target="_blank" rel="noopener"><img class="result" src="{{.ResultURL}}" alt="result of job {{.ID}}"></a>{{else}}<p><a href="{{.ResultURL}}" target="_blank" rel="noopener">Open the result</a></p>{{end}}{{end}}
+{{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+{{if .Job.Warnings}}<ul class="problems">{{range .Job.Warnings}}<li>{{.}}</li>{{end}}</ul>{{end}}
+{{if .Job.ErrorTrace}}<details><summary>Trace</summary><pre class="trace">{{.Job.ErrorTrace}}</pre></details>{{end}}
+<label>Positive prompt <textarea name="positive_prompt" rows="4"{{if .Running}} readonly{{end}}>{{.Job.PositivePrompt}}</textarea></label>
+<label>Negative prompt <textarea name="negative_prompt" rows="3"{{if .Running}} readonly{{end}}>{{.Job.NegativePrompt}}</textarea></label>
+{{if .Running}}<p class="hint">The job is running; its prompts cannot be changed now.</p>{{else}}<p class="hint">Changing a prompt starts the job over: its result is removed and it becomes idle.</p>{{end}}
+<ul class="facts">
+  <li>generator <code>{{.Job.GeneratorCodeName}}</code></li>
+  <li>output {{.Job.OutputType}}</li>
+  {{if .SeedText}}<li>seed <code>{{.SeedText}}</code></li>{{end}}
+  <li>attempts {{.Job.Attempts}}</li>
+  {{if .Job.ServerHost}}<li>server {{.Job.ServerHost}}</li>{{end}}
+</ul>
+{{if .Job.LoRAs}}<p>LoRAs: {{range .Job.LoRAs}}<span class="chip">{{.Name}} {{.StrengthModel}}/{{.StrengthClip}}</span>{{end}}</p>{{end}}
+{{end}}

@@ -45,6 +45,9 @@ type page struct {
 	Nav   string
 	Error string
 	Data  any
+	// NoStream leaves out the global event stream (the sign-in page has no
+	// session to stream to).
+	NoStream bool
 	// SignedIn shows the sign-out button; the interface sets it when a token is
 	// configured.
 	SignedIn bool

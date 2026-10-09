@@ -106,3 +106,12 @@ func (s *JobService) EditPrompts(ctx context.Context, id domain.ID, positive, ne
 	}
 	return job, nil
 }
+
+// Counts returns how many jobs of a command are in each status.
+func (s *JobService) Counts(ctx context.Context, command domain.ID) (map[domain.Status]int, error) {
+	r := s.Store.Repos()
+	if _, err := r.Commands().Get(ctx, command); err != nil {
+		return nil, err
+	}
+	return r.Jobs().StatusCounts(ctx, command)
+}
