@@ -40,6 +40,7 @@ type Deps struct {
 type UI struct {
 	Deps
 	mux        *http.ServeMux
+	patterns   []string
 	tpl        *templates
 	fileServer *filesrv.Server
 
@@ -72,6 +73,15 @@ func New(deps Deps) (*UI, error) {
 	return u, nil
 }
 
+// handle registers a route and remembers its pattern.
+func (u *UI) handle(pattern string, h http.HandlerFunc) {
+	u.patterns = append(u.patterns, pattern)
+	u.mux.HandleFunc(pattern, h)
+}
+
+// Patterns returns the routing patterns that are registered, for tests.
+func (u *UI) Patterns() []string { return append([]string(nil), u.patterns...) }
+
 // Stop ends the live streams so that a graceful shutdown does not wait for
 // them.
 func (u *UI) Stop() { u.stopFunc() }
@@ -87,11 +97,16 @@ func (u *UI) registerAll() {
 	u.authRoutes()
 	u.homeRoutes()
 	u.serverRoutes()
+	u.generatorRoutes()
+	u.fixerRoutes()
+	u.projectRoutes()
+	u.groupRoutes()
+	u.itemRoutes()
 	u.fileRoutes()
 }
 
 func (u *UI) fileRoutes() {
-	u.mux.HandleFunc("GET /files/{kind}/{name...}", func(w http.ResponseWriter, r *http.Request) {
+	u.handle("GET /files/{kind}/{name...}", func(w http.ResponseWriter, r *http.Request) {
 		if err := u.fileServer.Serve(w, r, r.PathValue("kind"), r.PathValue("name")); err != nil {
 			http.NotFound(w, r)
 		}

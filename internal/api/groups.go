@@ -2,32 +2,11 @@ package api
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/rm4n0s/bos/internal/domain"
+	"github.com/rm4n0s/bos/internal/uploads"
 )
-
-func (a *API) groupKinds(field string) (uploadKind, bool) {
-	if field == "thumbnail" {
-		return uploadKind{dir: a.Dirs.Thumbnails, mimes: thumbnailTypes}, true
-	}
-	return uploadKind{}, false
-}
-
-// ownedPath checks that a file path a client sent is one the request stored or
-// one the entity already had: clients upload files, they do not name them.
-func ownedPath(path string, up *uploadSet, existing []string) error {
-	if path == "" || up.has(path) {
-		return nil
-	}
-	for _, e := range existing {
-		if e == path {
-			return nil
-		}
-	}
-	return badRequest("file paths cannot be set; upload the file in the multipart form instead")
-}
 
 func (a *API) groupRoutes() {
 	a.add(route{Method: "GET", Path: "/groups", Paged: true, Summary: "List groups", Query: []string{"tag"}, Errors: []string{"TagInvalid"}, Run: a.listGroups})
@@ -57,11 +36,14 @@ func (a *API) listGroups(w http.ResponseWriter, r *http.Request) error {
 
 func (a *API) createGroup(w http.ResponseWriter, r *http.Request) error {
 	var in domain.Group
-	up, err := a.readBody(w, r, &in, a.groupKinds)
+	up, err := a.readBody(w, r, &in, uploads.GroupKinds(a.Dirs))
 	if err != nil {
 		return err
 	}
-	in.Thumbnail = up.files["thumbnail"]
+	in.Thumbnail = "" // a new group has no file until one is uploaded
+	if p, ok := up.Path("thumbnail"); ok {
+		in.Thumbnail = p
+	}
 	out, err := a.Services.Groups.Create(r.Context(), in)
 	if err != nil {
 		a.discard(up)
@@ -111,13 +93,13 @@ func (a *API) updateGroup(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	var in domain.Group
-	up, err := a.readBody(w, r, &in, a.groupKinds)
+	up, err := a.readBody(w, r, &in, uploads.GroupKinds(a.Dirs))
 	if err != nil {
 		return err
 	}
-	if path, ok := up.files["thumbnail"]; ok {
+	if path, ok := up.Path("thumbnail"); ok {
 		in.Thumbnail = path
-	} else if err := ownedPath(in.Thumbnail, up, []string{old.Thumbnail}); err != nil {
+	} else if err := uploads.OwnedPath(in.Thumbnail, up, []string{old.Thumbnail}); err != nil {
 		return err
 	}
 	out, err := a.Services.Groups.Update(r.Context(), id, in)
@@ -142,80 +124,6 @@ func (a *API) deleteGroup(w http.ResponseWriter, r *http.Request) error {
 }
 
 // ---- items ----
-
-// controlNetField is the form field of the image of the n-th ControlNet.
-func controlNetIndex(field string) (int, bool) {
-	rest, ok := strings.CutPrefix(field, "controlnet_")
-	if !ok {
-		return 0, false
-	}
-	n, err := strconv.Atoi(rest)
-	return n, err == nil && n >= 0 && strconv.Itoa(n) == rest
-}
-
-func (a *API) itemKinds(field string) (uploadKind, bool) {
-	switch field {
-	case "thumbnail":
-		return uploadKind{dir: a.Dirs.Thumbnails, mimes: thumbnailTypes}, true
-	case "ip_adapter_image":
-		return uploadKind{dir: a.Dirs.IPAdapter, mimes: referenceTypes}, true
-	case "mask_reference":
-		return uploadKind{dir: a.Dirs.Regions, mimes: maskTypes}, true
-	}
-	if _, ok := controlNetIndex(field); ok {
-		return uploadKind{dir: a.Dirs.ControlNet, mimes: referenceTypes}, true
-	}
-	return uploadKind{}, false
-}
-
-// applyItemUploads puts the stored files into the item, and checks that every
-// other file path in it is one the item already had.
-func applyItemUploads(in *domain.Item, up *uploadSet, existing []string) error {
-	if p, ok := up.files["thumbnail"]; ok {
-		in.Thumbnail = p
-	}
-	if p, ok := up.files["ip_adapter_image"]; ok {
-		if in.IPAdapter == nil {
-			return badRequest("ip_adapter_image needs ip_adapter in the data part")
-		}
-		in.IPAdapter.ImageFile = p
-	}
-	if p, ok := up.files["mask_reference"]; ok {
-		if in.MaskRegion == nil {
-			return badRequest("mask_reference needs mask_region_images in the data part")
-		}
-		in.MaskRegion.ReferencePath = p
-	}
-	for field, p := range up.files {
-		if n, ok := controlNetIndex(field); ok {
-			if n >= len(in.ControlNets) {
-				return badRequest("the file part has no matching entry in controlnets", "part", field)
-			}
-			in.ControlNets[n].ImagePath = p
-		}
-	}
-	// The masks and their folder are made by the server, never named by a client.
-	if in.MaskRegion != nil {
-		in.MaskRegion.FolderPath, in.MaskRegion.MaskFiles = "", nil
-	}
-	var paths []string
-	paths = append(paths, in.Thumbnail)
-	if in.IPAdapter != nil {
-		paths = append(paths, in.IPAdapter.ImageFile)
-	}
-	if in.MaskRegion != nil {
-		paths = append(paths, in.MaskRegion.ReferencePath)
-	}
-	for _, c := range in.ControlNets {
-		paths = append(paths, c.ImagePath)
-	}
-	for _, p := range paths {
-		if err := ownedPath(p, up, existing); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 func (a *API) itemRoutes() {
 	a.add(route{Method: "GET", Path: "/groups/{id}/items", Paged: true, Summary: "List the items of a group", Errors: []string{"GroupNotFound"}, Run: a.listItems})
@@ -251,11 +159,11 @@ func (a *API) createItem(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	var in domain.Item
-	up, err := a.readBody(w, r, &in, a.itemKinds)
+	up, err := a.readBody(w, r, &in, uploads.ItemKinds(a.Dirs))
 	if err != nil {
 		return err
 	}
-	if err := applyItemUploads(&in, up, nil); err != nil {
+	if err := uploads.ApplyItem(&in, up, nil); err != nil {
 		a.discard(up)
 		return err
 	}
@@ -291,11 +199,11 @@ func (a *API) updateItem(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	var in domain.Item
-	up, err := a.readBody(w, r, &in, a.itemKinds)
+	up, err := a.readBody(w, r, &in, uploads.ItemKinds(a.Dirs))
 	if err != nil {
 		return err
 	}
-	if err := applyItemUploads(&in, up, old.Files()); err != nil {
+	if err := uploads.ApplyItem(&in, up, old.Files()); err != nil {
 		a.discard(up)
 		return err
 	}

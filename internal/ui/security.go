@@ -101,14 +101,14 @@ func (u *UI) authenticate(next http.Handler) http.Handler {
 }
 
 func (u *UI) authRoutes() {
-	u.mux.HandleFunc("GET /login", func(w http.ResponseWriter, r *http.Request) {
+	u.handle("GET /login", func(w http.ResponseWriter, r *http.Request) {
 		if u.signedIn(r) {
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
 		u.renderPage(w, r, "login", page{Title: "Sign in"})
 	})
-	u.mux.HandleFunc("POST /login", func(w http.ResponseWriter, r *http.Request) {
+	u.handle("POST /login", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
@@ -126,7 +126,7 @@ func (u *UI) authRoutes() {
 		})
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
-	u.mux.HandleFunc("POST /logout", func(w http.ResponseWriter, r *http.Request) {
+	u.handle("POST /logout", func(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: sessionCookie, Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode})
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	})

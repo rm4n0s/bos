@@ -1,0 +1,123 @@
+{{define "content"}}<section data-signals='{"_armed":0,"groups":{"open":false,"importOpen":false},"tags":{"scope":"item","from":"","to":""}}'>
+  <div class="bar">
+    <h1>Groups</h1>
+    <div class="buttons">
+      <button type="button" class="secondary" data-on:click="@get('/ui/groups/import/new')">Import from text</button>
+      <button type="button" data-on:click="@get('/ui/groups/new')">Add group</button>
+    </div>
+  </div>
+  <p class="hint">A group is a named list of items that play one role in a command: characters, poses, places, styles.</p>
+  {{template "groups_table" .Data}}
+
+  <div class="modal" data-class:open="$groups.open">
+    <form class="dialog wide stack" id="groups-form" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/groups', {contentType: 'form'})">
+      <div id="group-form-body">{{template "group_form" .Data.Blank}}</div>
+      <p class="error" id="groups-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$groups.open=false">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal" data-class:open="$groups.importOpen">
+    <form class="dialog wide stack" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/groups/import', {contentType: 'form'})">
+      <div id="group-import-body">{{template "group_import_form" .Data.Blank}}</div>
+      <p class="error" id="groups-import-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$groups.importOpen=false">Cancel</button>
+        <button type="submit">Create group</button>
+      </div>
+    </form>
+  </div>
+
+  <h2>Tags</h2>
+  <p class="hint">Group tags only organise this page. Item tags are what commands select with <code>#tag</code>. Renaming a tag to one that exists merges the two.</p>
+  <div id="tags-panel">{{template "tags_panel" .Data.TagList}}</div>
+</section>{{end}}
+
+{{define "groups_table"}}<div id="groups-table">
+{{if .Tag}}<p class="muted">Showing groups tagged <span class="chip">{{.Tag}}</span>
+  <button type="button" class="secondary" data-on:click="@get('/ui/groups/table')">Show all</button></p>{{end}}
+{{if not .Items}}<p class="empty">{{if .Tag}}No group has this tag.{{else}}No groups yet — add one.{{end}}</p>{{else}}
+<table>
+  <thead><tr><th></th><th>Name</th><th>Code name</th><th>Tags</th><th>Features</th><th></th></tr></thead>
+  <tbody>
+  {{range .Items}}<tr id="group-{{.ID}}">
+    <td>{{with fileURL "thumbnails" .Thumbnail}}<img class="thumb" src="{{.}}" alt="">{{else}}<span class="thumb empty-thumb"></span>{{end}}</td>
+    <td><a href="/groups/{{.ID}}/items">{{.Name}}</a>{{if .Description}}<div class="muted clip">{{.Description}}</div>{{end}}</td>
+    <td><code>{{.CodeName}}</code></td>
+    <td class="tags">{{range .Tags}}<button type="button" class="chip" data-on:click="@get('/ui/groups/table?tag={{urlquery .}}')">{{.}}</button>{{end}}</td>
+    <td class="tags">{{if .UseLora}}<span class="chip">LoRA</span>{{end}}{{if .UseControlnet}}<span class="chip">ControlNet</span>{{end}}{{if .UseIPAdapter}}<span class="chip">IP-Adapter</span>{{end}}{{if .UseMaskRegion}}<span class="chip">mask regions</span>{{end}}{{if .UseCoordinatesRegion}}<span class="chip">box regions</span>{{end}}{{if .UseTypeAttributes}}<span class="chip">output</span>{{end}}</td>
+    <td class="actions">
+      <a href="/groups/{{.ID}}/items"><button type="button" class="secondary">Items</button></a>
+      <button type="button" class="secondary" data-on:click="@get('/ui/groups/{{.ID}}/edit')">Edit</button>
+      {{template "delete_button" (dict "ID" .ID "URL" (printf "/ui/groups/%d" .ID))}}
+    </td>
+  </tr>{{end}}
+  </tbody>
+</table>
+{{template "pager" .Pager}}
+{{end}}
+<datalist id="group-tag-names">{{range .Tags}}<option value="{{.Tag}}">{{end}}</datalist>
+{{if .Tags}}<p class="tags">{{range .Tags}}<button type="button" class="chip" data-on:click="@get('/ui/groups/table?tag={{urlquery .Tag}}')">{{.Tag}} ({{.Count}})</button>{{end}}</p>{{end}}
+</div>{{end}}
+
+{{define "group_form"}}
+<h2>{{if .ID}}Edit group{{else}}Add group{{end}}</h2>
+<input type="hidden" name="id" value="{{.ID}}">
+<div class="row">
+  <label>Name <input name="name" maxlength="100" value="{{.Name}}" required></label>
+  <label>Code name <input name="code_name" maxlength="100" value="{{.CodeName}}" placeholder="characters" required></label>
+</div>
+<label>Description <input name="description" value="{{.Description}}"></label>
+<label>Tags (separated by commas) <input name="tags" list="group-tag-names" value="{{.Tags}}" placeholder="people, scenery"></label>
+<fieldset><legend>What the items of this group can carry</legend>
+  <div class="check-row">
+    <label class="check"><input type="checkbox" name="use_lora"{{if .UseLora}} checked{{end}}> LoRAs</label>
+    <label class="check"><input type="checkbox" name="use_controlnet"{{if .UseControlnet}} checked{{end}}> ControlNet</label>
+    <label class="check"><input type="checkbox" name="use_ip_adapter"{{if .UseIPAdapter}} checked{{end}}> IP-Adapter</label>
+    <label class="check"><input type="checkbox" name="use_mask_region"{{if .UseMaskRegion}} checked{{end}}> Mask regions</label>
+    <label class="check"><input type="checkbox" name="use_coordinates_region"{{if .UseCoordinatesRegion}} checked{{end}}> Box regions</label>
+    <label class="check"><input type="checkbox" name="use_type_attributes"{{if .UseTypeAttributes}} checked{{end}}> Output settings</label>
+  </div>
+</fieldset>
+<label>Thumbnail (PNG, JPEG or GIF)
+  <input type="file" name="thumbnail" accept="image/png,image/jpeg,image/gif">
+</label>
+{{with .ThumbURL}}<div><img class="thumb" src="{{.}}" alt=""> <label class="check"><input type="checkbox" name="clear_thumbnail"> Remove the thumbnail</label></div>{{end}}
+{{end}}
+
+{{define "group_import_form"}}
+<h2>Import a group from text</h2>
+<p class="hint">One item for each line. A line becomes the item's positive prompt; the items are named by their position.</p>
+<div class="row">
+  <label>Name <input name="name" maxlength="100" required></label>
+  <label>Code name <input name="code_name" maxlength="100" required></label>
+</div>
+<label>Tags (separated by commas) <input name="tags" list="group-tag-names"></label>
+<label>Text <textarea name="text" rows="8" placeholder="a red fox&#10;a blue owl"></textarea></label>
+<label>…or a text file <input type="file" name="textfile" accept=".txt,text/plain"></label>
+{{end}}
+
+{{define "tags_panel"}}
+<div class="row">
+  <div><h3>Group tags</h3>{{if .GroupTags}}<p class="tags">{{range .GroupTags}}<button type="button" class="chip" data-tag="{{.Tag}}" data-on:click="$tags.scope='group'; $tags.from=el.dataset.tag">{{.Tag}} ({{.Count}})</button>{{end}}</p>{{else}}<p class="muted">None yet.</p>{{end}}</div>
+  <div><h3>Item tags</h3>{{if .ItemTags}}<p class="tags">{{range .ItemTags}}<button type="button" class="chip" data-tag="{{.Tag}}" data-on:click="$tags.scope='item'; $tags.from=el.dataset.tag">{{.Tag}} ({{.Count}})</button>{{end}}</p>{{else}}<p class="muted">None yet.</p>{{end}}</div>
+</div>
+<form class="row" data-on:submit__prevent="@post('/ui/tags/rename')">
+  <label>Kind <select data-bind="tags.scope"><option value="item">item tag</option><option value="group">group tag</option></select></label>
+  <label>Rename <input data-bind="tags.from" placeholder="old name"></label>
+  <label>to <input data-bind="tags.to" placeholder="new name"></label>
+  <label>&nbsp;<button type="submit" class="secondary">Rename or merge</button></label>
+</form>
+<p class="error" id="tags-error"></p>
+<div id="tags-result"></div>
+{{end}}
+
+{{define "tags_result"}}<div id="tags-result">
+{{if .AffectedCommands}}<p class="hint">{{.Renamed}} item(s) renamed. These commands mention <code>#{{.From}}</code> and will stop validating until they are edited:</p>
+<ul>{{range .AffectedCommands}}<li><a href="/commands/{{.ID}}/jobs">{{.Name}}</a> <code class="muted">{{.CommandCode}}</code></li>{{end}}</ul>{{end}}
+</div>{{end}}
+
+{{define "tags_panel_box"}}<div id="tags-panel">{{template "tags_panel" .}}</div>{{end}}

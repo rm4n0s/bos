@@ -1,0 +1,44 @@
+{{define "content"}}<section data-signals='{"_armed":0,"projects":{"open":false}}'>
+  <div class="bar">
+    <h1>Projects</h1>
+    <button type="button" data-on:click="@get('/ui/projects/new')">Add project</button>
+  </div>
+  <p class="hint">A project is an ordered list of commands. Each command makes a batch of jobs.</p>
+  {{template "projects_table" .Data}}
+  <div class="modal" data-class:open="$projects.open">
+    <form class="dialog stack" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/projects', {contentType: 'form'})">
+      <div id="project-form-body">{{template "project_form" .Data.Blank}}</div>
+      <p class="error" id="projects-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$projects.open=false">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</section>{{end}}
+
+{{define "projects_table"}}<div id="projects-table">
+{{if not .Items}}<p class="empty">No projects yet — add one.</p>{{else}}
+<table>
+  <thead><tr><th>Name</th><th>Created</th><th></th></tr></thead>
+  <tbody>
+  {{range .Items}}<tr id="project-{{.ID}}">
+    <td><a href="/projects/{{.ID}}/commands">{{.Name}}</a></td>
+    <td class="muted">{{when .CreatedAt}}</td>
+    <td class="actions">
+      <a href="/projects/{{.ID}}/commands"><button type="button" class="secondary">Commands</button></a>
+      <button type="button" class="secondary" data-on:click="@get('/ui/projects/{{.ID}}/edit')">Rename</button>
+      {{template "delete_button" (dict "ID" .ID "URL" (printf "/ui/projects/%d" .ID))}}
+    </td>
+  </tr>{{end}}
+  </tbody>
+</table>
+{{template "pager" .Pager}}
+{{end}}
+</div>{{end}}
+
+{{define "project_form"}}
+<h2>{{if .ID}}Rename project{{else}}Add project{{end}}</h2>
+<input type="hidden" name="id" value="{{.ID}}">
+<label>Name <input name="name" maxlength="100" value="{{.Name}}" required autofocus></label>
+{{end}}

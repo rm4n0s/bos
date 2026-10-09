@@ -61,3 +61,16 @@ code { font-family: ui-monospace, monospace; font-size: .85em; }
 .facts { list-style: none; padding: 0; display: flex; gap: 24px; flex-wrap: wrap; }
 pre.trace { overflow: auto; max-height: 260px; background: var(--bg); padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); font-size: .8rem; }
 .mark { background: color-mix(in srgb, var(--danger) 25%, transparent); border-bottom: 2px solid var(--danger); }
+.hint, .muted { color: var(--muted); }
+.hint { margin: 0 0 12px; }
+.ok { color: var(--ok); margin: 0; }
+.buttons.start { justify-content: flex-start; align-items: center; }
+.dialog h2 { margin: 0; }
+.dialog fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+.dialog legend { color: var(--muted); font-size: .85rem; padding: 0 6px; }
+.check-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+button.chip { background: var(--line); color: var(--fg); border: none; padding: 0 8px; cursor: pointer; }
+.thumb.empty-thumb { display: inline-block; }
+.nowrap { white-space: nowrap; }
+.clip { max-width: 360px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

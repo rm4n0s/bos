@@ -141,6 +141,7 @@ func (u *UI) funcs() template.FuncMap {
 			}
 			return out
 		},
+		"dict": dict,
 		"itoa": func(n int64) string { return strconv.FormatInt(n, 10) },
 	}
 }
@@ -177,4 +178,15 @@ func (u *UI) fileURL(kind, stored string) string {
 		return ""
 	}
 	return "/files/" + kind + "/" + filepath.ToSlash(rel)
+}
+
+// dict builds a map for passing several values to a template.
+func dict(pairs ...any) map[string]any {
+	m := make(map[string]any, len(pairs)/2)
+	for i := 0; i+1 < len(pairs); i += 2 {
+		if k, ok := pairs[i].(string); ok {
+			m[k] = pairs[i+1]
+		}
+	}
+	return m
 }

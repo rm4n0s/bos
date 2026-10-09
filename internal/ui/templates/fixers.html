@@ -1,0 +1,72 @@
+{{define "content"}}<section data-signals='{"_armed":0,"fixers":{"open":false}}'>
+  <div class="bar">
+    <h1>Fixers</h1>
+    <button type="button" data-on:click="@get('/ui/fixers/new')">Add fixer</button>
+  </div>
+  <p class="hint">A fixer is a ComfyUI workflow that takes a finished image and returns a better one: an upscale, a face repair, a background removal.</p>
+  {{template "fixers_table" .Data}}
+  <div class="modal" data-class:open="$fixers.open">
+    <form class="dialog wide stack" id="fixers-form" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/fixers', {contentType: 'form'})">
+      <div id="fixer-form-body">{{template "fixer_form" .Data.Blank}}</div>
+      <p class="error" id="fixers-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$fixers.open=false">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</section>{{end}}
+
+{{define "fixers_table"}}<div id="fixers-table">
+{{if not .Items}}<p class="empty">No fixers yet — add one from a ComfyUI workflow.</p>{{else}}
+<table>
+  <thead><tr><th>Name</th><th>Code name</th><th>Image in</th><th>Image out</th><th></th></tr></thead>
+  <tbody>
+  {{range .Items}}<tr id="fixer-{{.ID}}">
+    <td>{{.Name}}</td>
+    <td><code>{{.CodeName}}</code></td>
+    <td>{{.LoadImageTitle}}</td>
+    <td>{{.SaveImageTitle}}</td>
+    <td class="actions">
+      <button type="button" class="secondary" data-on:click="@get('/ui/fixers/{{.ID}}/edit')">Edit</button>
+      {{template "delete_button" (dict "ID" .ID "URL" (printf "/ui/fixers/%d" .ID))}}
+    </td>
+  </tr>{{end}}
+  </tbody>
+</table>
+{{template "pager" .Pager}}
+{{end}}
+</div>{{end}}
+
+{{define "fixer_form"}}
+<h2>{{if .ID}}Edit fixer{{else}}Add fixer{{end}}</h2>
+<input type="hidden" name="id" value="{{.ID}}">
+<div class="row">
+  <label>Name <input name="name" maxlength="100" value="{{.Name}}" required></label>
+  <label>Code name <input name="code_name" maxlength="100" value="{{.CodeName}}" placeholder="upscale" required></label>
+</div>
+<label>Workflow (ComfyUI, API format)
+  <textarea name="workflow" rows="8" spellcheck="false">{{.Workflow}}</textarea>
+</label>
+<label>…or load it from a file
+  <input type="file" accept=".json,application/json" data-on:change="const f = el.files[0]; if (f) { f.text().then(t => { el.closest('form').elements.workflow.value = t }) }">
+</label>
+<div class="buttons start"><button type="button" class="secondary" data-on:click="@post('/ui/fixers/analyze', {contentType: 'form'})">Analyze workflow</button>
+  <span class="muted">Offers the node titles of the workflow.</span></div>
+{{if .Analysed}}<p class="ok">Found {{len .LoadTitles}} image-input and {{len .SaveTitles}} image-output node(s).</p>{{end}}
+<div class="row">
+  <label>Image-input node <input name="load_image_title" list="load-titles" value="{{.LoadTitle}}" required></label>
+  <label>Image-output node <input name="save_image_title" list="save-titles" value="{{.SaveTitle}}" required></label>
+</div>
+<datalist id="load-titles">{{range .LoadTitles}}<option value="{{.}}">{{end}}</datalist>
+<datalist id="save-titles">{{range .SaveTitles}}<option value="{{.}}">{{end}}</datalist>
+<fieldset><legend>Prompts (optional)</legend>
+  <div class="row">
+    <label>Positive prompt node <input name="positive_prompt_title" list="fixer-prompt-titles" value="{{.PositiveTitle}}"></label>
+    <label>Negative prompt node <input name="negative_prompt_title" list="fixer-prompt-titles" value="{{.NegativeTitle}}"></label>
+  </div>
+  <datalist id="fixer-prompt-titles">{{range .PromptTitles}}<option value="{{.}}">{{end}}</datalist>
+  <label>Positive text <input name="positive_prompt" value="{{.Positive}}"></label>
+  <label>Negative text <input name="negative_prompt" value="{{.Negative}}"></label>
+</fieldset>
+{{end}}

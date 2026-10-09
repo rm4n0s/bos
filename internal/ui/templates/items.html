@@ -1,0 +1,110 @@
+{{define "content"}}<section data-signals='{"_armed":0,"items":{"open":false}}'>
+  <p class="muted"><a href="/groups">Groups</a> › {{.Data.Group.Name}} <code>{{.Data.Group.CodeName}}</code></p>
+  <div class="bar">
+    <h1>{{.Data.Group.Name}}</h1>
+    <button type="button" data-on:click="@get('/ui/groups/{{.Data.Group.ID}}/items/new')">Add item</button>
+  </div>
+  {{template "items_table" .Data}}
+  <div class="modal" data-class:open="$items.open">
+    <form class="dialog wide stack" id="items-form" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/groups/{{.Data.Group.ID}}/items', {contentType: 'form'})">
+      <div id="item-form-body">{{template "item_form" .Data.Blank}}</div>
+      <p class="error" id="items-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$items.open=false">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</section>{{end}}
+
+{{define "items_table"}}<div id="items-table">
+{{if not .Items}}<p class="empty">No items yet — add one.</p>{{else}}
+<table>
+  <thead><tr><th></th><th>Code name</th><th>Name</th><th>Positive prompt</th><th>Tags</th><th></th></tr></thead>
+  <tbody>
+  {{range .Items}}<tr id="item-{{.ID}}">
+    <td>{{with fileURL "thumbnails" .Thumbnail}}<img class="thumb" src="{{.}}" alt="">{{else}}<span class="thumb empty-thumb"></span>{{end}}</td>
+    <td><code>{{.CodeName}}</code></td>
+    <td>{{.Name}}</td>
+    <td class="clip">{{.PositivePrompt}}</td>
+    <td class="tags">{{range .Tags}}<span class="chip">{{.}}</span>{{end}}</td>
+    <td class="actions">
+      <button type="button" class="secondary" data-on:click="@get('/ui/items/{{.ID}}/edit')">Edit</button>
+      {{template "delete_button" (dict "ID" .ID "URL" (printf "/ui/items/%d" .ID))}}
+    </td>
+  </tr>{{end}}
+  </tbody>
+</table>
+{{template "pager" .Pager}}
+{{end}}
+<datalist id="item-tag-names">{{range .ItemTags}}<option value="{{.Tag}}">{{end}}</datalist>
+</div>{{end}}
+
+{{define "item_form"}}
+<h2>{{if .ID}}Edit item{{else}}Add item{{end}}</h2>
+<input type="hidden" name="id" value="{{.ID}}">
+<div class="row">
+  <label>Code name <input name="code_name" maxlength="100" value="{{.CodeName}}" placeholder="alice" required></label>
+  <label>Name <input name="name" maxlength="100" value="{{.Name}}" required></label>
+</div>
+<label>Positive prompt <textarea name="positive_prompt" rows="3">{{.Positive}}</textarea></label>
+<label>Negative prompt <textarea name="negative_prompt" rows="2">{{.Negative}}</textarea></label>
+<label>Tags (separated by commas; commands select with #tag) <input name="tags" list="item-tag-names" value="{{.Tags}}"></label>
+<label>Thumbnail (PNG, JPEG or GIF) <input type="file" name="thumbnail" accept="image/png,image/jpeg,image/gif"></label>
+{{with .ThumbURL}}<div><img class="thumb" src="{{.}}" alt=""> <label class="check"><input type="checkbox" name="clear_thumbnail"> Remove the thumbnail</label></div>{{end}}
+
+{{if .Flags.UseLora}}<fieldset><legend>LoRAs</legend>
+  <label>One per line: name, strength for the model, strength for the text encoder
+    <textarea name="loras" rows="3" placeholder="dance.safetensors, 0.8, 0.8">{{.LoRAs}}</textarea></label>
+</fieldset>{{end}}
+
+{{if .Flags.UseIPAdapter}}<fieldset><legend>IP-Adapter</legend>
+  <label class="check"><input type="checkbox" name="ip_enabled"{{if .IP.Enabled}} checked{{end}}> Use an IP-Adapter</label>
+  <label>Reference image <input type="file" name="ip_adapter_image" accept="image/png,image/jpeg,image/gif,image/webp"></label>
+  {{with .IP.ImageURL}}<div><img class="thumb" src="{{.}}" alt=""></div>{{end}}
+  <div class="row">
+    <label>Weight <input name="ip_weight" value="{{.IP.Weight}}"></label>
+    <label>Weight type <input name="ip_weight_type" value="{{.IP.WeightType}}" placeholder="linear"></label>
+    <label>Start at <input name="ip_start_at" value="{{.IP.StartAt}}"></label>
+    <label>End at <input name="ip_end_at" value="{{.IP.EndAt}}"></label>
+  </div>
+  <div class="row">
+    <label>CLIP vision model <input name="ip_clip_vision_model" value="{{.IP.ClipVisionModel}}"></label>
+    <label>IP-Adapter model <input name="ip_model_name" value="{{.IP.ModelName}}"></label>
+  </div>
+</fieldset>{{end}}
+
+{{if .Flags.UseControlnet}}<fieldset><legend>ControlNet</legend>
+  {{range .ControlNets}}{{$slotType := .Type}}<div class="row">
+    <label>Type <select name="cn_{{.Slot}}_type">
+      <option value="">— none —</option>
+      {{range $.ControlNetTypes}}<option value="{{.}}"{{if eq . $slotType}} selected{{end}}>{{.}}</option>{{end}}
+    </select></label>
+    <label>Strength <input name="cn_{{.Slot}}_strength" value="{{.Strength}}"></label>
+    <label>Model name contains <input name="cn_{{.Slot}}_model_pattern" value="{{.ModelPattern}}"></label>
+    <label>Image <input type="file" name="cn_{{.Slot}}_image" accept="image/png,image/jpeg,image/gif,image/webp"></label>
+    <label class="check"><input type="checkbox" name="cn_{{.Slot}}_reference"{{if .IsReference}} checked{{end}}> Reference image</label>
+    <input type="hidden" name="cn_{{.Slot}}_keep" value="{{.Keep}}">
+  </div>{{end}}
+</fieldset>{{end}}
+
+{{if .Flags.UseMaskRegion}}<fieldset><legend>Mask regions</legend>
+  <p class="hint">A PNG painted in flat colours on white. Each colour becomes a region you can prompt by name.</p>
+  <label>Reference image (PNG) <input type="file" name="mask_reference" accept="image/png"></label>
+  {{if .MaskKeywords}}<p>Regions found: {{range .MaskKeywords}}<span class="chip">{{.}}</span>{{end}}</p>
+  <label class="check"><input type="checkbox" name="clear_mask"> Remove the mask regions</label>{{end}}
+</fieldset>{{end}}
+
+{{if .Flags.UseCoordinatesRegion}}<fieldset><legend>Box regions</legend>
+  <label>One per line: keyword, width, height, x, y
+    <textarea name="coords" rows="3" placeholder="left 512 1024 0 0">{{.Coords}}</textarea></label>
+</fieldset>{{end}}
+
+{{if .Flags.UseTypeAttributes}}<fieldset><legend>Output settings</legend>
+  <div class="row">
+    <label>Output type <select name="output_type"><option value="">— the generator's —</option>{{template "type_options" (dict "Selected" .OutputType)}}</select></label>
+  </div>
+  <label>Attributes (JSON)
+    <textarea name="output_attributes" rows="3" spellcheck="false" placeholder='{"width": 768, "height": 1152}'>{{.OutputAttributes}}</textarea></label>
+</fieldset>{{end}}
+{{end}}

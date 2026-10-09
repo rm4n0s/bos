@@ -4,15 +4,23 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/rm4n0s/bos/internal/apptest"
+	"github.com/rm4n0s/bos/internal/service"
 )
 
 func check(t *testing.T, err error) {
@@ -184,3 +192,89 @@ func mustNotContain(t *testing.T, what, text string, unwanted ...string) {
 }
 
 func jsonUnmarshal(s string, v any) error { return json.Unmarshal([]byte(s), v) }
+
+// part is one field or file of a submitted dialog.
+type part struct {
+	name     string
+	value    string // a text field when filename is empty
+	filename string
+	data     []byte
+}
+
+// submit sends a dialog the way Datastar does with contentType 'form':
+// multipart, with the Datastar header.
+func (u *testUI) submit(method, path string, parts ...part) reply {
+	u.t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for _, p := range parts {
+		if p.filename == "" {
+			check(u.t, mw.WriteField(p.name, p.value))
+			continue
+		}
+		w, err := mw.CreateFormFile(p.name, p.filename)
+		check(u.t, err)
+		_, err = w.Write(p.data)
+		check(u.t, err)
+	}
+	check(u.t, mw.Close())
+	return u.send(method, path, &buf, map[string]string{
+		"Datastar-Request": "true", "Accept": "text/event-stream", "Content-Type": mw.FormDataContentType(),
+	})
+}
+
+func field(name, value string) part { return part{name: name, value: value} }
+func file(name, filename string, data []byte) part {
+	return part{name: name, filename: filename, data: data}
+}
+
+// png returns a valid PNG of the given size filled with white.
+func png1() []byte {
+	var buf bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.White)
+	if err := pngEncode(&buf, img); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+
+// twoColours is white with a red left half and a blue right half.
+func twoColours() []byte {
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	draw.Draw(img, img.Bounds(), image.NewUniform(color.White), image.Point{}, draw.Src)
+	draw.Draw(img, image.Rect(0, 0, 2, 4), image.NewUniform(color.RGBA{R: 255, A: 255}), image.Point{}, draw.Src)
+	draw.Draw(img, image.Rect(2, 0, 4, 4), image.NewUniform(color.RGBA{B: 255, A: 255}), image.Point{}, draw.Src)
+	var buf bytes.Buffer
+	if err := pngEncode(&buf, img); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+
+func pngEncode(w io.Writer, img image.Image) error { return png.Encode(w, img) }
+
+// example reads an example workflow shipped with the project.
+func example(t *testing.T, kind, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "examples", "workflows", kind, name))
+	check(t, err)
+	return string(b)
+}
+
+// stored lists the files below a directory.
+func stored(t *testing.T, dir string) []string {
+	t.Helper()
+	var out []string
+	_ = filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			out = append(out, p)
+		}
+		return nil
+	})
+	return out
+}
+
+func serviceCommand(code string) service.CommandInput {
+	return service.CommandInput{Name: "c", Code: code}
+}

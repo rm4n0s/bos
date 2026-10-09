@@ -39,7 +39,7 @@ type serverSignals struct {
 }
 
 func (u *UI) serverRoutes() {
-	u.mux.HandleFunc("GET /servers", func(w http.ResponseWriter, r *http.Request) {
+	u.handle("GET /servers", func(w http.ResponseWriter, r *http.Request) {
 		t, err := u.serversTable(r)
 		if err != nil {
 			u.failPage(w, r, err)
@@ -47,14 +47,14 @@ func (u *UI) serverRoutes() {
 		}
 		u.renderPage(w, r, "servers", page{Title: "Servers", Nav: "servers", Data: t})
 	})
-	u.mux.HandleFunc("GET /ui/servers/table", view(u, func(r *http.Request, _ *struct{}, s *stream) error {
+	u.handle("GET /ui/servers/table", view(u, func(r *http.Request, _ *struct{}, s *stream) error {
 		t, err := u.serversTable(r)
 		if err != nil {
 			return err
 		}
 		return s.render("servers_table", t)
 	}))
-	u.mux.HandleFunc("GET /ui/servers/{id}/edit", view(u, func(r *http.Request, _ *struct{}, s *stream) error {
+	u.handle("GET /ui/servers/{id}/edit", view(u, func(r *http.Request, _ *struct{}, s *stream) error {
 		id, err := pathID(r, "id")
 		if err != nil {
 			return err
@@ -67,7 +67,7 @@ func (u *UI) serverRoutes() {
 			"id": v.ID, "name": v.Name, "host": v.Host, "code_name": v.CodeName, "is_local": v.IsLocal, "max_concurrent_jobs": v.MaxConcurrentJobs,
 		}}})
 	}))
-	u.mux.HandleFunc("POST /ui/servers", act(u, "servers-error", func(r *http.Request, in *serverSignals, s *stream) error {
+	u.handle("POST /ui/servers", act(u, "servers-error", func(r *http.Request, in *serverSignals, s *stream) error {
 		f := in.Servers.Form
 		server := domain.Server{Name: f.Name, Host: f.Host, CodeName: f.CodeName, IsLocal: f.IsLocal, MaxConcurrentJobs: int(f.MaxConcurrentJobs)}
 		var err error
@@ -81,7 +81,7 @@ func (u *UI) serverRoutes() {
 		}
 		return u.refreshServers(r, s, "Server saved.")
 	}))
-	u.mux.HandleFunc("POST /ui/servers/{id}/test", act(u, "", func(r *http.Request, _ *struct{}, s *stream) error {
+	u.handle("POST /ui/servers/{id}/test", act(u, "", func(r *http.Request, _ *struct{}, s *stream) error {
 		id, err := pathID(r, "id")
 		if err != nil {
 			return err
@@ -91,7 +91,7 @@ func (u *UI) serverRoutes() {
 		}
 		return s.toast("ok", "The server answers.")
 	}))
-	u.mux.HandleFunc("DELETE /ui/servers/{id}", act(u, "", func(r *http.Request, _ *struct{}, s *stream) error {
+	u.handle("DELETE /ui/servers/{id}", act(u, "", func(r *http.Request, _ *struct{}, s *stream) error {
 		id, err := pathID(r, "id")
 		if err != nil {
 			return err

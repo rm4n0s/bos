@@ -2,12 +2,13 @@ package ui
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/rm4n0s/bos/internal/domain"
 )
 
 func (u *UI) homeRoutes() {
-	u.mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+	u.handle("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		p := domain.Page{Number: 1, Size: domain.MaxPageSize}
 		ctx := r.Context()
 		servers, err := u.Services.Servers.List(ctx, p)
@@ -45,10 +46,15 @@ func (u *UI) failPage(w http.ResponseWriter, r *http.Request, err error) {
 
 // pagerData is what the pager fragment needs.
 type pagerData struct {
-	Base                          string
+	// Base is the fragment's address, with its filters; Sep joins the page number to it.
+	Base, Sep                     string
 	Page, TotalPages, Total, Size int
 }
 
 func pagerOf[T any](base string, p domain.Paged[T]) pagerData {
-	return pagerData{Base: base, Page: p.Page, TotalPages: p.TotalPages, Total: p.Total, Size: p.PageSize}
+	sep := "?"
+	if strings.Contains(base, "?") {
+		sep = "&"
+	}
+	return pagerData{Base: base, Sep: sep, Page: p.Page, TotalPages: p.TotalPages, Total: p.Total, Size: p.PageSize}
 }

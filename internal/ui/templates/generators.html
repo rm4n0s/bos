@@ -1,0 +1,72 @@
+{{define "content"}}<section data-signals='{"_armed":0,"generators":{"open":false}}'>
+  <div class="bar">
+    <h1>Generators</h1>
+    <button type="button" data-on:click="@get('/ui/generators/new')">Add generator</button>
+  </div>
+  <p class="hint">A generator is a ComfyUI workflow (API format) that makes the main image, video or 3D result.</p>
+  {{template "generators_table" .Data}}
+  <div class="modal" data-class:open="$generators.open">
+    <form class="dialog wide stack" id="generators-form" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/generators', {contentType: 'form'})">
+      <div id="generator-form-body">{{template "generator_form" .Data.Blank}}</div>
+      <p class="error" id="generators-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$generators.open=false">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</section>{{end}}
+
+{{define "generators_table"}}<div id="generators-table">
+{{if not .Items}}<p class="empty">No generators yet — add one from a ComfyUI workflow.</p>{{else}}
+<table>
+  <thead><tr><th>Name</th><th>Code name</th><th>Output</th><th>Output node</th><th>Seed</th><th></th></tr></thead>
+  <tbody>
+  {{range .Items}}<tr id="generator-{{.ID}}">
+    <td>{{.Name}}</td>
+    <td><code>{{.CodeName}}</code></td>
+    <td>{{.OutputType}}</td>
+    <td>{{.OutputNodeTitle}} <span class="muted">({{.OutputNodeClassType}})</span></td>
+    <td>{{if .HasRandomSeed}}random{{else}}fixed{{end}}</td>
+    <td class="actions">
+      <button type="button" class="secondary" data-on:click="@get('/ui/generators/{{.ID}}/edit')">Edit</button>
+      {{template "delete_button" (dict "ID" .ID "URL" (printf "/ui/generators/%d" .ID))}}
+    </td>
+  </tr>{{end}}
+  </tbody>
+</table>
+{{template "pager" .Pager}}
+{{end}}
+</div>{{end}}
+
+{{define "generator_form"}}
+<h2>{{if .ID}}Edit generator{{else}}Add generator{{end}}</h2>
+<input type="hidden" name="id" value="{{.ID}}">
+<div class="row">
+  <label>Name <input name="name" maxlength="100" value="{{.Name}}" required></label>
+  <label>Code name <input name="code_name" maxlength="100" value="{{.CodeName}}" placeholder="anime" required></label>
+</div>
+<label>Workflow (ComfyUI, API format)
+  <textarea name="workflow" rows="8" spellcheck="false" placeholder='{"3": {"class_type": "KSampler", ...}}'>{{.Workflow}}</textarea>
+</label>
+<label>…or load it from a file
+  <input type="file" accept=".json,application/json" data-on:change="const f = el.files[0]; if (f) { f.text().then(t => { el.closest('form').elements.workflow.value = t }) }">
+</label>
+<div class="buttons start"><button type="button" class="secondary" data-on:click="@post('/ui/generators/analyze', {contentType: 'form'})">Analyze workflow</button>
+  <span class="muted">Fills the fields below from the workflow and offers its node titles.</span></div>
+{{if .Analysed}}<p class="ok">Found: {{.OutputType}} output at “{{.NodeTitle}}” ({{.NodeClass}}).</p>{{end}}
+<div class="row">
+  <label>Positive prompt node <input name="positive_prompt_title" list="prompt-titles" value="{{.PositiveTitle}}"></label>
+  <label>Negative prompt node <input name="negative_prompt_title" list="prompt-titles" value="{{.NegativeTitle}}"></label>
+</div>
+<datalist id="prompt-titles">{{range .PromptTitles}}<option value="{{.}}">{{end}}</datalist>
+<div class="row">
+  <label>Output type <select name="output_type">{{template "type_options" (dict "Selected" .OutputType)}}</select></label>
+  <label>Output node title <input name="output_node_title" value="{{.NodeTitle}}"></label>
+  <label>Output node class <input name="output_node_class_type" value="{{.NodeClass}}"></label>
+</div>
+<label>Output attributes (JSON, optional)
+  <textarea name="output_attributes" rows="3" spellcheck="false" placeholder='{"width": 1024, "height": 1024, "steps": 28}'>{{.Attributes}}</textarea>
+</label>
+<label class="check"><input type="checkbox" name="has_random_seed"{{if .RandomSeed}} checked{{end}}> Give every job a new random seed</label>
+{{end}}

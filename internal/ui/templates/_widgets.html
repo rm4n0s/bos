@@ -1,0 +1,9 @@
+{{/* A button that asks again before it sends the delete. Needs .URL and .ID; $_armed holds the id being confirmed. */}}
+{{define "delete_button"}}<button type="button" class="danger"
+  data-on:click="$_armed === {{.ID}} ? @delete('{{.URL}}') : $_armed = {{.ID}}"
+  data-text="$_armed === {{.ID}} ? 'Really delete?' : 'Delete'">Delete</button>{{end}}
+
+{{define "type_options"}}<option value="image"{{if eq .Selected "image"}} selected{{end}}>image</option>
+<option value="video"{{if eq .Selected "video"}} selected{{end}}>video</option>
+<option value="3d"{{if eq .Selected "3d"}} selected{{end}}>3d</option>
+<option value="unknown"{{if eq .Selected "unknown"}} selected{{end}}>unknown</option>{{end}}

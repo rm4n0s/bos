@@ -3,7 +3,7 @@
 {{define "toast"}}<div class="toast {{.Kind}}" role="status" data-init="setTimeout(() => el.remove(), 7000)">{{.Message}}</div>{{end}}
 
 {{define "pager"}}{{if gt .TotalPages 1}}<div class="pager">
-  <button type="button" data-on:click="@get('{{.Base}}?page={{sub .Page 1}}')"{{if le .Page 1}} disabled{{end}}>Previous</button>
+  <button type="button" data-on:click="@get('{{.Base}}{{.Sep}}page={{sub .Page 1}}')"{{if le .Page 1}} disabled{{end}}>Previous</button>
   <span>Page {{.Page}} of {{.TotalPages}} · {{.Total}} in all</span>
-  <button type="button" data-on:click="@get('{{.Base}}?page={{add .Page 1}}')"{{if ge .Page .TotalPages}} disabled{{end}}>Next</button>
+  <button type="button" data-on:click="@get('{{.Base}}{{.Sep}}page={{add .Page 1}}')"{{if ge .Page .TotalPages}} disabled{{end}}>Next</button>
 </div>{{end}}{{end}}
