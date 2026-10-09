@@ -271,3 +271,11 @@ The harness is temporary and is removed in step 12.
 - Deviations from the spec: none.
   - The screenshots were taken with headless Firefox against the program with the stand-in ComfyUI; the pictures in the jobs screenshot are generated placeholders, not real model output.
   - Nothing in the guide could be checked against a real ComfyUI or Civitai; the walkthrough of the web page was followed on the stand-in only.
+
+## After step 14 – Guide for AI agents
+- Branch: feat/agent-guide
+- Last code commit: 4489cdb
+- Date: 2026-10-10
+- Delivered: `docs/agents.md`, a short guide for a program that drives `bosctl`: setup, eleven rules (always `--json`; the exit codes; the error envelope and its tags; `preview` exits 0 even for an invalid command, so read `valid` and `jobs`; preview before add before run; quoting; keeping ids and paging; `--wait` and what each ending means, including a halted batch and a timeout; destructive calls; one writer per command; downloading files), the command language in ten lines, a worked session and a table of failures with the action to take. `TestTutorial` now runs the `bosctl` blocks of both the tutorial and the agent guide, and checks the JSON of the preview, the refused add and the finished run that the guide quotes. The README and the user guide link to it. Not a numbered step of the plan.
+- Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
+- Deviations from the spec: none.
