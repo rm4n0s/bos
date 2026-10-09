@@ -126,7 +126,15 @@ type CommandStore interface {
 // JobStore keeps jobs.
 type JobStore interface {
 	CreateMany(ctx context.Context, jobs []*domain.Job) error
+	Update(ctx context.Context, j *domain.Job) error
+	Get(ctx context.Context, id domain.ID) (*domain.Job, error)
+	ListByCommand(ctx context.Context, command domain.ID, status domain.Status, p domain.Page) (domain.Paged[domain.Job], error)
+	StatusCounts(ctx context.Context, command domain.ID) (map[domain.Status]int, error)
 	DeleteByCommand(ctx context.Context, command domain.ID) ([]string, error)
+	QueueCommand(ctx context.Context, command domain.ID) (int, error)
+	QueueJob(ctx context.Context, id domain.ID) (bool, error)
+	StopQueued(ctx context.Context, command, exceptID domain.ID) (int, error)
+	StopJob(ctx context.Context, id domain.ID) (bool, error)
 }
 
 // Files is the file storage the services use: they remove the files of what
@@ -144,6 +152,12 @@ type Fleet interface {
 	Available(serverID domain.ID) bool
 	// Client returns the connection to a server.
 	Client(ctx context.Context, s domain.Server) (comfy.Client, error)
+}
+
+// Dispatcher is told when there is work for the scheduler (SPEC §8.1): a
+// command was run, or a job.
+type Dispatcher interface {
+	Wake()
 }
 
 // ---- construction ----
@@ -171,12 +185,14 @@ func (l Limits) options() command.Options {
 
 // Deps is everything the services need.
 type Deps struct {
-	Store  Store
-	Files  Files
-	Fleet  Fleet // optional: without it the preview gives no server warnings
-	Dirs   Dirs
-	Limits Limits
-	Logger *slog.Logger
+	Store Store
+	Files Files
+	Fleet Fleet // optional: without it the preview gives no server warnings
+	// Dispatcher is woken when jobs are queued; optional.
+	Dispatcher Dispatcher
+	Dirs       Dirs
+	Limits     Limits
+	Logger     *slog.Logger
 	// NewSeed returns a random 64-bit number; the default reads crypto/rand.
 	NewSeed func() uint64
 }
@@ -191,6 +207,7 @@ type Services struct {
 	Tags       *TagService
 	Projects   *ProjectService
 	Commands   *CommandService
+	Jobs       *JobService
 }
 
 // New builds the services over deps.
@@ -199,7 +216,7 @@ func New(deps Deps) *Services {
 		deps.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
 	if deps.NewSeed == nil {
-		deps.NewSeed = randomSeed
+		deps.NewSeed = RandomSeed
 	}
 	b := base{Deps: deps}
 	return &Services{
@@ -211,10 +228,12 @@ func New(deps Deps) *Services {
 		Tags:       &TagService{base: b},
 		Projects:   &ProjectService{base: b},
 		Commands:   &CommandService{base: b},
+		Jobs:       &JobService{base: b},
 	}
 }
 
-func randomSeed() uint64 {
+// RandomSeed returns a random 64-bit number from crypto/rand.
+func RandomSeed() uint64 {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		panic(err) // crypto/rand does not fail on supported systems
@@ -224,6 +243,23 @@ func randomSeed() uint64 {
 
 // base is what every service shares.
 type base struct{ Deps }
+
+// wake tells the scheduler that there may be work.
+func (b base) wake() {
+	if b.Dispatcher != nil {
+		b.Dispatcher.Wake()
+	}
+}
+
+// syncCommand sets the status of a command from the statuses of its jobs. The
+// scheduler does the same after every job it moves (SPEC §7.1).
+func (b base) syncCommand(ctx context.Context, r Repos, id domain.ID) error {
+	counts, err := r.Jobs().StatusCounts(ctx, id)
+	if err != nil {
+		return err
+	}
+	return r.Commands().SetStatus(ctx, id, domain.CommandStatusOf(counts))
+}
 
 // removeFiles deletes the files a committed deletion left behind. A file that
 // cannot be removed is logged, not returned: the data is gone and the caller

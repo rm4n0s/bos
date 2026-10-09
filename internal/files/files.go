@@ -84,3 +84,37 @@ func (s *Store) Open(path string) (io.ReadCloser, error) {
 	}
 	return f, nil
 }
+
+// Write stores the content of r at path, creating the folders above it. The
+// content goes to a temporary file first and is renamed into place when it is
+// complete, so a reader never sees half a file and a failed copy leaves the old
+// file as it was.
+func (s *Store) Write(path string, r io.Reader) (err error) {
+	abs, err := s.resolve(path)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(abs), 0o750); err != nil {
+		return errors.NewErr("FileStoreFailure", err).SetMetadata("path", path, "operation", "mkdir")
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(abs), ".write-*")
+	if err != nil {
+		return errors.NewErr("FileStoreFailure", err).SetMetadata("path", path, "operation", "create")
+	}
+	defer func() {
+		if err != nil {
+			_ = tmp.Close()           // already failed; the first error is the one to report
+			_ = os.Remove(tmp.Name()) // best effort: the temporary file is hidden anyway
+		}
+	}()
+	if _, err = io.Copy(tmp, r); err != nil {
+		return errors.NewErr("FileStoreFailure", err).SetMetadata("path", path, "operation", "write")
+	}
+	if err = tmp.Close(); err != nil {
+		return errors.NewErr("FileStoreFailure", err).SetMetadata("path", path, "operation", "close")
+	}
+	if err = os.Rename(tmp.Name(), abs); err != nil {
+		return errors.NewErr("FileStoreFailure", err).SetMetadata("path", path, "operation", "rename")
+	}
+	return nil
+}

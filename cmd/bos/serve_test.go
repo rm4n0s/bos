@@ -121,7 +121,7 @@ func TestServeDirectoryFailure(t *testing.T) {
 func TestServeStoreFailure(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "no", "such", "dir", "bos.db")
 	err := serve(t.Context(), "", testEnv(t, map[string]string{"BOS_DATABASE": missing}), testLogger(t), nil)
-	if appErr := routeOf(t, err); !appErr.HasRoute("serve->Open.StoreFailure") {
+	if appErr := routeOf(t, err); !appErr.HasRoute("serve->newApp->Open.StoreFailure") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 }

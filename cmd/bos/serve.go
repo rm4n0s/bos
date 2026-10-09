@@ -10,7 +10,6 @@ import (
 	"github.com/rm4n0s/bos/internal/api"
 	"github.com/rm4n0s/bos/internal/config"
 	"github.com/rm4n0s/bos/internal/files"
-	"github.com/rm4n0s/bos/internal/store"
 	"github.com/rm4n0s/errors"
 )
 
@@ -33,12 +32,12 @@ func serve(ctx context.Context, configPath string, getenv func(string) string, l
 		return err
 	}
 
-	db, err := store.Open(ctx, cfg.Database)
+	a, err := newApp(ctx, cfg, logger)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		closeErr := db.Close()
+		closeErr := a.close()
 		switch {
 		case closeErr == nil:
 		case err == nil:
@@ -47,6 +46,9 @@ func serve(ctx context.Context, configPath string, getenv func(string) string, l
 			logError(logger, closeErr)
 		}
 	}()
+
+	stopScheduler := a.run(ctx, logger)
+	defer stopScheduler()
 
 	lis, err := (&net.ListenConfig{}).Listen(ctx, "tcp", cfg.ListenAddr)
 	if err != nil {

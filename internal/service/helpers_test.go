@@ -63,6 +63,7 @@ type env struct {
 	root  string
 	dirs  Dirs
 	fleet *fakeFleet
+	wakes *atomic.Int64
 	files *files.Store
 	logs  *strings.Builder
 }
@@ -87,15 +88,16 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	fs, err := files.NewStore([]string{root})
 	check(t, err)
 	fleet := newFakeFleet()
+	wakes := &atomic.Int64{}
 	logs := &strings.Builder{}
 	deps := Deps{
-		Store: NewStore(db), Files: fs, Fleet: fleet, Dirs: dirs, Logger: newLogger(logs),
+		Store: NewStore(db), Files: fs, Fleet: fleet, Dirs: dirs, Logger: newLogger(logs), Dispatcher: wakeCounter{wakes},
 		NewSeed: counter(100),
 	}
 	for _, o := range opts {
 		o(&deps)
 	}
-	return &env{Services: New(deps), db: db, repos: deps.Store.Repos(), root: root, dirs: dirs, fleet: fleet, files: fs, logs: logs}
+	return &env{Services: New(deps), db: db, repos: deps.Store.Repos(), root: root, dirs: dirs, fleet: fleet, wakes: wakes, files: fs, logs: logs}
 }
 
 // write creates a file under the environment's root and returns its path.
@@ -183,3 +185,8 @@ func cancellable(t *testing.T) (context.Context, context.CancelFunc) {
 	t.Helper()
 	return context.WithCancel(t.Context())
 }
+
+// wakeCounter counts how often the scheduler is woken.
+type wakeCounter struct{ n *atomic.Int64 }
+
+func (w wakeCounter) Wake() { w.n.Add(1) }

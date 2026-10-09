@@ -3,6 +3,7 @@ package files
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rm4n0s/errors"
@@ -132,4 +133,47 @@ func wantTag(t *testing.T, err error, entry, tag string) {
 	if appErr.Tag != tag || !appErr.HasRoute(entry) {
 		t.Errorf("unexpected failure path: %s (want %s ... %s)", appErr.Route(), entry, tag)
 	}
+}
+
+type failingReader struct{ after int }
+
+func (f *failingReader) Read(p []byte) (int, error) {
+	if f.after == 0 {
+		return 0, os.ErrDeadlineExceeded
+	}
+	f.after--
+	p[0] = 'x'
+	return 1, nil
+}
+
+func TestStoreWrite(t *testing.T) {
+	root := t.TempDir()
+	st, err := NewStore([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "results", "7", "a.png")
+	if err := st.Write(path, strings.NewReader("first")); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Write(path, strings.NewReader("second")); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(path); err != nil || string(b) != "second" {
+		t.Errorf("content = %q, %v", b, err)
+	}
+
+	// A copy that fails halfway leaves the old file and no stray file.
+	err = st.Write(path, &failingReader{after: 3})
+	wantTag(t, err, "Store.Write", "FileStoreFailure")
+	if b, _ := os.ReadFile(path); string(b) != "second" {
+		t.Errorf("a failed write changed the file: %q", b)
+	}
+	if entries, _ := os.ReadDir(filepath.Dir(path)); len(entries) != 1 {
+		t.Errorf("%d files in the folder, want only the result", len(entries))
+	}
+
+	wantTag(t, st.Write(filepath.Join(t.TempDir(), "x"), strings.NewReader("x")), "Store.Write", "FileOutsideStorage")
+	// A file in the way of a folder.
+	wantTag(t, st.Write(filepath.Join(path, "below"), strings.NewReader("x")), "Store.Write", "FileStoreFailure")
 }

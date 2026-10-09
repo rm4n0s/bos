@@ -84,9 +84,10 @@ func All() []Tag {
 		{Name: "CommandTooLarge", Group: CommandText},
 
 		{Name: "CommandBusy", Group: State},
-		{Name: "CommandNotRunnable", Group: State, Pending: true},
-		{Name: "CommandNotFinished", Group: State, Pending: true},
-		{Name: "JobNotRunnable", Group: State, Pending: true},
+		{Name: "CommandNotRunnable", Group: State},
+		{Name: "CommandNotFinished", Group: State},
+		{Name: "JobNotRunnable", Group: State},
+		{Name: "JobBusy", Group: State},
 		{Name: "ReplInvalid", Group: State, Pending: true},
 
 		{Name: "WorkflowInvalid", Group: WorkflowGroup},

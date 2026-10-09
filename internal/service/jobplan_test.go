@@ -121,7 +121,7 @@ func TestResultPaths(t *testing.T) {
 }
 
 func TestDefaults(t *testing.T) {
-	first, second := randomSeed(), randomSeed()
+	first, second := RandomSeed(), RandomSeed()
 	if first == second {
 		t.Error("two random seeds are equal")
 	}
@@ -132,4 +132,20 @@ func TestDefaults(t *testing.T) {
 	}
 	// A default logger accepts the warning of a file that cannot be removed.
 	s.Groups.removeFiles([]string{"/outside/the/storage"})
+}
+
+func TestRandomSeedGeneratorsLeaveTheSeedToTheRun(t *testing.T) {
+	e := newEnv(t)
+	w := e.world(t)
+	_, err := e.Generators.Create(ctx(t), domain.Generator{Name: "dice", CodeName: "dice", Workflow: w.generator.Workflow, HasRandomSeed: true})
+	check(t, err)
+
+	plain := e.jobsOf(t, e.add(t, w, "gpu1 -$ dice: characters(a)").ID)[0]
+	if plain.Seed != nil {
+		t.Errorf("seed = %d: a random-seed generator picks its seed when the job runs", *plain.Seed)
+	}
+	set := e.jobsOf(t, e.add(t, w, "gpu1 -$ dice: characters(a) repeat 2 with seed=5").ID)
+	if set[0].Seed == nil || *set[0].Seed != 5 || *set[1].Seed != 6 {
+		t.Errorf("seeds = %v %v, want the command's 5 and 6", set[0].Seed, set[1].Seed)
+	}
 }

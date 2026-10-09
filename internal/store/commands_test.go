@@ -239,3 +239,21 @@ func mustJobsFor(t *testing.T, r *Repos, project, command domain.ID, n int) []*d
 	}
 	return jobs
 }
+
+func TestListCommandsByStatus(t *testing.T) {
+	r := newDB(t).Repos()
+	p := mustProject(t, r, "p")
+	a := mustCommand(t, r, p.ID, "a", 0)
+	b := mustCommand(t, r, p.ID, "b", 0)
+	c := mustCommand(t, r, p.ID, "c", 0)
+	check(t, r.Commands.SetStatus(ctx(t), a.ID, domain.StatusQueued))
+	check(t, r.Commands.SetStatus(ctx(t), c.ID, domain.StatusProcessing))
+	got, err := r.Commands.ListByStatus(ctx(t), domain.StatusQueued, domain.StatusProcessing)
+	check(t, err)
+	if len(got) != 2 || got[0].ID != a.ID || got[1].ID != c.ID {
+		t.Errorf("commands = %+v, want a and c but not b (%d)", got, b.ID)
+	}
+	if got, _ = r.Commands.ListByStatus(ctx(t)); len(got) != 0 {
+		t.Errorf("no status: %+v", got)
+	}
+}

@@ -50,9 +50,13 @@ func (s *CommandService) jobsOf(cmd *domain.Command, parsed *command.Command, x 
 			id := cat.server(pj.Preferred).ID
 			j.PreferredServerID = &id
 		}
-		if seed, ok := out.Attrs["seed"]; ok && seed.Kind == command.ValueInt {
-			n := seed.Int
-			j.Seed = &n
+		// A generator with a random seed gets a fresh seed when the job runs,
+		// unless the command sets one.
+		if _, set := x.Settings["seed"]; set || !x.Generator.HasRandomSeed {
+			if seed, ok := out.Attrs["seed"]; ok && seed.Kind == command.ValueInt {
+				n := seed.Int
+				j.Seed = &n
+			}
 		}
 		for _, l := range pj.LoRAs {
 			j.LoRAs = append(j.LoRAs, domain.LoRA{Name: l.Name, StrengthModel: l.StrengthModel, StrengthClip: l.StrengthClip})

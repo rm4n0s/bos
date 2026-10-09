@@ -228,6 +228,52 @@ func (r *JobRepo) ListQueued(ctx context.Context, after QueueCursor, limit int) 
 	return mapAll(recs, jobRecord.domain), nil
 }
 
+// QueueFilter narrows the queue to the jobs a server may take at the first
+// stage of a job (SPEC §8.7). Jobs that are already generated pass: which server
+// may run their next fixer step depends on the steps, which the caller checks.
+type QueueFilter struct {
+	// Server is the server that asks for work.
+	Server domain.ID
+	// Commands are the commands the server is a target of (SPEC §6.9). A job of
+	// any other command passes only once generated. A nil list means every
+	// command.
+	Commands []domain.ID
+	// Healthy are the servers whose own jobs stay with them: the ones that are
+	// available or have been unavailable for less than the grace period. An
+	// unpinned job that prefers any other server, a deleted one included, may
+	// go elsewhere. A nil list means every preferred server is healthy.
+	Healthy []domain.ID
+}
+
+// ListQueuedFor is ListQueued limited to what a server may take: jobs that are
+// already generated, and jobs of its commands that have no preferred server,
+// prefer this server, or are unpinned and prefer a server that is not healthy.
+func (r *JobRepo) ListQueuedFor(ctx context.Context, after QueueCursor, limit int, f QueueFilter) ([]domain.Job, error) {
+	q := r.conn(ctx).
+		Where("status = ?", string(domain.StatusQueued)).
+		Where("queue_seq > ? OR (queue_seq = ? AND id > ?)", after.Seq, after.Seq, after.ID)
+
+	db := r.conn(ctx)
+	generation := db.Where("preferred_server_id IS NULL").Or("preferred_server_id = ?", f.Server)
+	switch {
+	case f.Healthy == nil:
+	case len(f.Healthy) == 0:
+		generation = generation.Or("pinned = ?", false)
+	default:
+		generation = generation.Or(db.Where("pinned = ?", false).Where("preferred_server_id NOT IN ?", f.Healthy))
+	}
+	if f.Commands != nil {
+		generation = db.Where("command_id IN ?", f.Commands).Where(generation)
+	}
+	q = q.Where(db.Where("is_generated = ?", true).Or(generation))
+
+	recs, err := all[jobRecord](q.Order("queue_seq, id").Limit(limit), "list queued jobs")
+	if err != nil {
+		return nil, err
+	}
+	return mapAll(recs, jobRecord.domain), nil
+}
+
 // Claim takes a queued job: it becomes processing, and only one caller can win
 // (SPEC §14.3). It reports whether this caller won.
 func (r *JobRepo) Claim(ctx context.Context, id domain.ID) (bool, error) {

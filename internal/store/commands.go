@@ -152,6 +152,20 @@ func (r *CommandRepo) ListByProject(ctx context.Context, project domain.ID, p do
 	return domain.NewPaged(out, page.Total, p), nil
 }
 
+// ListByStatus returns the commands that are in one of the statuses, by id. The
+// scheduler uses it to repair the status of commands after a restart.
+func (r *CommandRepo) ListByStatus(ctx context.Context, statuses ...domain.Status) ([]domain.Command, error) {
+	names := make([]string, len(statuses))
+	for i, st := range statuses {
+		names[i] = string(st)
+	}
+	recs, err := all[commandRecord](r.conn(ctx).Where("status IN ?", names).Order("id"), "list commands")
+	if err != nil {
+		return nil, err
+	}
+	return mapAll(recs, commandRecord.domain), nil
+}
+
 // AllByProject returns every command of a project in order.
 func (r *CommandRepo) AllByProject(ctx context.Context, project domain.ID) ([]domain.Command, error) {
 	recs, err := all[commandRecord](r.conn(ctx).Where("project_id = ?", project).Order("order_no, id"), "list commands")

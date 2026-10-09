@@ -107,3 +107,29 @@ func TestItemFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestCommandStatusOf(t *testing.T) {
+	tests := []struct {
+		name string
+		jobs map[Status]int
+		want Status
+	}{
+		{"no jobs", nil, StatusIdle},
+		{"all idle", map[Status]int{StatusIdle: 3}, StatusIdle},
+		{"all finished", map[Status]int{StatusFinished: 3}, StatusFinished},
+		{"finished and idle", map[Status]int{StatusFinished: 2, StatusIdle: 1}, StatusIdle},
+		{"one queued", map[Status]int{StatusFinished: 2, StatusQueued: 1}, StatusQueued},
+		{"one processing beats queued", map[Status]int{StatusQueued: 5, StatusProcessing: 1}, StatusProcessing},
+		{"an error while others still run", map[Status]int{StatusError: 1, StatusProcessing: 1}, StatusProcessing},
+		{"an error while others wait", map[Status]int{StatusError: 1, StatusQueued: 1}, StatusQueued},
+		{"an error and nothing moving", map[Status]int{StatusError: 1, StatusFinished: 4, StatusIdle: 2}, StatusError},
+		{"counts of zero", map[Status]int{StatusProcessing: 0, StatusFinished: 2}, StatusFinished},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CommandStatusOf(tt.jobs); got != tt.want {
+				t.Errorf("CommandStatusOf(%v) = %q, want %q", tt.jobs, got, tt.want)
+			}
+		})
+	}
+}

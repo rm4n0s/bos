@@ -487,17 +487,25 @@ func TestStoreFailureWhenDatabaseIsClosed(t *testing.T) {
 	check(t, db.Close())
 
 	calls := map[string]func() error{
-		"ServerRepo.Create":    func() error { return r.Servers.Create(ctx(t), newServer("x")) },
-		"ServerRepo.All":       func() error { _, err := r.Servers.All(ctx(t)); return err },
-		"ServerRepo.List":      func() error { _, err := r.Servers.List(ctx(t), domain.Page{}); return err },
-		"GeneratorRepo.Get":    func() error { _, err := r.Generators.Get(ctx(t), 1); return err },
-		"GroupRepo.Create":     func() error { return r.Groups.Create(ctx(t), &domain.Group{CodeName: "g"}) },
-		"ItemRepo.AllByGroup":  func() error { _, err := r.Items.AllByGroup(ctx(t), 1); return err },
-		"TagRepo.List":         func() error { _, err := r.Tags.List(ctx(t), domain.TagScopeItem, ""); return err },
-		"ProjectRepo.Delete":   func() error { _, err := r.Projects.Delete(ctx(t), 1); return err },
-		"CommandRepo.Move":     func() error { _, err := r.Commands.Move(ctx(t), 1, 1); return err },
-		"JobRepo.Claim":        func() error { _, err := r.Jobs.Claim(ctx(t), 1); return err },
-		"JobRepo.ListQueued":   func() error { _, err := r.Jobs.ListQueued(ctx(t), QueueCursor{}, 1); return err },
+		"ServerRepo.Create":   func() error { return r.Servers.Create(ctx(t), newServer("x")) },
+		"ServerRepo.All":      func() error { _, err := r.Servers.All(ctx(t)); return err },
+		"ServerRepo.List":     func() error { _, err := r.Servers.List(ctx(t), domain.Page{}); return err },
+		"GeneratorRepo.Get":   func() error { _, err := r.Generators.Get(ctx(t), 1); return err },
+		"GroupRepo.Create":    func() error { return r.Groups.Create(ctx(t), &domain.Group{CodeName: "g"}) },
+		"ItemRepo.AllByGroup": func() error { _, err := r.Items.AllByGroup(ctx(t), 1); return err },
+		"TagRepo.List":        func() error { _, err := r.Tags.List(ctx(t), domain.TagScopeItem, ""); return err },
+		"ProjectRepo.Delete":  func() error { _, err := r.Projects.Delete(ctx(t), 1); return err },
+		"CommandRepo.Move":    func() error { _, err := r.Commands.Move(ctx(t), 1, 1); return err },
+		"CommandRepo.ListByStatus": func() error {
+			_, err := r.Commands.ListByStatus(ctx(t), domain.StatusQueued)
+			return err
+		},
+		"JobRepo.Claim":      func() error { _, err := r.Jobs.Claim(ctx(t), 1); return err },
+		"JobRepo.ListQueued": func() error { _, err := r.Jobs.ListQueued(ctx(t), QueueCursor{}, 1); return err },
+		"JobRepo.ListQueuedFor": func() error {
+			_, err := r.Jobs.ListQueuedFor(ctx(t), QueueCursor{}, 1, QueueFilter{Server: 1, Healthy: []int64{1}})
+			return err
+		},
 		"JobRepo.QueueCommand": func() error { _, err := r.Jobs.QueueCommand(ctx(t), 1); return err },
 		"JobRepo.ReplaceRepl":  func() error { _, err := r.Jobs.ReplaceRepl(ctx(t), newJob(0, "x")); return err },
 	}
@@ -508,4 +516,97 @@ func TestStoreFailureWhenDatabaseIsClosed(t *testing.T) {
 	wantRoute(t, db.Migrate(ctx(t)), "DB.Migrate", "MigrationFailed")
 	_, err = db.SchemaVersion(ctx(t))
 	wantRoute(t, err, "DB.SchemaVersion", "StoreFailure")
+}
+
+func TestListQueuedForFiltersByServer(t *testing.T) {
+	r := newDB(t).Repos()
+	const gpu1, gpu2, gpu3 = 1, 2, 3
+	mk := func(name string, preferred *int64, pinned, generated bool) *domain.Job {
+		j := newJob(1, name)
+		j.PreferredServerID, j.Pinned, j.IsGenerated = preferred, pinned, generated
+		return j
+	}
+	one, two, three := int64(gpu1), int64(gpu2), int64(gpu3)
+	jobs := []*domain.Job{
+		mk("dynamic", nil, false, false),
+		mk("gpu1", &one, false, false),
+		mk("gpu2", &two, false, false),
+		mk("gpu2-pinned", &two, true, false),
+		mk("gpu3", &three, false, false),
+		mk("gpu3-generated", &three, true, true),
+	}
+	check(t, r.Jobs.CreateMany(ctx(t), jobs))
+	_, err := r.Jobs.QueueCommand(ctx(t), 1)
+	check(t, err)
+
+	names := func(f QueueFilter) []string {
+		got, err := r.Jobs.ListQueuedFor(ctx(t), QueueCursor{}, 100, f)
+		check(t, err)
+		var out []string
+		for _, j := range got {
+			out = append(out, j.PositivePrompt)
+		}
+		return out
+	}
+	tests := []struct {
+		name string
+		f    QueueFilter
+		want []string
+	}{
+		{"gpu1, everyone healthy", QueueFilter{Server: gpu1, Healthy: []int64{gpu1, gpu2, gpu3}}, []string{"dynamic", "gpu1", "gpu3-generated"}},
+		{"gpu1, no list given", QueueFilter{Server: gpu1}, []string{"dynamic", "gpu1", "gpu3-generated"}},
+		{"gpu2, everyone healthy", QueueFilter{Server: gpu2, Healthy: []int64{gpu1, gpu2, gpu3}}, []string{"dynamic", "gpu2", "gpu2-pinned", "gpu3-generated"}},
+		{"gpu1, an empty list: no server is healthy", QueueFilter{Server: gpu1, Healthy: []int64{}}, []string{"dynamic", "gpu1", "gpu2", "gpu3", "gpu3-generated"}},
+		{"gpu1 when gpu2 is not healthy", QueueFilter{Server: gpu1, Healthy: []int64{gpu1, gpu3}}, []string{"dynamic", "gpu1", "gpu2", "gpu3-generated"}},
+		{"gpu1 when gpu2 and gpu3 are not healthy", QueueFilter{Server: gpu1, Healthy: []int64{gpu1}}, []string{"dynamic", "gpu1", "gpu2", "gpu3", "gpu3-generated"}},
+		{"a server that nobody prefers, when the others are not healthy", QueueFilter{Server: 99, Healthy: []int64{99}}, []string{"dynamic", "gpu1", "gpu2", "gpu3", "gpu3-generated"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := names(tt.f); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("jobs = %v, want %v", got, tt.want)
+			}
+		})
+	}
+
+	// Jobs of commands the server is not a target of pass only once generated.
+	other := newJob(2, "other-command")
+	check(t, r.Jobs.CreateMany(ctx(t), []*domain.Job{other}))
+	_, err = r.Jobs.QueueCommand(ctx(t), 2)
+	check(t, err)
+	if got := names(QueueFilter{Server: gpu1, Healthy: []int64{gpu1, gpu2, gpu3}}); !contains(got, "other-command") {
+		t.Errorf("without a command list every command counts: %v", got)
+	}
+	if got := names(QueueFilter{Server: gpu1, Commands: []int64{1}, Healthy: []int64{gpu1, gpu2, gpu3}}); !reflect.DeepEqual(got, []string{"dynamic", "gpu1", "gpu3-generated"}) {
+		t.Errorf("targets of command 1 only: %v", got)
+	}
+	if got := names(QueueFilter{Server: gpu1, Commands: []int64{}, Healthy: []int64{gpu1}}); !reflect.DeepEqual(got, []string{"gpu3-generated"}) {
+		t.Errorf("target of no command: %v", got)
+	}
+
+	// The cursor and the limit work as in ListQueued, and only queued jobs count.
+	first, err := r.Jobs.ListQueuedFor(ctx(t), QueueCursor{}, 1, QueueFilter{Server: gpu1})
+	check(t, err)
+	next, err := r.Jobs.ListQueuedFor(ctx(t), QueueCursor{Seq: first[0].QueueSeq, ID: first[0].ID}, 1, QueueFilter{Server: gpu1})
+	check(t, err)
+	if len(first) != 1 || len(next) != 1 || next[0].ID <= first[0].ID {
+		t.Errorf("paging: %v then %v", first, next)
+	}
+	claimed, err := r.Jobs.Claim(ctx(t), first[0].ID)
+	check(t, err)
+	if !claimed {
+		t.Fatal("claim failed")
+	}
+	if got := names(QueueFilter{Server: gpu1}); reflect.DeepEqual(got, []string{"dynamic", "gpu1", "gpu3-generated"}) {
+		t.Errorf("a claimed job is still listed: %v", got)
+	}
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }

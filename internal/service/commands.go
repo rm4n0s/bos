@@ -374,3 +374,46 @@ func (s *CommandService) Renumber(ctx context.Context, project domain.ID) error 
 	}
 	return r.Commands().Renumber(ctx, project)
 }
+
+// Run queues the idle jobs of a command and hands it to the scheduler
+// (SPEC §7.2). It fails with CommandNotRunnable while the command is already
+// queued or running, or when it has no idle job.
+func (s *CommandService) Run(ctx context.Context, id domain.ID) (*domain.Command, error) {
+	r := s.Store.Repos()
+	cmd, err := r.Commands().Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if busy(cmd.Status) {
+		return nil, errors.New("CommandNotRunnable", "the command is already queued or running", "command_id", id, "status", string(cmd.Status))
+	}
+	n, err := r.Jobs().QueueCommand(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, errors.New("CommandNotRunnable", "the command has no idle job to run", "command_id", id)
+	}
+	if err := r.Commands().SetStatus(ctx, id, domain.StatusQueued); err != nil {
+		return nil, err
+	}
+	s.wake()
+	return r.Commands().Get(ctx, id)
+}
+
+// Stop returns the queued jobs of a command to idle; a job that is running
+// finishes (SPEC §7.2). It returns how many jobs it stopped.
+func (s *CommandService) Stop(ctx context.Context, id domain.ID) (int, error) {
+	r := s.Store.Repos()
+	if _, err := r.Commands().Get(ctx, id); err != nil {
+		return 0, err
+	}
+	n, err := r.Jobs().StopQueued(ctx, id, 0)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.syncCommand(ctx, r, id); err != nil {
+		return 0, err
+	}
+	return n, nil
+}

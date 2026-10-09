@@ -404,3 +404,25 @@ func (it *Item) Files() []string {
 	}
 	return out
 }
+
+// CommandStatusOf is the status of a command, given how many of its jobs are in
+// each status (SPEC §7.1, §8.2): finished when all its jobs are; processing
+// when one is running; queued when one waits; error when one failed and none is
+// still moving; idle otherwise. A command without jobs is idle.
+func CommandStatusOf(jobs map[Status]int) Status {
+	total := 0
+	for _, n := range jobs {
+		total += n
+	}
+	switch {
+	case total > 0 && jobs[StatusFinished] == total:
+		return StatusFinished
+	case jobs[StatusProcessing] > 0:
+		return StatusProcessing
+	case jobs[StatusQueued] > 0:
+		return StatusQueued
+	case jobs[StatusError] > 0:
+		return StatusError
+	}
+	return StatusIdle
+}
