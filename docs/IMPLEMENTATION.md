@@ -105,4 +105,22 @@ One command runs end to end against a real ComfyUI, driven by a temporary test h
 
 - Graceful shutdown, structured logging, and the tag-by-tag error scenarios still missing.
 - A full run of acceptance tests 1–41 against the fake ComfyUI, then a smoke test against a real ComfyUI.
-- README with setup and first-run guide.
+
+## Step 13 – Command-line client (`feat/cli`)
+
+- A separate binary, `bosctl` (`cmd/bosctl`, code in `internal/cli`), that talks to a running `bos` server through the REST API (SPEC §15.6). It never opens the database and never imports `internal/service`.
+- Standard library only (`flag`, `net/http`, `encoding/json`, `text/tabwriter`); no CLI framework.
+- Covers every endpoint of SPEC §15.2 and §15.3 that makes sense in a terminal: servers, generators, fixers, tags, groups, items, projects, commands (create, edit, preview, run, recreate, stop), jobs (list, show, edit, run, stop), REPL, events (`events --follow` streams server-sent events), downloads and Civitai imports, and file download to disk. Multipart uploads take file paths.
+- Server address and token come from flags, then `BOS_SERVER` and `BOS_TOKEN`, then the default `http://127.0.0.1:8080`. Output is a table by default and raw JSON with `--json`, so scripts can pipe it to `jq`.
+- API errors print the tag and message and exit non-zero (exit codes in SPEC §15.6).
+- Tests: `httptest` server asserting the requests each command sends and how it renders each tag; a test that fails when an operation in the OpenAPI document (step 9) has no command and is not on the explicit exclusion list.
+
+## Step 14 – Documentation and tutorial (`feat/docs`)
+
+- `README.md`: what the project is, build requirements (Go, cgo and a C compiler), configuration (SPEC §2), first run, and links to the guides.
+- `docs/guide/`: a user guide covering every concept in the order a newcomer meets it: servers, generators and workflows, fixers, groups, items and tags, projects, the command language (with the table examples of SPEC §6), jobs and retries, the REPL, and Civitai imports.
+- `docs/tutorial.md`: one end-to-end walkthrough from an empty database to a finished batch with a fixer, done twice: in the web UI and with `bosctl`. Every command in it is executed by a test against the fake ComfyUI, so the tutorial cannot rot.
+- `docs/cli.md`: `bosctl` reference, generated from the command table so it always matches the code, with a test that fails when it is stale.
+- API reference: the OpenAPI document served at `/api/v1/openapi.json`, linked from the guide.
+- Troubleshooting: one entry per error tag of SPEC §17.2 (cause and fix), checked by a test that every catalogued tag has an entry.
+- Review of the `config.example.json` comments and the `bos --help` text against the guide.

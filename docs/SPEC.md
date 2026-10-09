@@ -807,6 +807,7 @@ Follows the repository layout rules: thin `cmd/`, application code in `internal/
 
 ```
 cmd/bos/main.go            parse flags, load config, build the object graph, start the server
+cmd/bosctl/main.go         command-line client for the REST API (§15.6); thin, code in internal/cli
 internal/config            configuration loading and validation (§2)
 internal/domain            entities, enums, value types (§3); no I/O, no dependencies
 internal/command           command language: lexer, parser, AST, validator, expander (§6); pure, no I/O
@@ -821,6 +822,7 @@ internal/comfy             ComfyUI port + adapter over comfyui-client-go, event 
 internal/civitai           Civitai `Models` port + adapter over gocivitailib; LoRA copy into ComfyUI (§19)
 internal/events            ordered, bounded event log with subscriptions (§8.5)
 internal/api               REST handlers, DTOs, error mapping (§15)
+internal/cli               `bosctl` commands: an HTTP client of §15, no access to the store or services (§15.6)
 internal/ui                Datastar handlers, templates, embedded static assets (§16)
 internal/files             file storage under the configured directories, upload handling, safe serving
 ```
@@ -968,6 +970,21 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 ### 15.5 Contract documentation
 
 An OpenAPI 3.1 document for §15 SHOULD be kept in the repository and embedded in the binary at `/api/v1/openapi.json`. A test MUST fail when a registered route is missing from it.
+
+### 15.6 Command-line client
+
+`bosctl` is a second binary that drives a running server through §15. It is a client like any other: it does not open the database, import `internal/service` or read the server's configuration file.
+
+| Topic | Rule |
+|---|---|
+| Coverage | Every operation in the OpenAPI document (§15.5) has a command, except those on an explicit exclusion list in the code (for example `/healthz`). A test fails when an operation has neither |
+| Shape | `bosctl <resource> <verb> [arguments] [flags]`, e.g. `bosctl command run 12`, `bosctl job list --command 12 --status error`. `bosctl help` and `bosctl <resource> help` list commands |
+| Connection | Flags `--server` and `--token`, then the environment variables `BOS_SERVER` and `BOS_TOKEN`, then `http://127.0.0.1:8080` and no token |
+| Input | Bodies are built from flags; `--file` reads a JSON body from a path (`-` for standard input). Workflows and masks are read from file paths and uploaded |
+| Output | A table for people, or the raw response body with `--json`. Lists honour `--page` and `--page-size`. Normal output goes to standard output, diagnostics to standard error |
+| Streaming | `bosctl events --follow` prints events as they arrive and reconnects with `Last-Event-ID`; `bosctl command run --wait` returns when the command finishes |
+| Errors | The error envelope of §15.1 is printed as `<Tag>: <message>` (the whole envelope with `--json`). Exit code 0 on success, 1 for an error returned by the server, 2 for a usage error, 3 when the server cannot be reached |
+| Dependencies | Standard library only |
 
 ## 16. Web UI (Datastar)
 
