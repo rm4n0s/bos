@@ -1,0 +1,10 @@
+{
+  "database": "data/bos.db",
+  "results_dir": "data/results",
+  "controlnet_dir": "data/controlnet",
+  "ipadapter_dir": "data/ipadapter",
+  "regions_dir": "data/regions",
+  "thumbnails_dir": "data/thumbnails",
+  "downloads_dir": "data/downloads",
+  "listen_addr": "127.0.0.1:8080"
+}

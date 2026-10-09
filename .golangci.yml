@@ -1,0 +1,36 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - depguard
+    - errorlint
+    - forbidigo
+    - misspell
+    - noctx
+    - unconvert
+  settings:
+    depguard:
+      rules:
+        errors:
+          list-mode: lax
+          files:
+            - $all
+          deny:
+            - pkg: errors
+              desc: use github.com/rm4n0s/errors (it re-exports Is, As and Unwrap)
+            - pkg: github.com/pkg/errors
+              desc: use github.com/rm4n0s/errors
+    forbidigo:
+      forbid:
+        - pattern: ^fmt\.Errorf$
+          msg: use errors.New, errors.NewErr or errors.NewErrf from github.com/rm4n0s/errors
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
