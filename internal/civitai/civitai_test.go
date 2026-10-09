@@ -258,14 +258,14 @@ func TestInstallRefusals(t *testing.T) {
 	a := site.adapter("tok")
 	for _, sub := range []string{"..", "../x", "a/../b", "/abs", "a//b", `a\b`, "C:x", "a/./b", "x\x00y"} {
 		_, err := a.Install(m, comfy, sub)
-		wantTag(t, err, "InvalidRequest")
+		_ = wantTag(t, err, "InvalidRequest")
 	}
 	_, err = a.Install(m, filepath.Join(comfy, "nowhere"), "x")
-	wantTag(t, err, "InvalidRequest")
+	_ = wantTag(t, err, "InvalidRequest")
 	_, err = a.Install(m, "", "x")
-	wantTag(t, err, "InvalidRequest")
+	_ = wantTag(t, err, "InvalidRequest")
 	_, err = a.Install(Model{ID: 7, FilePath: filepath.Join(comfy, "missing.safetensors")}, comfy, "x")
-	wantTag(t, err, "FileStoreFailure")
+	_ = wantTag(t, err, "FileStoreFailure")
 	if entries, _ := os.ReadDir(filepath.Join(comfy, "models", "loras", "x")); len(entries) != 0 {
 		t.Errorf("a failed copy left %v", entries)
 	}
