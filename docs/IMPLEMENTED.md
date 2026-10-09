@@ -204,7 +204,7 @@ The harness is temporary and is removed in step 12.
 
 ## Step 10c – Web UI: the command editor and the command list
 - Branch: feat/ui-commands
-- Last code commit: PENDING
+- Last code commit: 091f266
 - Date: 2026-10-10
 - Delivered: the project page `/projects/{id}/commands`: the command list with order, status badge and progress `finished/total`, and per command up, down, run, stop, recreate, edit, download (a plain link that sends the ZIP) and a two-step delete; every action redraws the list on the page the user is on. The command dialog sends its text, debounced 400 ms, to `/ui/commands/preview` and patches the preview panel: errors with the offending spans marked in the command text (byte offsets, merged when they overlap, ignored when they would cut a character), warnings, combinations, jobs after `where`, kept and total, and the jobs per server for a static spread or a note that the servers share the work. **Save is disabled until the preview is valid** (the server patches the `cmd.valid` signal; editing an existing command starts valid). A command that fails the real validation on save keeps the dialog open with the problems. Tests: the segment cutter, the preview in each state, the whole command flow (add at a position, edit, reorder, run, run again, stop, recreate, download of an unfinished and a finished command, delete), paging that keeps its place, and the same editor in a real browser.
 - Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
