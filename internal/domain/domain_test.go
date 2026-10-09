@@ -82,3 +82,28 @@ func TestEnumsValid(t *testing.T) {
 		}
 	}
 }
+
+func TestItemFiles(t *testing.T) {
+	tests := []struct {
+		name string
+		item Item
+		want []string
+	}{
+		{"nothing", Item{}, []string{}},
+		{"everything, in order", Item{
+			Thumbnail: "t.png", IPAdapter: &IPAdapter{ImageFile: "ip.png"},
+			MaskRegion:  &MaskRegion{ReferencePath: "ref.png", FolderPath: "masks/1"},
+			ControlNets: []ControlNet{{ImagePath: "a.png"}, {ImagePath: "b.png"}},
+		}, []string{"t.png", "ip.png", "ref.png", "masks/1", "a.png", "b.png"}},
+		{"empty and repeated paths are left out", Item{
+			Thumbnail: "x.png", IPAdapter: &IPAdapter{ImageFile: "x.png"}, ControlNets: []ControlNet{{ImagePath: ""}},
+		}, []string{"x.png"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.item.Files(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Files() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

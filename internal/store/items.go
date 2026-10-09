@@ -160,18 +160,5 @@ func (r *ItemRepo) deleteByGroup(ctx context.Context, group domain.ID) ([]string
 	return compact(files), nil
 }
 
-// ItemFiles lists the files and folders an item owns: its thumbnail, IP-Adapter
-// image, mask reference image and mask folder, and ControlNet images (SPEC §7.4).
-func ItemFiles(it *domain.Item) []string {
-	files := []string{it.Thumbnail}
-	if it.IPAdapter != nil {
-		files = append(files, it.IPAdapter.ImageFile)
-	}
-	if it.MaskRegion != nil {
-		files = append(files, it.MaskRegion.ReferencePath, it.MaskRegion.FolderPath)
-	}
-	for _, c := range it.ControlNets {
-		files = append(files, c.ImagePath)
-	}
-	return compact(files)
-}
+// ItemFiles lists the files and folders an item owns (SPEC §7.4).
+func ItemFiles(it *domain.Item) []string { return it.Files() }

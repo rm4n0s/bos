@@ -379,3 +379,28 @@ type TagCount struct {
 	Tag   string `json:"tag"`
 	Count int    `json:"count"`
 }
+
+// Files lists the files and folders an item owns: its thumbnail, IP-Adapter
+// image, mask reference image and mask folder, and ControlNet images
+// (SPEC §7.4). Empty and repeated paths are left out.
+func (it *Item) Files() []string {
+	files := []string{it.Thumbnail}
+	if it.IPAdapter != nil {
+		files = append(files, it.IPAdapter.ImageFile)
+	}
+	if it.MaskRegion != nil {
+		files = append(files, it.MaskRegion.ReferencePath, it.MaskRegion.FolderPath)
+	}
+	for _, c := range it.ControlNets {
+		files = append(files, c.ImagePath)
+	}
+	seen := make(map[string]bool, len(files))
+	out := make([]string, 0, len(files))
+	for _, f := range files {
+		if f != "" && !seen[f] {
+			seen[f] = true
+			out = append(out, f)
+		}
+	}
+	return out
+}
