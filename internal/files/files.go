@@ -3,6 +3,8 @@
 package files
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"io"
 	"io/fs"
 	"os"
@@ -117,4 +119,77 @@ func (s *Store) Write(path string, r io.Reader) (err error) {
 		return errors.NewErr("FileStoreFailure", err).SetMetadata("path", path, "operation", "rename")
 	}
 	return nil
+}
+
+// tooLarge is what the size-limited reader of SaveUpload fails with.
+type tooLarge struct{}
+
+func (tooLarge) Error() string { return "upload exceeds the limit" }
+
+// limitReader fails with errTooLarge once more than max bytes have been read.
+type limitReader struct {
+	r    io.Reader
+	left int64
+}
+
+func (l *limitReader) Read(p []byte) (int, error) {
+	if l.left < 0 {
+		return 0, tooLarge{}
+	}
+	if int64(len(p)) > l.left+1 {
+		p = p[:l.left+1]
+	}
+	n, err := l.r.Read(p)
+	l.left -= int64(n)
+	if l.left < 0 {
+		return n, tooLarge{}
+	}
+	return n, err
+}
+
+// SaveUpload stores an uploaded file under dir and returns its path. The name
+// is made of a random prefix and the base of the original name with every
+// unusual character replaced, so two uploads never collide and a hostile name
+// cannot leave dir (SPEC §10). A file larger than limit bytes (0 for no limit)
+// is refused with UploadTooLarge and leaves nothing behind.
+func (s *Store) SaveUpload(dir, original string, r io.Reader, limit int64) (string, error) {
+	var prefix [8]byte
+	if _, err := rand.Read(prefix[:]); err != nil {
+		return "", errors.NewErr("FileStoreFailure", err).SetMetadata("operation", "name upload")
+	}
+	path := filepath.Join(dir, hex.EncodeToString(prefix[:])+"-"+uploadName(original))
+	if limit > 0 {
+		r = &limitReader{r: r, left: limit}
+	}
+	if err := s.Write(path, r); err != nil {
+		var big tooLarge
+		if errors.As(err, &big) {
+			return "", errors.New("UploadTooLarge", "the file is larger than the upload limit", "limit_bytes", limit)
+		}
+		return "", err
+	}
+	return path, nil
+}
+
+// uploadName keeps letters, digits, dot, underscore and hyphen of the base
+// name, and never starts with a dot.
+func uploadName(original string) string {
+	base := original
+	if i := strings.LastIndexAny(base, `/\`); i >= 0 {
+		base = base[i+1:]
+	}
+	base = strings.Map(func(r rune) rune {
+		if r == '.' || r == '_' || r == '-' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' {
+			return r
+		}
+		return '_'
+	}, base)
+	base = strings.TrimLeft(base, ".")
+	if len(base) > 80 {
+		base = base[len(base)-80:]
+	}
+	if base == "" {
+		base = "upload"
+	}
+	return base
 }

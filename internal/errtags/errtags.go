@@ -37,7 +37,7 @@ const (
 func All() []Tag {
 	tags := []Tag{
 		{Name: "InvalidRequest", Group: Request},
-		{Name: "UploadTooLarge", Group: Request, Pending: true},
+		{Name: "UploadTooLarge", Group: Request},
 
 		{Name: "ServerNotFound", Group: NotFound},
 		{Name: "GeneratorNotFound", Group: NotFound},
@@ -88,7 +88,7 @@ func All() []Tag {
 		{Name: "CommandNotFinished", Group: State},
 		{Name: "JobNotRunnable", Group: State},
 		{Name: "JobBusy", Group: State},
-		{Name: "ReplInvalid", Group: State, Pending: true},
+		{Name: "ReplInvalid", Group: State},
 
 		{Name: "WorkflowInvalid", Group: WorkflowGroup},
 		{Name: "WorkflowTitleDuplicated", Group: WorkflowGroup},

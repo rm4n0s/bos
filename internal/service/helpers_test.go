@@ -84,7 +84,7 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	check(t, db.Migrate(ctx(t)))
 
 	root := t.TempDir()
-	dirs := Dirs{Results: filepath.Join(root, "results"), Regions: filepath.Join(root, "regions")}
+	dirs := Dirs{Results: filepath.Join(root, "results"), Regions: filepath.Join(root, "regions"), Downloads: filepath.Join(root, "downloads")}
 	fs, err := files.NewStore([]string{root})
 	check(t, err)
 	fleet := newFakeFleet()

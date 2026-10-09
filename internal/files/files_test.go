@@ -177,3 +177,81 @@ func TestStoreWrite(t *testing.T) {
 	// A file in the way of a folder.
 	wantTag(t, st.Write(filepath.Join(path, "below"), strings.NewReader("x")), "Store.Write", "FileStoreFailure")
 }
+
+func TestSaveUpload(t *testing.T) {
+	root := t.TempDir()
+	st, err := NewStore([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "thumbs")
+	tests := []struct {
+		name, original, wantSuffix string
+	}{
+		{"plain name", "fox.png", "-fox.png"},
+		{"path is cut off", "../../etc/passwd", "-passwd"},
+		{"windows path", `C:\Users\me\pic.png`, "-pic.png"},
+		{"unusual characters", "my fox (1).png", "-my_fox__1_.png"},
+		{"leading dots", "..hidden", "-hidden"},
+		{"nothing left", "...", "-upload"},
+	}
+	seen := map[string]bool{}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p, err := st.SaveUpload(dir, tc.original, strings.NewReader("data"), 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if filepath.Dir(p) != dir || !strings.HasSuffix(p, tc.wantSuffix) {
+				t.Errorf("path = %s, want a file in %s ending %s", p, dir, tc.wantSuffix)
+			}
+			if b, err := os.ReadFile(p); err != nil || string(b) != "data" {
+				t.Errorf("content = %q, %v", b, err)
+			}
+			if seen[p] {
+				t.Errorf("%s was handed out twice", p)
+			}
+			seen[p] = true
+		})
+	}
+	// The same name twice gives two files.
+	a, _ := st.SaveUpload(dir, "same.png", strings.NewReader("1"), 0)
+	b, _ := st.SaveUpload(dir, "same.png", strings.NewReader("2"), 0)
+	if a == b {
+		t.Error("two uploads of one name collided")
+	}
+}
+
+func TestSaveUploadLimit(t *testing.T) {
+	root := t.TempDir()
+	st, err := NewStore([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.SaveUpload(root, "exact.bin", strings.NewReader("12345"), 5); err != nil {
+		t.Errorf("a file of exactly the limit was refused: %v", err)
+	}
+	_, err = st.SaveUpload(root, "big.bin", strings.NewReader("123456"), 5)
+	appErr, ok := errors.FromError(err)
+	if !ok || !appErr.HasRoute("Store.SaveUpload.UploadTooLarge") {
+		t.Fatalf("err = %v", err)
+	}
+	entries, _ := os.ReadDir(root)
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "big") || strings.HasPrefix(e.Name(), ".write-") {
+			t.Errorf("a refused upload left %s behind", e.Name())
+		}
+	}
+}
+
+func TestSaveUploadOutsideStorage(t *testing.T) {
+	st, err := NewStore([]string{t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.SaveUpload(t.TempDir(), "a.png", strings.NewReader("x"), 0)
+	appErr, ok := errors.FromError(err)
+	if !ok || !appErr.HasRoute("Store.Write.Store.resolve.FileOutsideStorage") && !appErr.HasRoute("FileOutsideStorage") {
+		t.Errorf("err = %v", err)
+	}
+}

@@ -58,10 +58,13 @@ func serve(ctx context.Context, configPath string, getenv func(string) string, l
 	if ready != nil {
 		ready(lis.Addr())
 	}
+	rest := api.New(a.apiDeps(logger))
 	srv := &http.Server{
-		Handler:           api.NewHandler(),
+		Handler:           rest.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	// The event stream never ends by itself; stop it when the shutdown starts.
+	srv.RegisterOnShutdown(rest.Stop)
 	return runServer(ctx, srv, lis, shutdownTimeout, logger)
 }
 

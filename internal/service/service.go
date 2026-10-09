@@ -135,6 +135,10 @@ type JobStore interface {
 	QueueJob(ctx context.Context, id domain.ID) (bool, error)
 	StopQueued(ctx context.Context, command, exceptID domain.ID) (int, error)
 	StopJob(ctx context.Context, id domain.ID) (bool, error)
+	AllByCommand(ctx context.Context, command domain.ID) ([]domain.Job, error)
+	// GetRepl and ReplaceRepl keep the single reserved REPL job (SPEC §8.6).
+	GetRepl(ctx context.Context) (*domain.Job, error)
+	ReplaceRepl(ctx context.Context, j *domain.Job) ([]string, error)
 }
 
 // Files is the file storage the services use: they remove the files of what
@@ -142,6 +146,7 @@ type JobStore interface {
 type Files interface {
 	Remove(path string) error
 	Open(path string) (io.ReadCloser, error)
+	Write(path string, r io.Reader) error
 }
 
 // Fleet is what the services know about the ComfyUI servers: whether each
@@ -168,6 +173,8 @@ type Dirs struct {
 	Results string
 	// Regions is where the generated masks of a region reference image go.
 	Regions string
+	// Downloads is where the export archive of a command goes.
+	Downloads string
 }
 
 // Limits are the configured bounds of a command (SPEC §2, §6.11).
@@ -208,6 +215,7 @@ type Services struct {
 	Projects   *ProjectService
 	Commands   *CommandService
 	Jobs       *JobService
+	Repl       *ReplService
 }
 
 // New builds the services over deps.
@@ -229,6 +237,7 @@ func New(deps Deps) *Services {
 		Projects:   &ProjectService{base: b},
 		Commands:   &CommandService{base: b},
 		Jobs:       &JobService{base: b},
+		Repl:       &ReplService{base: b},
 	}
 }
 

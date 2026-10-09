@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/rm4n0s/bos/internal/api"
 	"github.com/rm4n0s/bos/internal/comfy"
 	"github.com/rm4n0s/bos/internal/config"
 	"github.com/rm4n0s/bos/internal/domain"
@@ -80,10 +81,23 @@ func wire(ctx context.Context, cfg *config.Config, db *store.DB, logger *slog.Lo
 	})
 	svc := service.New(service.Deps{
 		Store: service.NewStore(db), Files: fs, Fleet: sched, Dispatcher: sched, Logger: logger,
-		Dirs:   service.Dirs{Results: cfg.ResultsDir, Regions: cfg.RegionsDir},
+		Dirs:   service.Dirs{Results: cfg.ResultsDir, Regions: cfg.RegionsDir, Downloads: cfg.DownloadsDir},
 		Limits: service.Limits{PreviewSoftLimit: cfg.PreviewSoftMax},
 	})
 	return &app{cfg: cfg, db: db, files: fs, events: log, services: svc, sched: sched}, nil
+}
+
+// apiDeps is what the REST API is built from.
+func (a *app) apiDeps(logger *slog.Logger) api.Deps {
+	c := a.cfg
+	return api.Deps{
+		Services: a.services, Events: a.events, Files: a.files,
+		Dirs: api.Dirs{
+			Results: c.ResultsDir, ControlNet: c.ControlNetDir, IPAdapter: c.IPAdapterDir,
+			Regions: c.RegionsDir, Thumbnails: c.ThumbnailsDir, Downloads: c.DownloadsDir,
+		},
+		AuthToken: c.AuthToken, CORSAllowList: c.CORSAllowList, UploadLimit: c.UploadLimit, Logger: logger,
+	}
 }
 
 // run starts the scheduler (SPEC §2, startup step 3) and returns a function that

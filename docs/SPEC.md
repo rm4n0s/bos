@@ -868,7 +868,8 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 | Delete | `204 No Content`; deletion cascades are those of §7.4 |
 | Long-running | Starting work (`run`, `recreate`, imports) returns `202 Accepted` with the affected resource; progress is observed through §15.4 |
 | Unknown JSON fields | Rejected with `400` |
-| Body limits | JSON bodies ≤ 8 MiB (workflows are large); upload size limits are configuration settings |
+| Body limits | JSON bodies ≤ 8 MiB (workflows are large); upload size limits are configuration settings. A body over the limit is `UploadTooLarge` (413) |
+| Uploads | Where a resource takes files (groups, items), the request is either JSON or `multipart/form-data` with the JSON in a part named `data` and the files in further parts: `thumbnail` for a group or an item, and for an item `ip_adapter_image`, `mask_reference` and `controlnet_<n>` (the image of the n-th entry of `controlnets`, counting from 0). Thumbnails are PNG, JPEG or GIF; the other images may also be WebP, except `mask_reference`, which must be PNG (§7.3). The type is read from the content, not from the name the client gives. Clients upload files but never name them: a file path in the JSON must be one the entity already has, and the mask folder and masks are made by the server. A request that fails leaves no uploaded file behind |
 | Auth | If `auth_token` is configured, every `/api/v1` request needs `Authorization: Bearer <token>` (`401` otherwise). `/healthz` is always open |
 | CORS | Off. Same-origin only unless an allow-list is configured |
 
@@ -878,7 +879,7 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 {"error": {"tag": "CommandValidationFailed", "message": "command is not valid", "metadata": {"errors": [ … ]}}}
 ```
 
-`tag` is the stable, machine-readable identifier. The stack trace and route are **never** sent to clients; they are logged (§17.4).
+`tag` is the stable, machine-readable identifier. Two envelopes are not in the tag catalogue because they say nothing about the application's own rules: `Unauthorized` (401, a missing or wrong bearer token) and `InternalError` (500, a failure that is not an application error, or a panic). The details of any 500 are withheld from the client and logged, and a `path` in the metadata is never sent. The stack trace and route are **never** sent to clients; they are logged (§17.4).
 
 ### 15.2 Resources
 
@@ -941,12 +942,12 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 |---|---|---|---|
 | `GET /commands/{id}/jobs` | list, paginated, filter `status=` | 200 | |
 | `GET /jobs/{id}` | job with error and trace | 200 | `JobNotFound` |
-| `PUT /jobs/{id}` | body `{prompt_positive, prompt_negative}` (§8.4) | 200 | |
+| `PUT /jobs/{id}` | body `{positive_prompt, negative_prompt}`, the names the job itself uses (§8.4) | 200 | |
 | `POST /jobs/{id}/run` · `/stop` | §8.4 | 202 / 200 | `JobNotRunnable` |
-| `POST /repl/run` | §8.6 | 202 | `ReplInvalid` |
+| `POST /repl/run` | body `{server, generator, positive, negative, items, loras:[{name,strength_model,strength_clip}]}`, `server` and `generator` being code names (§8.6) | 202 | `ReplInvalid`, `ServerNotFound`, `GeneratorNotFound`, `GroupNotFound`, `ItemNotFound`, `JobBusy` |
 | `GET /repl/last` | previous REPL job or `404` | 200 | `JobNotFound` |
 | `GET /events` | event log, see §15.4 | 200 | |
-| `GET /files/{kind}/{name}` | read-only files; `kind` ∈ `results`, `thumbnails`, `controlnet`, `ipadapter`, `regions`, `downloads`. `name` is a single path segment; traversal is rejected | 200 | `FileNotFound` |
+| `GET /files/{kind}/{name}` | read-only files; `kind` ∈ `results`, `thumbnails`, `controlnet`, `ipadapter`, `regions`, `downloads`. `name` is a relative path of plain segments (results and masks live in folders of their own, e.g. `results/12/fox.png`); empty segments, `.`, `..`, backslashes and control characters are rejected, and a folder is not a file | 200 | `FileNotFound` |
 | `GET /healthz` (no `/api/v1` prefix) | liveness | 200 | |
 
 ### 15.3 Command text endpoints
@@ -963,13 +964,13 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 
 `GET /api/v1/events` serves the event log of §8.5.
 
-- With `Accept: text/event-stream`: a stream of events; each carries `id: <event id>`, `event: <type>` (`processing`, `finished`, `error`, plus `server_online`, `server_offline`, `command_finished`) and a JSON `data` line `{job_id, command_id, project_id, server, created_at}`. A reconnecting client sends `Last-Event-ID` and receives the events after it. A comment line (`: keep-alive`) is sent every 15 s.
+- With `Accept: text/event-stream`: a stream of events; each carries `id: <event id>`, `event: <type>` (`processing`, `finished`, `error`, plus `server_online`, `server_offline`, `command_finished`) and a JSON `data` line `{job_id, command_id, project_id, server, created_at}`. A reconnecting client sends `Last-Event-ID` and receives the events after it. A comment line (`: keep-alive`) is sent every 15 s. A client that connects without a cursor receives only the events that happen from then on.
 - Otherwise: JSON `{"events":[…],"last_id":N}` for clients that poll, honouring `?after=<id>`.
-- If `after` / `Last-Event-ID` is older than the retained log, the server replies with the oldest retained events and sets `gap: true`, so the client knows to reload.
+- If `after` / `Last-Event-ID` is older than the retained log, the server replies with the oldest retained events and sets `gap: true`, so the client knows to reload. On the stream the same condition is announced first by an `event: gap` with the data `{"gap":true}`.
 
 ### 15.5 Contract documentation
 
-An OpenAPI 3.1 document for §15 SHOULD be kept in the repository and embedded in the binary at `/api/v1/openapi.json`. A test MUST fail when a registered route is missing from it.
+The server describes its registered routes as an OpenAPI 3.1 document at `/api/v1/openapi.json`; it is built from the route table itself, so a route cannot exist without being described. The same document is kept in the repository as `docs/openapi.json`, and a test fails when the two differ (`go test ./internal/api -update` rewrites the file).
 
 ### 15.6 Command-line client
 

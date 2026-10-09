@@ -25,8 +25,12 @@ func sources(t *testing.T) (code, tests map[string]string) {
 			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
 				return err
 			}
-			if abs, _ := filepath.Abs(path); strings.Contains(abs, string(filepath.Separator)+"errtags"+string(filepath.Separator)) {
+			abs, _ := filepath.Abs(path)
+			if strings.Contains(abs, string(filepath.Separator)+"errtags"+string(filepath.Separator)) {
 				return nil // the catalogue and its test name every tag
+			}
+			if strings.HasSuffix(abs, filepath.Join("internal", "api", "errors.go")) {
+				return nil // the HTTP status table names every tag without raising any
 			}
 			b, err := os.ReadFile(path)
 			if err != nil {

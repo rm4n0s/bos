@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -196,5 +197,86 @@ func TestRunServerShutdownFailure(t *testing.T) {
 func TestRunMainBadFlag(t *testing.T) {
 	if err := runMain([]string{"-nope"}); err == nil {
 		t.Fatal("expected an error for an unknown flag")
+	}
+}
+
+// TestServeServesTheAPI starts the whole program and talks to it over HTTP:
+// the token is required, a project can be created, and an open event stream
+// does not hold up the shutdown (acceptance 28).
+func TestServeServesTheAPI(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	env := testEnv(t, map[string]string{"BOS_AUTH_TOKEN": "s3cret"})
+	addrCh := make(chan net.Addr, 1)
+	done := make(chan error, 1)
+	go func() { done <- serve(ctx, "", env, testLogger(t), func(a net.Addr) { addrCh <- a }) }()
+	var base string
+	select {
+	case a := <-addrCh:
+		base = "http://" + a.String()
+	case err := <-done:
+		t.Fatalf("serve returned early: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not start")
+	}
+
+	// One connection per request: net/http waits up to five seconds for a spare
+	// connection that never sent a request, which would hide what is tested.
+	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
+	open := func(method, path, body string, headers map[string]string) *http.Response {
+		t.Helper()
+		// t.Context, not ctx: the stream must outlive the shutdown signal.
+		req, err := http.NewRequestWithContext(t.Context(), method, base+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+	status := func(method, path, body string, headers map[string]string) int {
+		t.Helper()
+		resp := open(method, path, body, headers)
+		if err := resp.Body.Close(); err != nil {
+			t.Error(err)
+		}
+		return resp.StatusCode
+	}
+
+	if code := status("GET", "/api/v1/projects", "", nil); code != http.StatusUnauthorized {
+		t.Errorf("without the token: status = %d", code)
+	}
+	auth := map[string]string{"Authorization": "Bearer s3cret", "Content-Type": "application/json"}
+	if code := status("POST", "/api/v1/projects", `{"name":"Demo"}`, auth); code != http.StatusCreated {
+		t.Errorf("create a project: status = %d", code)
+	}
+	if code := status("GET", "/api/v1/projects", "", auth); code != http.StatusOK {
+		t.Errorf("list projects: status = %d", code)
+	}
+
+	// An event stream is open when the shutdown starts.
+	stream := open("GET", "/api/v1/events", "", map[string]string{"Authorization": "Bearer s3cret", "Accept": "text/event-stream"})
+	defer func() {
+		if err := stream.Body.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	if stream.StatusCode != http.StatusOK {
+		t.Fatalf("event stream: status = %d", stream.StatusCode)
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("shutdown returned %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the open event stream held up the shutdown")
 	}
 }
