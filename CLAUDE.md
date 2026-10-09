@@ -24,6 +24,7 @@ Before reporting a task as finished, run `gofmt`, `go vet ./...`, `golangci-lint
 - Pass `context.Context` as the first parameter of anything that does I/O
 - Tests are table-driven
 - No global mutable state; inject dependencies through constructors
+- No hand-written SQL: queries go through gorm's builder and the schema through numbered Go migrations (`internal/store`)
 - Prefer the standard library. Ask before adding a new dependency (exception: `github.com/rm4n0s/errors`, see below)
 
 ## Error handling
@@ -79,7 +80,7 @@ Bowl of Scenes generates images (or video / 3D) in bulk: the user combines reusa
 - `docs/SPEC.md`: the specification. Part I is behaviour, Part II is the Go / REST / Datastar binding. If code and spec disagree, stop and ask which is right, then fix the wrong one
 - `docs/IMPLEMENTATION.md`: build order and working rules. `docs/IMPLEMENTED.md`: log of finished steps. Always check the log to know where the project stands
 
-**Stack** (approved dependencies only): Go, `net/http`, SQLite via `modernc.org/sqlite`, `html/template`, Datastar with `github.com/starfederation/datastar-go`, JSON configuration, `rm4n0s/errors`, `rm4n0s/comfyui-client-go`, `rm4n0s/gocivitailib`. Everything else is the standard library
+**Stack** (approved dependencies only): Go, `net/http`, SQLite via `gorm.io/gorm` with `github.com/glebarez/sqlite` (pure Go, no cgo), `html/template`, Datastar with `github.com/starfederation/datastar-go`, JSON configuration, `rm4n0s/errors`, `rm4n0s/comfyui-client-go`, `rm4n0s/gocivitailib`. Everything else is the standard library
 
 **Architecture**
 - `internal/service` holds the use cases. `internal/api` (REST) and `internal/ui` (Datastar) are thin front ends over it; the UI never calls the REST API

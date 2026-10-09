@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/rm4n0s/bos/internal/domain"
 	"github.com/rm4n0s/errors"
@@ -10,80 +9,6 @@ import (
 
 // ItemRepo stores items with their item tags (SPEC §3.6).
 type ItemRepo struct{ base }
-
-const itemColumns = `id, group_id, code_name, name, positive_prompt, negative_prompt, loras, ip_adapter, controlnets,
-	mask_region, coordinated_regions, output_type, output_type_attributes, thumbnail, created_at, updated_at`
-
-// itemJSON holds the encoded JSON columns of an item.
-type itemJSON struct {
-	loras, ipAdapter, controlNets, maskRegion, regions, attrs any
-}
-
-func encodeItem(v *domain.Item) (itemJSON, error) {
-	var j itemJSON
-	var err error
-	if j.loras, err = encode(v.LoRAs, "[]"); err != nil {
-		return j, err
-	}
-	if j.controlNets, err = encode(v.ControlNets, "[]"); err != nil {
-		return j, err
-	}
-	if j.regions, err = encode(v.CoordinatedRegions, "[]"); err != nil {
-		return j, err
-	}
-	if j.attrs, err = encode(v.OutputTypeAttributes, "{}"); err != nil {
-		return j, err
-	}
-	if v.IPAdapter != nil {
-		if j.ipAdapter, err = encode(v.IPAdapter, "null"); err != nil {
-			return j, err
-		}
-	}
-	if v.MaskRegion != nil {
-		if j.maskRegion, err = encode(v.MaskRegion, "null"); err != nil {
-			return j, err
-		}
-	}
-	return j, nil
-}
-
-func scanItem(s scanner) (*domain.Item, error) {
-	var v domain.Item
-	var loras, controlNets, regions, attrs, created, updated, outputType string
-	var ip, mask sql.NullString
-	if err := s.Scan(&v.ID, &v.GroupID, &v.CodeName, &v.Name, &v.PositivePrompt, &v.NegativePrompt, &loras, &ip,
-		&controlNets, &mask, &regions, &outputType, &attrs, &v.Thumbnail, &created, &updated); err != nil {
-		return nil, err
-	}
-	v.OutputType = domain.OutputType(outputType)
-	// A slice, not a map: several columns often hold the same text, "[]".
-	for _, col := range []struct {
-		text string
-		dst  any
-	}{{loras, &v.LoRAs}, {controlNets, &v.ControlNets}, {regions, &v.CoordinatedRegions}, {attrs, &v.OutputTypeAttributes}} {
-		if err := decode(col.text, col.dst); err != nil {
-			return nil, err
-		}
-	}
-	if ip.Valid {
-		if err := decode(ip.String, &v.IPAdapter); err != nil {
-			return nil, err
-		}
-	}
-	if mask.Valid {
-		if err := decode(mask.String, &v.MaskRegion); err != nil {
-			return nil, err
-		}
-	}
-	var err error
-	if v.CreatedAt, err = parseTime(created); err != nil {
-		return nil, err
-	}
-	if v.UpdatedAt, err = parseTime(updated); err != nil {
-		return nil, err
-	}
-	return &v, nil
-}
 
 func (r *ItemRepo) failure(err error, code string, group int64) error {
 	switch {
@@ -95,49 +20,39 @@ func (r *ItemRepo) failure(err error, code string, group int64) error {
 	return storeFailure(err, "write item")
 }
 
-func (r *ItemRepo) withTags(ctx context.Context, items []domain.Item) error {
-	ids := make([]int64, len(items))
-	for i, it := range items {
-		ids[i] = it.ID
+// itemsOf converts the records and fills in their tags.
+func (r *ItemRepo) itemsOf(ctx context.Context, recs []itemRecord) ([]domain.Item, error) {
+	ids := make([]int64, len(recs))
+	for i, rec := range recs {
+		ids[i] = rec.ID
 	}
-	tags, err := loadTags(ctx, r.q, itemTagTable, ids)
+	tags, err := loadTags(r.conn(ctx), itemTagTable, ids)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for i := range items {
-		items[i].Tags = tags[items[i].ID]
-		if items[i].Tags == nil {
-			items[i].Tags = []string{}
+	out := make([]domain.Item, len(recs))
+	for i, rec := range recs {
+		out[i] = rec.domain()
+		if t := tags[rec.ID]; t != nil {
+			out[i].Tags = t
 		}
 	}
-	return nil
+	return out, nil
 }
 
 // Create stores a new item with its tags and sets its ID and timestamps.
 func (r *ItemRepo) Create(ctx context.Context, v *domain.Item) error {
-	j, err := encodeItem(v)
-	if err != nil {
-		return err
-	}
 	now := r.now()
-	return r.atomically(ctx, func(q dbtx) error {
-		res, err := q.ExecContext(ctx,
-			`INSERT INTO items (group_id, code_name, name, positive_prompt, negative_prompt, loras, ip_adapter, controlnets,
-			   mask_region, coordinated_regions, output_type, output_type_attributes, thumbnail, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			v.GroupID, v.CodeName, v.Name, v.PositivePrompt, v.NegativePrompt, j.loras, j.ipAdapter, j.controlNets,
-			j.maskRegion, j.regions, string(v.OutputType), j.attrs, v.Thumbnail, formatTime(now), formatTime(now))
-		if err != nil {
+	return r.atomically(ctx, func(tx *Repos) error {
+		rec := itemToRecord(v)
+		rec.CreatedAt, rec.UpdatedAt = now, now
+		if err := tx.conn(ctx).Create(&rec).Error; err != nil {
 			return r.failure(err, v.CodeName, v.GroupID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return storeFailure(err, "item id")
-		}
-		if err := writeTags(ctx, q, itemTagTable, id, v.Tags); err != nil {
+		if err := writeTags(tx.conn(ctx), itemTagTable, rec.ID, v.Tags); err != nil {
 			return err
 		}
-		v.ID, v.CreatedAt, v.UpdatedAt = id, now, now
+		v.ID, v.CreatedAt, v.UpdatedAt = rec.ID, now, now
 		v.Tags = cleanTags(v.Tags)
 		return nil
 	})
@@ -146,27 +61,18 @@ func (r *ItemRepo) Create(ctx context.Context, v *domain.Item) error {
 // Update replaces the editable fields of an item, including its tags. The item
 // stays in its group.
 func (r *ItemRepo) Update(ctx context.Context, v *domain.Item) error {
-	j, err := encodeItem(v)
-	if err != nil {
-		return err
-	}
 	now := r.now()
-	return r.atomically(ctx, func(q dbtx) error {
-		res, err := q.ExecContext(ctx,
-			`UPDATE items SET code_name=?, name=?, positive_prompt=?, negative_prompt=?, loras=?, ip_adapter=?,
-			   controlnets=?, mask_region=?, coordinated_regions=?, output_type=?, output_type_attributes=?, thumbnail=?,
-			   updated_at=? WHERE id=?`,
-			v.CodeName, v.Name, v.PositivePrompt, v.NegativePrompt, j.loras, j.ipAdapter, j.controlNets, j.maskRegion,
-			j.regions, string(v.OutputType), j.attrs, v.Thumbnail, formatTime(now), v.ID)
-		if err != nil {
-			return r.failure(err, v.CodeName, v.GroupID)
+	return r.atomically(ctx, func(tx *Repos) error {
+		rec := itemToRecord(v)
+		rec.UpdatedAt = now
+		res := tx.conn(ctx).Model(&rec).Where("id = ?", v.ID).Select("*").Omit("id", "group_id", "created_at").Updates(&rec)
+		if res.Error != nil {
+			return r.failure(res.Error, v.CodeName, v.GroupID)
 		}
-		if n, err := res.RowsAffected(); err != nil {
-			return storeFailure(err, "item rows")
-		} else if n == 0 {
-			return notFound("ItemNotFound", "item", v.ID)
+		if err := affected(res, "write item", "ItemNotFound", "item", v.ID); err != nil {
+			return err
 		}
-		if err := writeTags(ctx, q, itemTagTable, v.ID, v.Tags); err != nil {
+		if err := writeTags(tx.conn(ctx), itemTagTable, v.ID, v.Tags); err != nil {
 			return err
 		}
 		v.UpdatedAt = now
@@ -177,38 +83,38 @@ func (r *ItemRepo) Update(ctx context.Context, v *domain.Item) error {
 
 // Get returns one item with its tags.
 func (r *ItemRepo) Get(ctx context.Context, id domain.ID) (*domain.Item, error) {
-	v, err := scanItem(r.q.QueryRowContext(ctx, `SELECT `+itemColumns+` FROM items WHERE id=?`, id))
-	v, err = one(v, err, "ItemNotFound", "item", id, "read item")
+	rec, err := find[itemRecord](r.conn(ctx).Where("id = ?", id), "ItemNotFound", "item", id, "read item")
 	if err != nil {
 		return nil, err
 	}
-	list := []domain.Item{*v}
-	if err := r.withTags(ctx, list); err != nil {
+	items, err := r.itemsOf(ctx, []itemRecord{*rec})
+	if err != nil {
 		return nil, err
 	}
-	return &list[0], nil
+	return &items[0], nil
 }
 
 // ListByGroup returns one page of a group's items in creation order.
 func (r *ItemRepo) ListByGroup(ctx context.Context, group domain.ID, p domain.Page) (domain.Paged[domain.Item], error) {
-	page, err := queryPage(ctx, r.q, `FROM items WHERE group_id=?`, []any{group}, `ORDER BY id`, itemColumns, scanItem, p, "list items")
+	page, err := pageOf(r.conn(ctx).Where("group_id = ?", group), "id", p, func(rec itemRecord) itemRecord { return rec }, "list items")
 	if err != nil {
-		return page, err
+		return domain.Paged[domain.Item]{}, err
 	}
-	return page, r.withTags(ctx, page.Items)
+	items, err := r.itemsOf(ctx, page.Items)
+	if err != nil {
+		return domain.Paged[domain.Item]{}, err
+	}
+	return domain.NewPaged(items, page.Total, p), nil
 }
 
 // AllByGroup returns every item of a group in creation order, which is the item
 // order of the command language (SPEC §6.4).
 func (r *ItemRepo) AllByGroup(ctx context.Context, group domain.ID) ([]domain.Item, error) {
-	items, err := queryAll(ctx, r.q, `SELECT `+itemColumns+` FROM items WHERE group_id=? ORDER BY id`, scanItem, "list items", group)
+	recs, err := all[itemRecord](r.conn(ctx).Where("group_id = ?", group).Order("id"), "list items")
 	if err != nil {
 		return nil, err
 	}
-	if err := r.withTags(ctx, items); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return r.itemsOf(ctx, recs)
 }
 
 // Delete removes an item and returns the files and folders that belonged to it
@@ -218,11 +124,11 @@ func (r *ItemRepo) Delete(ctx context.Context, id domain.ID) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = r.atomically(ctx, func(q dbtx) error {
-		if _, err := q.ExecContext(ctx, `DELETE FROM item_tags WHERE item_id=?`, id); err != nil {
-			return storeFailure(err, "delete item")
+	err = r.atomically(ctx, func(tx *Repos) error {
+		if err := writeTags(tx.conn(ctx), itemTagTable, id, nil); err != nil {
+			return err
 		}
-		if _, err := q.ExecContext(ctx, `DELETE FROM items WHERE id=?`, id); err != nil {
+		if err := tx.conn(ctx).Delete(&itemRecord{}, "id = ?", id).Error; err != nil {
 			return storeFailure(err, "delete item")
 		}
 		return nil
@@ -239,10 +145,12 @@ func (r *ItemRepo) deleteByGroup(ctx context.Context, group domain.ID) ([]string
 	if err != nil {
 		return nil, err
 	}
-	if _, err := r.q.ExecContext(ctx, `DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE group_id=?)`, group); err != nil {
+	db := r.conn(ctx)
+	owned := db.Model(&itemRecord{}).Select("id").Where("group_id = ?", group)
+	if err := db.Where("item_id IN (?)", owned).Delete(&itemTagRecord{}).Error; err != nil {
 		return nil, storeFailure(err, "delete items")
 	}
-	if _, err := r.q.ExecContext(ctx, `DELETE FROM items WHERE group_id=?`, group); err != nil {
+	if err := db.Delete(&itemRecord{}, "group_id = ?", group).Error; err != nil {
 		return nil, storeFailure(err, "delete items")
 	}
 	var files []string

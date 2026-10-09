@@ -266,7 +266,8 @@ func TestStopAndHalt(t *testing.T) {
 }
 
 func TestDeleteJobsAndRepl(t *testing.T) {
-	r := newDB(t).Repos()
+	db := newDB(t)
+	r := db.Repos()
 	mustJobs(t, r, 1, 2)
 	mustJobs(t, r, 2, 1)
 	files, err := r.Jobs.DeleteByCommand(ctx(t), 1)
@@ -301,8 +302,8 @@ func TestDeleteJobsAndRepl(t *testing.T) {
 	if got.ID != second.ID || got.PositivePrompt != "second" {
 		t.Errorf("repl = %+v", got)
 	}
-	var n int
-	check(t, r.Jobs.q.QueryRowContext(ctx(t), `SELECT COUNT(*) FROM jobs WHERE project_id=-1`).Scan(&n))
+	var n int64
+	check(t, db.gorm.Model(&jobRecord{}).Where("project_id = ?", domain.ReplID).Count(&n).Error)
 	if n != 1 {
 		t.Errorf("%d REPL jobs", n)
 	}

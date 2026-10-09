@@ -57,6 +57,14 @@ func newFileDB(t *testing.T) *DB {
 	return db
 }
 
+// rowCount returns the number of rows in a table.
+func rowCount(t *testing.T, db *DB, table string) int {
+	t.Helper()
+	var n int64
+	check(t, db.gorm.Table(table).Count(&n).Error)
+	return int(n)
+}
+
 func ctx(t *testing.T) context.Context { return t.Context() }
 
 func check(t *testing.T, err error) {

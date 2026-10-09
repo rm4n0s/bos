@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/rm4n0s/bos/internal/domain"
+	"gorm.io/gorm"
 )
 
 func TestProjects(t *testing.T) {
@@ -35,7 +36,8 @@ func TestProjects(t *testing.T) {
 
 // Acceptance of SPEC §7.2: add at the end or at a position, delete, move.
 func TestCommandOrder(t *testing.T) {
-	r := newDB(t).Repos()
+	db := newDB(t)
+	r := db.Repos()
 	p := mustProject(t, r, "p")
 	other := mustProject(t, r, "other")
 	mustCommand(t, r, other.ID, "x", 0)
@@ -113,8 +115,7 @@ func TestCommandOrder(t *testing.T) {
 	}
 
 	// Renumber repairs gaps and keeps the sequence.
-	_, err = r.Commands.q.ExecContext(ctx(t), `UPDATE commands SET order_no = order_no * 10 WHERE project_id=?`, p.ID)
-	check(t, err)
+	check(t, db.gorm.Model(&commandRecord{}).Where("project_id = ?", p.ID).UpdateColumn("order_no", gorm.Expr("order_no * 10")).Error)
 	check(t, r.Commands.Renumber(ctx(t), p.ID))
 	if got := orderOf(t, r, p.ID); !reflect.DeepEqual(got, []string{"g", "c", "b", "e", "f", "a"}) {
 		t.Errorf("after renumber = %v", got)
@@ -128,7 +129,8 @@ func TestCommandOrder(t *testing.T) {
 }
 
 func TestCommandFields(t *testing.T) {
-	r := newDB(t).Repos()
+	db := newDB(t)
+	r := db.Repos()
 	p := mustProject(t, r, "p")
 	c := &domain.Command{ProjectID: p.ID, Name: "n", Description: "d", CommandCode: "s -$ g: a", CommandJSON: []byte(`{"x":1}`)}
 	check(t, r.Commands.Create(ctx(t), c, 0))
@@ -158,8 +160,7 @@ func TestCommandFields(t *testing.T) {
 
 	// FindByText ignores case (a renamed item tag is looked up this way).
 	mustCommand(t, r, p.ID, "other", 0)
-	_, err = r.Commands.q.ExecContext(ctx(t), `UPDATE commands SET command_code='s -$ g: a(#Combat)' WHERE id=?`, c.ID)
-	check(t, err)
+	check(t, db.gorm.Model(&commandRecord{}).Where("id = ?", c.ID).UpdateColumn("command_code", "s -$ g: a(#Combat)").Error)
 	found, err := r.Commands.FindByText(ctx(t), "#combat")
 	check(t, err)
 	if len(found) != 1 || found[0].ID != c.ID {
@@ -217,9 +218,7 @@ func TestDeleteProjectCascades(t *testing.T) {
 		t.Errorf("files = %v, want %v", files, want)
 	}
 	for table, rows := range map[string]int{"projects": 1, "commands": 1, "jobs": 3} { // the kept project's two jobs and the REPL job
-		var n int
-		check(t, db.sql.QueryRowContext(ctx(t), `SELECT COUNT(*) FROM `+table).Scan(&n))
-		if n != rows {
+		if n := rowCount(t, db, table); n != rows {
 			t.Errorf("%s has %d rows, want %d", table, n, rows)
 		}
 	}

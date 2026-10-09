@@ -2,30 +2,12 @@ package store
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/rm4n0s/bos/internal/domain"
 	"github.com/rm4n0s/errors"
-	"modernc.org/sqlite"
+	"gorm.io/gorm"
 )
-
-// SQLite result codes for constraint failures.
-const (
-	sqlitePrimaryKey = 1555 // SQLITE_CONSTRAINT_PRIMARYKEY
-	sqliteUnique     = 2067 // SQLITE_CONSTRAINT_UNIQUE
-	sqliteForeignKey = 787  // SQLITE_CONSTRAINT_FOREIGNKEY
-)
-
-// dbtx is what both *sql.DB and *sql.Tx offer, so a repository works on the
-// pool or inside a transaction.
-type dbtx interface {
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
 
 // Repos is the set of repositories over one connection source: the pool, or a
 // single transaction.
@@ -39,96 +21,71 @@ type Repos struct {
 	Projects   *ProjectRepo
 	Commands   *CommandRepo
 	Jobs       *JobRepo
+
+	b base
 }
+
+// conn returns the connection source of the repositories, bound to ctx.
+func (r *Repos) conn(ctx context.Context) *gorm.DB { return r.b.conn(ctx) }
 
 // Repos returns the repositories on the connection pool. A method that needs
 // several statements to be atomic opens its own transaction.
-func (d *DB) Repos() *Repos { return newRepos(d.sql, d.clock) }
+func (d *DB) Repos() *Repos { return newRepos(base{db: d.gorm, clock: d.clock}) }
 
 // InTx runs fn in one transaction on the repositories it is given and commits
 // when fn returns nil. It rolls back on an error or a panic. fn must use only
 // those repositories: the transaction holds the write lock, and a call through
 // the pool would wait for it.
-func (d *DB) InTx(ctx context.Context, fn func(r *Repos) error) (err error) {
-	tx, beginErr := d.sql.BeginTx(ctx, nil)
-	if beginErr != nil {
-		return errors.NewErr("StoreFailure", beginErr).SetMetadata("operation", "begin")
-	}
-	defer func() {
-		if p := recover(); p != nil {
-			_ = tx.Rollback() // the panic is re-raised; nothing can be done with a second error
-			panic(p)
-		}
-	}()
-	if err := fn(newRepos(tx, d.clock)); err != nil {
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			if appErr, ok := errors.FromError(err); ok {
-				appErr.Metadata = withKey(appErr.Metadata, "rollback_error", rbErr.Error())
-			}
-		}
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return errors.NewErr("StoreFailure", err).SetMetadata("operation", "commit")
+func (d *DB) InTx(ctx context.Context, fn func(r *Repos) error) error {
+	err := d.gorm.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(newRepos(base{db: tx, inTx: true, clock: d.clock}))
+	})
+	if err != nil {
+		return asStoreError(err, "transaction")
 	}
 	return nil
 }
 
-func withKey(m map[string]any, k string, v any) map[string]any {
-	if m == nil {
-		m = map[string]any{}
-	}
-	m[k] = v
-	return m
-}
-
-func newRepos(q dbtx, clock func() time.Time) *Repos {
-	b := base{q: q, clock: clock}
-	items := &ItemRepo{base: b}
-	jobs := &JobRepo{base: b}
-	commands := &CommandRepo{base: b, jobs: jobs}
+func newRepos(b base) *Repos {
 	return &Repos{
-		Servers:    &ServerRepo{base: b},
-		Generators: &GeneratorRepo{base: b},
-		Fixers:     &FixerRepo{base: b},
-		Groups:     &GroupRepo{base: b, items: items},
-		Items:      items,
-		Tags:       &TagRepo{base: b},
-		Projects:   &ProjectRepo{base: b, commands: commands, jobs: jobs},
-		Commands:   commands,
-		Jobs:       jobs,
+		Servers:    &ServerRepo{b},
+		Generators: &GeneratorRepo{b},
+		Fixers:     &FixerRepo{b},
+		Groups:     &GroupRepo{b},
+		Items:      &ItemRepo{b},
+		Tags:       &TagRepo{b},
+		Projects:   &ProjectRepo{b},
+		Commands:   &CommandRepo{b},
+		Jobs:       &JobRepo{b},
+		b:          b,
 	}
 }
 
-// base is what every repository shares.
+// base is what every repository shares: the pool or a transaction, and the
+// clock.
 type base struct {
-	q     dbtx
+	db    *gorm.DB
+	inTx  bool
 	clock func() time.Time
 }
 
 func (b base) now() time.Time { return b.clock().UTC() }
 
+// conn returns the connection source bound to ctx.
+func (b base) conn(ctx context.Context) *gorm.DB { return b.db.WithContext(ctx) }
+
 // atomically runs fn in a transaction: the one the repository is already in, or
-// a new one when it works on the pool.
-func (b base) atomically(ctx context.Context, fn func(q dbtx) error) error {
-	db, ok := b.q.(*sql.DB)
-	if !ok {
-		return fn(b.q)
+// a new one when it works on the pool. fn gets the repositories of that
+// transaction.
+func (b base) atomically(ctx context.Context, fn func(r *Repos) error) error {
+	if b.inTx {
+		return fn(newRepos(b))
 	}
-	tx, err := db.BeginTx(ctx, nil)
+	err := b.conn(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(newRepos(base{db: tx, inTx: true, clock: b.clock}))
+	})
 	if err != nil {
-		return errors.NewErr("StoreFailure", err).SetMetadata("operation", "begin")
-	}
-	if err := fn(tx); err != nil {
-		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-			if appErr, ok := errors.FromError(err); ok {
-				appErr.Metadata = withKey(appErr.Metadata, "rollback_error", rbErr.Error())
-			}
-		}
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return errors.NewErr("StoreFailure", err).SetMetadata("operation", "commit")
+		return asStoreError(err, "transaction")
 	}
 	return nil
 }
@@ -139,92 +96,98 @@ func storeFailure(err error, operation string) *errors.Error {
 	return errors.NewErr("StoreFailure", err).SetMetadata("operation", operation)
 }
 
-func sqliteCode(err error) int {
-	var se *sqlite.Error
-	if errors.As(err, &se) {
-		return se.Code()
+// asStoreError keeps an application error as it is and wraps anything else.
+func asStoreError(err error, operation string) error {
+	if _, ok := errors.FromError(err); ok {
+		return err
 	}
-	return 0
+	return storeFailure(err, operation)
 }
 
-func isUnique(err error) bool {
-	c := sqliteCode(err)
-	return c == sqliteUnique || c == sqlitePrimaryKey
-}
+func isUnique(err error) bool { return errors.Is(err, gorm.ErrDuplicatedKey) }
 
-func isForeignKey(err error) bool { return sqliteCode(err) == sqliteForeignKey }
+func isForeignKey(err error) bool { return errors.Is(err, gorm.ErrForeignKeyViolated) }
+
+func isMissing(err error) bool { return errors.Is(err, gorm.ErrRecordNotFound) }
 
 func notFound(tag, what string, id int64) *errors.Error {
 	return errors.New(tag, what+" not found", "id", id)
 }
 
-// closeRows closes rows after a failure and keeps the first error.
-func closeRows(rows *sql.Rows, err error) error {
-	if closeErr := rows.Close(); closeErr != nil {
-		if appErr, ok := errors.FromError(err); ok {
-			appErr.Metadata = withKey(appErr.Metadata, "close_error", closeErr.Error())
+// ---- reads and pages ----
+
+// find reads the single row the query selects, as a domain value.
+func find[R any](q *gorm.DB, tag, what string, id int64, operation string) (*R, error) {
+	var rec R
+	if err := q.Take(&rec).Error; err != nil {
+		if isMissing(err) {
+			return nil, notFound(tag, what, id)
 		}
+		return nil, storeFailure(err, operation)
 	}
-	return err
+	return &rec, nil
 }
 
-// ---- values ----
+// all reads every row the query selects.
+func all[R any](q *gorm.DB, operation string) ([]R, error) {
+	var recs []R
+	if err := q.Find(&recs).Error; err != nil {
+		return nil, storeFailure(err, operation)
+	}
+	return recs, nil
+}
 
-func formatTime(t time.Time) string { return t.UTC().Format(time.RFC3339Nano) }
+// mapAll converts records one by one.
+func mapAll[R any, D any](recs []R, conv func(R) D) []D {
+	out := make([]D, len(recs))
+	for i, r := range recs {
+		out[i] = conv(r)
+	}
+	return out
+}
 
-func parseTime(s string) (time.Time, error) {
-	t, err := time.Parse(time.RFC3339Nano, s)
+// pageOf counts the rows the query selects, then reads one page of them in the
+// given order.
+func pageOf[R any, D any](q *gorm.DB, order string, p domain.Page, conv func(R) D, operation string) (domain.Paged[D], error) {
+	q = q.Model(new(R))
+	var total int64
+	if err := q.Session(&gorm.Session{}).Count(&total).Error; err != nil {
+		return domain.Paged[D]{}, storeFailure(err, operation)
+	}
+	n := p.Normalised()
+	recs, err := all[R](q.Session(&gorm.Session{}).Order(order).Limit(n.Size).Offset(n.Offset()), operation)
 	if err != nil {
-		return time.Time{}, errors.NewErr("StoreFailure", err).SetMetadata("operation", "parse time", "value", s)
+		return domain.Paged[D]{}, err
 	}
-	return t, nil
+	return domain.NewPaged(mapAll(recs, conv), int(total), p), nil
 }
 
-// encode writes v as JSON text. A nil slice or map becomes [] or {} through the
-// fallback, so the column never holds null.
-func encode(v any, fallback string) (string, error) {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return "", storeFailure(err, "encode")
-	}
-	if s := string(b); s != "null" {
-		return s, nil
-	}
-	return fallback, nil
+// updateRow writes every column of a row except its id and creation time.
+func updateRow(db *gorm.DB, rec any, id int64) *gorm.DB {
+	return db.Model(rec).Where("id = ?", id).Select("*").Omit("id", "created_at").Updates(rec)
 }
 
-func decode(text string, v any) error {
-	if err := json.Unmarshal([]byte(text), v); err != nil {
-		return storeFailure(err, "decode")
+// affected turns the outcome of an update or a delete into a not-found error
+// when no row matched.
+func affected(res *gorm.DB, operation, tag, what string, id int64) error {
+	if res.Error != nil {
+		return storeFailure(res.Error, operation)
+	}
+	if res.RowsAffected == 0 {
+		return notFound(tag, what, id)
 	}
 	return nil
 }
 
-// scanner is *sql.Row or *sql.Rows.
-type scanner interface{ Scan(dest ...any) error }
-
-func boolInt(b bool) int {
-	if b {
-		return 1
+// compact drops empty and repeated paths, keeping the first of each.
+func compact(paths []string) []string {
+	seen := make(map[string]bool, len(paths))
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if p != "" && !seen[p] {
+			seen[p] = true
+			out = append(out, p)
+		}
 	}
-	return 0
-}
-
-// placeholders returns "?, ?, …" for n values.
-func placeholders(n int) string {
-	return strings.TrimSuffix(strings.Repeat("?, ", n), ", ")
-}
-
-// nullInt converts an optional id for a nullable column.
-func nullInt(p *int64) any {
-	if p == nil {
-		return nil
-	}
-	return *p
-}
-
-// pageArgs returns LIMIT and OFFSET for a page.
-func pageArgs(p domain.Page) (limit, offset int) {
-	n := p.Normalised()
-	return n.Size, n.Offset()
+	return out
 }

@@ -797,7 +797,7 @@ Sections 1–13 describe behaviour and stay technology-neutral. Sections 14–20
 | ComfyUI | `github.com/rm4n0s/comfyui-client-go` behind an internal port (§18) |
 | Civitai | `github.com/rm4n0s/gocivitailib` behind an internal port (§19) |
 | HTTP, JSON, logging, files, zip, images | Standard library: `net/http` (Go 1.22+ method/path patterns), `encoding/json`, `log/slog`, `os`, `archive/zip`, `image/*`, `embed`, `html/template` |
-| Storage | SQLite through `database/sql` with `modernc.org/sqlite` (§14.4) |
+| Storage | SQLite through `gorm.io/gorm` with the `github.com/glebarez/sqlite` driver (§14.4) |
 
 Further dependencies require explicit approval (project rule); the approved set is in §14.4. `gorilla/websocket` arrives transitively through `comfyui-client-go` and is not a new direct dependency.
 
@@ -813,7 +813,7 @@ internal/command           command language: lexer, parser, AST, validator, expa
 internal/workflow          workflow editing on ComfyUI API-format graphs: attribute, seed, LoRA,
                            ControlNet, IP-Adapter and region injectors; output analysis (§8.2, §3.2)
 internal/mask              region-mask generation (§7.3)
-internal/store             repositories over SQLite; schema migrations (§10)
+internal/store             repositories over SQLite with gorm; numbered Go schema migrations (§10)
 internal/service           application services (use cases): servers, generators, fixers, tags,
                            groups, items, projects, commands, jobs, repl, civitai import
 internal/scheduler         server monitor, dispatcher, per-server runners, event log (§8)
@@ -838,16 +838,16 @@ internal/files             file storage under the configured directories, upload
 
 | # | Decision | Outcome |
 |---|---|---|
-| D1 | SQLite driver | `modernc.org/sqlite` (pure Go, no cgo) |
+| D1 | Database access | `gorm.io/gorm` with `github.com/glebarez/sqlite` (pure Go, no cgo). The driver is glue over the SQLite engine of `modernc.org/sqlite/lib`; `go.mod` pins `modernc.org/sqlite` to a current release so the engine is current. No SQL is written by hand: queries use gorm's builder, and records in `internal/store` map to the domain types |
 | D2 | Configuration file | JSON (standard library), with environment-variable overrides |
 | D3 | HTML templating | `html/template` |
 | D4 | Datastar server SDK | `github.com/starfederation/datastar-go` (`NewSSE`, `PatchElements`, `MarshalAndPatchSignals`, `ReadSignals`) |
 | D5 | Person segmentation (the original's YOLO model) | **Removed.** Regions come from colour masks and coordinates only (§7.3) |
 | D6 | Image formats for mask references | PNG only (flat colours); thumbnails and other images: PNG, JPEG, GIF. `image/webp` is not in the standard library |
 | D7 | Authentication | Listen on `127.0.0.1` by default; optional shared bearer token (§15.1, §16.6) |
-| D8 | Schema migrations | Numbered SQL files embedded with `embed`, applied in order, version stored in a table |
+| D8 | Schema migrations | Numbered Go migrations that use gorm's `Migrator` on structs frozen for each migration, applied in order, one transaction each, version stored in a table |
 
-New direct dependencies are therefore exactly: `modernc.org/sqlite`, `github.com/starfederation/datastar-go`, and the three `rm4n0s` libraries.
+New direct dependencies are therefore exactly: `gorm.io/gorm`, `github.com/glebarez/sqlite`, `github.com/starfederation/datastar-go`, and the three `rm4n0s` libraries.
 
 ## 15. REST API
 

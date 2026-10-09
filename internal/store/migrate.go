@@ -2,133 +2,98 @@ package store
 
 import (
 	"context"
-	"embed"
-	"io/fs"
 	"sort"
-	"strconv"
-	"strings"
+	"time"
 
 	"github.com/rm4n0s/errors"
+	"gorm.io/gorm"
 )
 
-//go:embed migrations/*.sql
-var migrationFiles embed.FS
-
-// migration is one numbered SQL file (SPEC §14.4, D8).
+// migration is one numbered schema change (SPEC §14.4, D8). It is written with
+// gorm's Migrator on structs frozen for that migration, never as SQL text.
 type migration struct {
 	version int
 	name    string
-	sql     string
+	up      func(tx *gorm.DB) error
 }
 
-func loadMigrations(fsys fs.FS, dir string) ([]migration, error) {
-	entries, err := fs.ReadDir(fsys, dir)
-	if err != nil {
-		return nil, errors.NewErr("MigrationFailed", err).SetMetadata("dir", dir)
+// migrations lists the schema changes in order. Add a new one at the end with
+// the next number; never edit or remove one that was released.
+func migrations() []migration {
+	return []migration{
+		{version: 1, name: "initial schema", up: migrateV1},
 	}
-	var out []migration
+}
+
+// migrationRecord is a row of the version table.
+type migrationRecord struct {
+	Version   int       `gorm:"column:version;primaryKey;autoIncrement:false"`
+	Name      string    `gorm:"column:name;not null"`
+	AppliedAt time.Time `gorm:"column:applied_at;not null"`
+}
+
+func (migrationRecord) TableName() string { return "schema_migrations" }
+
+// checkMigrations verifies that the versions are positive, unique and ordered.
+func checkMigrations(ms []migration) error {
 	seen := map[int]string{}
-	for _, e := range entries {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".sql") {
-			continue
+	for _, m := range ms {
+		if m.version < 1 {
+			return errors.New("MigrationFailed", "migration version must be a positive number", "name", m.name)
 		}
-		prefix, _, ok := strings.Cut(name, "_")
-		version, convErr := strconv.Atoi(prefix)
-		if !ok || convErr != nil || version < 1 {
-			return nil, errors.New("MigrationFailed", "migration file name must start with a positive number and an underscore", "file", name)
+		if other, dup := seen[m.version]; dup {
+			return errors.New("MigrationFailed", "two migrations have the same version", "version", m.version, "names", other+", "+m.name)
 		}
-		if other, dup := seen[version]; dup {
-			return nil, errors.New("MigrationFailed", "two migrations have the same version", "version", version, "files", other+", "+name)
-		}
-		seen[version] = name
-		body, err := fs.ReadFile(fsys, dir+"/"+name)
-		if err != nil {
-			return nil, errors.NewErr("MigrationFailed", err).SetMetadata("file", name)
-		}
-		out = append(out, migration{version: version, name: name, sql: string(body)})
+		seen[m.version] = m.name
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].version < out[j].version })
-	return out, nil
+	sort.SliceStable(ms, func(i, j int) bool { return ms[i].version < ms[j].version })
+	return nil
 }
 
-// Migrate creates the schema, or brings it up to date, by applying the embedded
+// Migrate creates the schema, or brings it up to date, by applying the
 // migrations that the version table does not list yet, in order. Each one runs
 // in its own transaction, so a failure leaves the database at the last version
 // that worked.
 func (d *DB) Migrate(ctx context.Context) error {
-	ms, err := loadMigrations(migrationFiles, "migrations")
-	if err != nil {
-		return err
-	}
-	return d.applyMigrations(ctx, ms)
+	return d.applyMigrations(ctx, migrations())
 }
 
 func (d *DB) applyMigrations(ctx context.Context, ms []migration) error {
-	if _, err := d.sql.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
-		version    INTEGER PRIMARY KEY,
-		name       TEXT NOT NULL,
-		applied_at TEXT NOT NULL)`); err != nil {
+	if err := checkMigrations(ms); err != nil {
+		return err
+	}
+	db := d.gorm.WithContext(ctx)
+	if err := db.AutoMigrate(&migrationRecord{}); err != nil {
 		return errors.NewErr("MigrationFailed", err).SetMetadata("step", "version table")
 	}
-	applied, err := d.appliedVersions(ctx)
-	if err != nil {
-		return err
+	var versions []int
+	if err := db.Model(&migrationRecord{}).Pluck("version", &versions).Error; err != nil {
+		return errors.NewErr("MigrationFailed", err).SetMetadata("step", "read versions")
+	}
+	applied := make(map[int]bool, len(versions))
+	for _, v := range versions {
+		applied[v] = true
 	}
 	for _, m := range ms {
 		if applied[m.version] {
 			continue
 		}
-		if err := d.applyOne(ctx, m); err != nil {
+		if err := d.applyOne(db, m); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (d *DB) appliedVersions(ctx context.Context) (map[int]bool, error) {
-	rows, err := d.sql.QueryContext(ctx, `SELECT version FROM schema_migrations`)
-	if err != nil {
-		return nil, errors.NewErr("MigrationFailed", err).SetMetadata("step", "read versions")
-	}
-	applied := map[int]bool{}
-	for rows.Next() {
-		var v int
-		if err := rows.Scan(&v); err != nil {
-			return nil, closeRows(rows, errors.NewErr("MigrationFailed", err).SetMetadata("step", "read versions"))
+func (d *DB) applyOne(db *gorm.DB, m migration) error {
+	err := db.Transaction(func(tx *gorm.DB) error {
+		if err := m.up(tx); err != nil {
+			return err
 		}
-		applied[v] = true
-	}
-	if err := rows.Err(); err != nil {
-		return nil, closeRows(rows, errors.NewErr("MigrationFailed", err).SetMetadata("step", "read versions"))
-	}
-	if err := rows.Close(); err != nil {
-		return nil, errors.NewErr("MigrationFailed", err).SetMetadata("step", "read versions")
-	}
-	return applied, nil
-}
-
-func (d *DB) applyOne(ctx context.Context, m migration) error {
-	tx, err := d.sql.BeginTx(ctx, nil)
+		return tx.Create(&migrationRecord{Version: m.version, Name: m.name, AppliedAt: d.clock().UTC()}).Error
+	})
 	if err != nil {
-		return errors.NewErr("MigrationFailed", err).SetMetadata("version", m.version, "file", m.name)
-	}
-	fail := func(err error) error {
-		wrapped := errors.NewErr("MigrationFailed", err).SetMetadata("version", m.version, "file", m.name)
-		if rbErr := tx.Rollback(); rbErr != nil {
-			return wrapped.SetMetadata("version", m.version, "file", m.name, "rollback_error", rbErr.Error())
-		}
-		return wrapped
-	}
-	if _, err := tx.ExecContext(ctx, m.sql); err != nil {
-		return fail(err)
-	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)`,
-		m.version, m.name, formatTime(d.clock())); err != nil {
-		return fail(err)
-	}
-	if err := tx.Commit(); err != nil {
-		return errors.NewErr("MigrationFailed", err).SetMetadata("version", m.version, "file", m.name)
+		return errors.NewErr("MigrationFailed", err).SetMetadata("version", m.version, "name", m.name)
 	}
 	return nil
 }
@@ -137,7 +102,7 @@ func (d *DB) applyOne(ctx context.Context, m migration) error {
 // database.
 func (d *DB) SchemaVersion(ctx context.Context) (int, error) {
 	var v int
-	err := d.sql.QueryRowContext(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&v)
+	err := d.gorm.WithContext(ctx).Model(&migrationRecord{}).Select("COALESCE(MAX(version), 0)").Scan(&v).Error
 	if err != nil {
 		return 0, errors.NewErr("StoreFailure", err).SetMetadata("operation", "schema version")
 	}

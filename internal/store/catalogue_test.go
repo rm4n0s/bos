@@ -424,9 +424,7 @@ func TestDeleteGroupCascades(t *testing.T) {
 		t.Errorf("files = %v\nwant   %v", files, want)
 	}
 	for table, wantRows := range map[string]int{"groups": 1, "items": 1, "group_tags": 1, "item_tags": 1} {
-		var n int
-		check(t, db.sql.QueryRowContext(ctx(t), `SELECT COUNT(*) FROM `+table).Scan(&n))
-		if n != wantRows {
+		if n := rowCount(t, db, table); n != wantRows {
 			t.Errorf("%s has %d rows after the delete, want %d", table, n, wantRows)
 		}
 	}
@@ -450,14 +448,14 @@ func TestForeignKeysProtectParents(t *testing.T) {
 	r := db.Repos()
 	g := mustGroup(t, r, "g")
 	mustItem(t, r, g.ID, "a", "t")
-	if _, err := db.sql.ExecContext(ctx(t), `DELETE FROM groups WHERE id=?`, g.ID); err == nil {
-		t.Error("a group with items was deleted by plain SQL")
+	if err := db.gorm.Delete(&groupRecord{}, "id = ?", g.ID).Error; err == nil {
+		t.Error("a group with items was deleted behind the repositories")
 	} else if !isForeignKey(err) {
 		t.Errorf("unexpected error %v", err)
 	}
 	p := mustProject(t, r, "p")
 	mustCommand(t, r, p.ID, "c", 0)
-	if _, err := db.sql.ExecContext(ctx(t), `DELETE FROM projects WHERE id=?`, p.ID); err == nil {
-		t.Error("a project with commands was deleted by plain SQL")
+	if err := db.gorm.Delete(&projectRecord{}, "id = ?", p.ID).Error; err == nil {
+		t.Error("a project with commands was deleted behind the repositories")
 	}
 }

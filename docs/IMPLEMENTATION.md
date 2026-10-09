@@ -1,6 +1,6 @@
 # Implementation plan
 
-Companion to [SPEC.md](SPEC.md). Each step is one `feat/…` branch and one small pull request. A step is done when `gofmt`, `go vet ./...`, `golangci-lint run` and `go test -race ./...` pass. Every step that adds a failure case also adds its error tag (SPEC §17.2) and a test that asserts the route. Dependencies are limited to the approved set in SPEC §14.4: `modernc.org/sqlite`, `github.com/starfederation/datastar-go`, `rm4n0s/errors`, `rm4n0s/comfyui-client-go`, `rm4n0s/gocivitailib`. Anything else needs approval first.
+Companion to [SPEC.md](SPEC.md). Each step is one `feat/…` branch and one small pull request. A step is done when `gofmt`, `go vet ./...`, `golangci-lint run` and `go test -race ./...` pass. Every step that adds a failure case also adds its error tag (SPEC §17.2) and a test that asserts the route. Dependencies are limited to the approved set in SPEC §14.4: `gorm.io/gorm`, `github.com/glebarez/sqlite`, `github.com/starfederation/datastar-go`, `rm4n0s/errors`, `rm4n0s/comfyui-client-go`, `rm4n0s/gocivitailib`. Anything else needs approval first.
 
 ## Rules
 
@@ -40,7 +40,7 @@ No database needed.
 
 ## Step 4 – Domain and store (`feat/store`)
 
-- Domain types and embedded, numbered SQL migrations with a version table.
+- Domain types and numbered Go migrations (gorm) with a version table.
 - Repositories for servers, generators, fixers, groups, items, tags, projects, commands and jobs.
 - Atomic job claiming, the delete cascades of SPEC §7.4, and the uniqueness rules.
 - Tests: in-memory SQLite, including concurrent claiming under `-race`.

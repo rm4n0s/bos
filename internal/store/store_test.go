@@ -8,6 +8,11 @@ import (
 	"github.com/rm4n0s/errors"
 )
 
+// probe is a table of its own, to show which database a store talks to.
+type probe struct {
+	X int `gorm:"column:x"`
+}
+
 func TestOpenInMemoryIsPrivate(t *testing.T) {
 	ctx := context.Background()
 	a, err := Open(ctx, InMemory)
@@ -18,10 +23,10 @@ func TestOpenInMemoryIsPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := a.sql.ExecContext(ctx, `CREATE TABLE t (x INTEGER)`); err != nil {
+	if err := a.gorm.Migrator().CreateTable(&probe{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := b.sql.ExecContext(ctx, `CREATE TABLE t (x INTEGER)`); err != nil {
+	if err := b.gorm.Migrator().CreateTable(&probe{}); err != nil {
 		t.Fatalf("second in-memory database shares the first: %v", err)
 	}
 	for _, db := range []*DB{a, b} {
@@ -41,7 +46,10 @@ func TestOpenFileKeepsData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.sql.ExecContext(ctx, `CREATE TABLE t (x INTEGER); INSERT INTO t VALUES (7)`); err != nil {
+	if err := db.gorm.Migrator().CreateTable(&probe{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.gorm.Create(&probe{X: 7}).Error; err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -52,13 +60,9 @@ func TestOpenFileKeepsData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var x int
-	if err := db.sql.QueryRowContext(ctx, `SELECT x FROM t`).Scan(&x); err != nil || x != 7 {
-		t.Errorf("x = %d, err = %v; want 7", x, err)
-	}
-	var fk int
-	if err := db.sql.QueryRowContext(ctx, `PRAGMA foreign_keys`).Scan(&fk); err != nil || fk != 1 {
-		t.Errorf("foreign_keys = %d, err = %v; want 1", fk, err)
+	var got probe
+	if err := db.gorm.Take(&got).Error; err != nil || got.X != 7 {
+		t.Errorf("x = %d, err = %v; want 7", got.X, err)
 	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)

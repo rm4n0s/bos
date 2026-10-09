@@ -6,15 +6,35 @@ import (
 	"strings"
 
 	"github.com/rm4n0s/bos/internal/domain"
+	"github.com/rm4n0s/errors"
+	"gorm.io/gorm"
 )
 
-// tagTable names the two tag tables. Group tags and item tags are separate
-// vocabularies (SPEC §3.4).
-type tagTable struct{ table, owner string }
+var errUnknownScope = errors.New("StoreFailure", "unknown tag scope")
+
+// tagTable describes one of the two tag tables. Group tags and item tags are
+// separate vocabularies (SPEC §3.4).
+type tagTable struct {
+	owner string                            // the column that names the group or item
+	model func() any                        // a new pointer to a record of the table
+	rows  func(id int64, tags []string) any // the records of one owner's tags
+}
 
 var (
-	groupTagTable = tagTable{table: "group_tags", owner: "group_id"}
-	itemTagTable  = tagTable{table: "item_tags", owner: "item_id"}
+	groupTagTable = tagTable{owner: "group_id", model: func() any { return &groupTagRecord{} }, rows: func(id int64, tags []string) any {
+		out := make([]groupTagRecord, len(tags))
+		for i, t := range tags {
+			out[i] = groupTagRecord{GroupID: id, Tag: t}
+		}
+		return &out
+	}}
+	itemTagTable = tagTable{owner: "item_id", model: func() any { return &itemTagRecord{} }, rows: func(id int64, tags []string) any {
+		out := make([]itemTagRecord, len(tags))
+		for i, t := range tags {
+			out[i] = itemTagRecord{ItemID: id, Tag: t}
+		}
+		return &out
+	}}
 )
 
 // cleanTags returns tags sorted and without duplicates. Callers have already
@@ -33,46 +53,36 @@ func cleanTags(tags []string) []string {
 }
 
 // writeTags replaces the tags of one owner.
-func writeTags(ctx context.Context, q dbtx, t tagTable, id int64, tags []string) error {
-	if _, err := q.ExecContext(ctx, `DELETE FROM `+t.table+` WHERE `+t.owner+`=?`, id); err != nil {
+func writeTags(db *gorm.DB, t tagTable, id int64, tags []string) error {
+	if err := db.Where(t.owner+" = ?", id).Delete(t.model()).Error; err != nil {
 		return storeFailure(err, "write tags")
 	}
-	for _, tag := range cleanTags(tags) {
-		if _, err := q.ExecContext(ctx, `INSERT INTO `+t.table+` (`+t.owner+`, tag) VALUES (?, ?)`, id, tag); err != nil {
-			return storeFailure(err, "write tags")
-		}
+	clean := cleanTags(tags)
+	if len(clean) == 0 {
+		return nil
+	}
+	if err := db.Create(t.rows(id, clean)).Error; err != nil {
+		return storeFailure(err, "write tags")
 	}
 	return nil
 }
 
 // loadTags returns the tags of the given owners, sorted.
-func loadTags(ctx context.Context, q dbtx, t tagTable, ids []int64) (map[int64][]string, error) {
+func loadTags(db *gorm.DB, t tagTable, ids []int64) (map[int64][]string, error) {
 	out := make(map[int64][]string, len(ids))
 	if len(ids) == 0 {
 		return out, nil
 	}
-	args := make([]any, len(ids))
-	for i, id := range ids {
-		args[i] = id
+	var rows []struct {
+		Owner int64
+		Tag   string
 	}
-	rows, err := q.QueryContext(ctx,
-		`SELECT `+t.owner+`, tag FROM `+t.table+` WHERE `+t.owner+` IN (`+placeholders(len(ids))+`) ORDER BY tag`, args...)
+	err := db.Model(t.model()).Select(t.owner+" AS owner, tag").Where(t.owner+" IN ?", ids).Order("tag").Scan(&rows).Error
 	if err != nil {
 		return nil, storeFailure(err, "read tags")
 	}
-	for rows.Next() {
-		var id int64
-		var tag string
-		if err := rows.Scan(&id, &tag); err != nil {
-			return nil, closeRows(rows, storeFailure(err, "read tags"))
-		}
-		out[id] = append(out[id], tag)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, closeRows(rows, storeFailure(err, "read tags"))
-	}
-	if err := rows.Close(); err != nil {
-		return nil, storeFailure(err, "read tags")
+	for _, row := range rows {
+		out[row.Owner] = append(out[row.Owner], row.Tag)
 	}
 	return out, nil
 }
@@ -99,23 +109,10 @@ func (r *TagRepo) List(ctx context.Context, scope domain.TagScope, prefix string
 	}
 	// LIKE needs the escape character for % and _ inside the prefix.
 	esc := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(prefix)
-	rows, err := r.q.QueryContext(ctx,
-		`SELECT tag, COUNT(*) FROM `+t.table+` WHERE tag LIKE ? ESCAPE '\' GROUP BY tag ORDER BY tag`, esc+"%")
-	if err != nil {
-		return nil, storeFailure(err, "list tags")
-	}
 	out := []domain.TagCount{}
-	for rows.Next() {
-		var c domain.TagCount
-		if err := rows.Scan(&c.Tag, &c.Count); err != nil {
-			return nil, closeRows(rows, storeFailure(err, "list tags"))
-		}
-		out = append(out, c)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, closeRows(rows, storeFailure(err, "list tags"))
-	}
-	if err := rows.Close(); err != nil {
+	err := r.conn(ctx).Model(t.model()).Select("tag, COUNT(*) AS count").
+		Where("tag LIKE ? ESCAPE ?", esc+"%", `\`).Group("tag").Order("tag").Scan(&out).Error
+	if err != nil {
 		return nil, storeFailure(err, "list tags")
 	}
 	return out, nil
@@ -129,24 +126,26 @@ func (r *TagRepo) Rename(ctx context.Context, scope domain.TagScope, from, to st
 	if !ok {
 		return 0, storeFailure(errUnknownScope, "rename tag")
 	}
-	var affected int
-	err := r.atomically(ctx, func(q dbtx) error {
-		if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM `+t.table+` WHERE tag=?`, from).Scan(&affected); err != nil {
+	var affectedOwners int
+	err := r.atomically(ctx, func(tx *Repos) error {
+		db := tx.conn(ctx)
+		var n int64
+		if err := db.Model(t.model()).Where("tag = ?", from).Count(&n).Error; err != nil {
 			return storeFailure(err, "rename tag")
 		}
-		if affected == 0 || from == to {
+		affectedOwners = int(n)
+		if n == 0 || from == to {
 			return nil
 		}
 		// Owners that carry `to` already would collide: drop their `from` first.
-		if _, err := q.ExecContext(ctx,
-			`DELETE FROM `+t.table+` WHERE tag=? AND `+t.owner+` IN (SELECT `+t.owner+` FROM `+t.table+` WHERE tag=?)`,
-			from, to); err != nil {
+		carriers := db.Model(t.model()).Select(t.owner).Where("tag = ?", to)
+		if err := db.Where("tag = ? AND "+t.owner+" IN (?)", from, carriers).Delete(t.model()).Error; err != nil {
 			return storeFailure(err, "rename tag")
 		}
-		if _, err := q.ExecContext(ctx, `UPDATE `+t.table+` SET tag=? WHERE tag=?`, to, from); err != nil {
+		if err := db.Model(t.model()).Where("tag = ?", from).Update("tag", to).Error; err != nil {
 			return storeFailure(err, "rename tag")
 		}
 		return nil
 	})
-	return affected, err
+	return affectedOwners, err
 }
