@@ -224,7 +224,7 @@ The harness is temporary and is removed in step 12.
 
 ## Step 10e – Web UI: the REPL
 - Branch: feat/ui-repl
-- Last code commit: PENDING
+- Last code commit: 627174d
 - Date: 2026-10-10
 - Delivered: `/repl`: server and generator pickers (an offline server is marked), the items line `group(item),group(item)`, positive and negative text and LoRA lines; **Run** calls `ReplService.Run`, failures stay in the form; the result area shows the status, the prompt, the picture (or a link), and the error with its trace. When the job ends the toast stream of every page redraws `#repl-result`, so the picture replaces itself; its address carries the time of the result, because the file always has the same name. Tests: the page with and without a catalogue, the run and each refusal (items, unknown server, item, LoRA, a run in progress), the live replacement for a finished and a failed job, and the same in a real browser against the stand-in ComfyUI. This closes step 10: every screen of SPEC §16.3 exists except the Civitai import dialog, which comes with step 11.
 - Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
