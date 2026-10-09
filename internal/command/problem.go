@@ -25,11 +25,15 @@ const (
 )
 
 // Problem is a structured error entry of SPEC §15.3, so a client can underline
-// the offending token.
+// the offending token. Tag is the error tag of the failure; for semantic
+// problems it says which check failed. Err is the error created where the
+// problem was found; its route shows the path to the check.
 type Problem struct {
-	Rule     string `json:"rule"`
-	Message  string `json:"message"`
-	Position Pos    `json:"position"`
+	Rule     string        `json:"rule"`
+	Tag      string        `json:"tag,omitempty"`
+	Message  string        `json:"message"`
+	Position Pos           `json:"position"`
+	Err      *errors.Error `json:"-"`
 }
 
 // ProblemOf extracts the structured problem from an error returned by Parse or
@@ -44,7 +48,7 @@ func ProblemOf(err error) (Problem, bool) {
 		return Problem{}, false
 	}
 	pos, _ := appErr.Metadata["position"].(Pos)
-	return Problem{Rule: rule, Message: appErr.Message, Position: pos}, true
+	return Problem{Rule: rule, Tag: appErr.Tag, Message: appErr.Message, Position: pos, Err: appErr}, true
 }
 
 // violation is a restriction failure that does not stop parsing: the parser
@@ -83,4 +87,11 @@ func restrictionError(v violation) *errors.Error {
 
 func syntaxError(msg string, at Pos, token string) *errors.Error {
 	return errors.New("CommandSyntaxError", msg, "rule", RuleSyntax, "position", at, "token", token)
+}
+
+// semantic creates a semantic problem (SPEC §6.11). The error it carries
+// records the stack of the check that found it.
+func semantic(rule, tag, msg string, at Pos) Problem {
+	err := errors.New(tag, msg, "rule", rule, "position", at)
+	return Problem{Rule: rule, Tag: tag, Message: msg, Position: at, Err: err}
 }
