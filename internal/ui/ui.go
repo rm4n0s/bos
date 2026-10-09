@@ -107,6 +107,7 @@ func (u *UI) registerAll() {
 	u.itemRoutes()
 	u.commandRoutes()
 	u.jobRoutes()
+	u.replRoutes()
 	u.streamRoutes()
 	u.fileRoutes()
 }

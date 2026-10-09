@@ -1,0 +1,28 @@
+{{define "content"}}<section>
+  <div class="bar"><h1>REPL</h1></div>
+  <p class="hint">Make one picture right now, without a project. Pick a server and a generator, write the prompt, and add items as <code>group(item),group(item)</code>. The previous result is replaced.</p>
+  <form class="stack" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/repl/run', {contentType: 'form'})">
+    <div class="row">
+      <label>Server <select name="server" required>{{range .Data.Servers}}<option value="{{.CodeName}}">{{.Name}} ({{.CodeName}}){{if not .Online}} — offline{{end}}</option>{{end}}</select></label>
+      <label>Generator <select name="generator" required>{{range .Data.Generators}}<option value="{{.CodeName}}">{{.Name}} ({{.CodeName}})</option>{{end}}</select></label>
+    </div>
+    <label>Items <input name="items" placeholder="characters(alice),poses(standing)"></label>
+    <label>Positive prompt <textarea name="positive" rows="3"></textarea></label>
+    <label>Negative prompt <textarea name="negative" rows="2"></textarea></label>
+    <label>LoRAs (one per line: name, model strength, text-encoder strength) <textarea name="loras" rows="2" placeholder="dance.safetensors, 0.8, 0.8"></textarea></label>
+    <p class="error" id="repl-error"></p>
+    <div class="buttons start"><button type="submit">Run</button>
+      {{if or (not .Data.Servers) (not .Data.Generators)}}<span class="muted">Add a <a href="/servers">server</a> and a <a href="/generators">generator</a> first.</span>{{end}}</div>
+  </form>
+  <h2>Result</h2>
+  {{template "repl_result" .Data.Last}}
+</section>{{end}}
+
+{{define "repl_result"}}<div id="repl-result">
+{{if not .Job}}<p class="empty">Nothing run yet.</p>{{else}}
+  <p><span class="badge {{statusOf .Job.Status}}">{{.Job.Status}}</span> <span class="muted">{{.Job.PositivePrompt}}</span></p>
+  {{if .Job.Error}}<p class="error">{{.Job.Error}}</p>{{end}}
+  {{if .ResultURL}}{{if .IsImage}}<a href="{{.ResultURL}}" target="_blank" rel="noopener"><img class="result" src="{{.ResultURL}}" alt="the result"></a>{{else}}<p><a href="{{.ResultURL}}" target="_blank" rel="noopener">Open the result</a></p>{{end}}{{end}}
+  {{if .Job.ErrorTrace}}<details><summary>Trace</summary><pre class="trace">{{.Job.ErrorTrace}}</pre></details>{{end}}
+{{end}}
+</div>{{end}}

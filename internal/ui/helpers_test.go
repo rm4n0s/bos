@@ -278,3 +278,7 @@ func stored(t *testing.T, dir string) []string {
 func serviceCommand(code string) service.CommandInput {
 	return service.CommandInput{Name: "c", Code: code}
 }
+
+func serviceRepl() service.ReplInput {
+	return service.ReplInput{Server: "gpu1", Generator: "anime", Positive: "x"}
+}

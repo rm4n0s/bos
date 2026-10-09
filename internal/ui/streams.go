@@ -179,9 +179,13 @@ func (u *UI) drawToasts(r *http.Request, s *stream, batch []events.Event, gap bo
 	var started, finished int
 	var failed []domain.ID
 	commands := map[domain.ID]bool{}
+	repl := false
 	for _, e := range batch {
 		if e.CommandID > 0 {
 			commands[e.CommandID] = true
+		}
+		if e.CommandID == domain.ReplID && isJobEvent(e.Type) {
+			repl = true
 		}
 		switch e.Type {
 		case events.Processing:
@@ -217,6 +221,12 @@ func (u *UI) drawToasts(r *http.Request, s *stream, batch []events.Event, gap bo
 	}
 	if started > 0 && finished == 0 && len(failed) == 0 {
 		if err := s.toast("processing", plural(started, "job")+" started."); err != nil {
+			return err
+		}
+	}
+	if repl {
+		// On the REPL page the picture replaces itself when the job ends.
+		if err := u.drawRepl(r, s); err != nil {
 			return err
 		}
 	}
