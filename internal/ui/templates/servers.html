@@ -1,0 +1,49 @@
+{{define "content"}}<section data-signals='{"_armed":0,"servers":{"open":false,"form":{"id":0,"name":"","host":"","code_name":"","is_local":false,"max_concurrent_jobs":1}}}'>
+  <div class="bar">
+    <h1>Servers</h1>
+    <button type="button" data-on:click="$servers.form = {id:0,name:'',host:'http://127.0.0.1:8188',code_name:'',is_local:false,max_concurrent_jobs:1}; $servers.open=true">Add server</button>
+  </div>
+  {{template "servers_table" .Data}}
+  <div class="modal" data-class:open="$servers.open">
+    <form class="dialog stack" data-on:submit__prevent="@post('/ui/servers')">
+      <h2 data-text="$servers.form.id ? 'Edit server' : 'Add server'"></h2>
+      <label>Name <input data-bind="servers.form.name" maxlength="100" required></label>
+      <label>Address <input data-bind="servers.form.host" maxlength="100" placeholder="http://127.0.0.1:8188" required></label>
+      <label>Code name <input data-bind="servers.form.code_name" maxlength="100" placeholder="gpu1" required></label>
+      <label>Jobs at once <input type="number" min="1" data-bind="servers.form.max_concurrent_jobs"></label>
+      <label class="check"><input type="checkbox" data-bind="servers.form.is_local"> ComfyUI reads this program's files directly (same machine or shared disk)</label>
+      <p class="error" id="servers-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$servers.open=false">Cancel</button>
+        <button type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</section>{{end}}
+
+{{define "servers_table"}}<div id="servers-table">
+{{if not .Items}}<p class="empty">No servers yet — add one.</p>{{else}}
+<table>
+  <thead><tr><th>Name</th><th>Address</th><th>Code name</th><th>Jobs</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+  {{range .Items}}<tr id="server-{{.ID}}">
+    <td>{{.Name}}</td>
+    <td>{{.Host}}</td>
+    <td><code>{{.CodeName}}</code>{{if .IsLocal}} <span class="chip">local</span>{{end}}</td>
+    <td>{{.MaxConcurrentJobs}}</td>
+    <td>{{template "server_status" .}}</td>
+    <td class="actions">
+      <button type="button" class="secondary" data-on:click="@post('/ui/servers/{{.ID}}/test')">Test</button>
+      <button type="button" class="secondary" data-on:click="@get('/ui/servers/{{.ID}}/edit')">Edit</button>
+      <button type="button" class="danger"
+        data-on:click="$_armed === {{.ID}} ? @delete('/ui/servers/{{.ID}}') : $_armed = {{.ID}}"
+        data-text="$_armed === {{.ID}} ? 'Really delete?' : 'Delete'">Delete</button>
+    </td>
+  </tr>{{end}}
+  </tbody>
+</table>
+{{template "pager" .Pager}}
+{{end}}
+</div>{{end}}
+
+{{define "server_status"}}<span id="server-status-{{.ID}}" class="badge {{if .Online}}online{{else}}offline{{end}}">{{if .Online}}online{{else}}offline{{end}}</span>{{end}}

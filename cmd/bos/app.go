@@ -14,6 +14,7 @@ import (
 	"github.com/rm4n0s/bos/internal/scheduler"
 	"github.com/rm4n0s/bos/internal/service"
 	"github.com/rm4n0s/bos/internal/store"
+	"github.com/rm4n0s/bos/internal/ui"
 )
 
 // app is the object graph (SPEC §14.3, rule 3): everything is built here, once,
@@ -97,6 +98,15 @@ func (a *app) apiDeps(logger *slog.Logger) api.Deps {
 			Regions: c.RegionsDir, Thumbnails: c.ThumbnailsDir, Downloads: c.DownloadsDir,
 		},
 		AuthToken: c.AuthToken, CORSAllowList: c.CORSAllowList, UploadLimit: c.UploadLimit, Logger: logger,
+	}
+}
+
+// uiDeps is what the web interface is built from.
+func (a *app) uiDeps(logger *slog.Logger) ui.Deps {
+	c := a.cfg
+	return ui.Deps{
+		Services: a.services, Events: a.events, Files: a.files, Dirs: a.apiDeps(logger).Dirs,
+		AuthToken: c.AuthToken, UploadLimit: c.UploadLimit, Logger: logger,
 	}
 }
 

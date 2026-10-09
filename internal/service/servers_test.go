@@ -129,3 +129,18 @@ func TestServerWithoutFleet(t *testing.T) {
 	_, err := e.Servers.LoRAs(ctx(t), s.ID)
 	wantRoute(t, err, "ServerService.LoRAs", "ServerUnreachable")
 }
+
+func TestServerTest(t *testing.T) {
+	e := newEnv(t)
+	s := e.server(t, "gpu1")
+	check(t, e.Servers.Test(ctx(t), s.ID))
+
+	wantRoute(t, e.Servers.Test(ctx(t), 999), "ServerService.Test", "ServerNotFound")
+
+	// What the connection says is passed on untouched.
+	down := errors.New("ServerUnreachable", "no route to host")
+	e.fleet.err = down
+	if err := e.Servers.Test(ctx(t), s.ID); err != error(down) { //nolint:errorlint // the same error value must come back
+		t.Errorf("err = %v, want the fleet's own error", err)
+	}
+}

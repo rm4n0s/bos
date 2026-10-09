@@ -129,18 +129,6 @@ func TestFiles(t *testing.T) {
 	}
 }
 
-func TestCleanName(t *testing.T) {
-	tests := map[string]bool{
-		"a.png": true, "7/a.png": true, "item-1f/red.png": true,
-		"": false, ".": false, "..": false, "../a": false, "a/..": false, "a//b": false, "/a": false, "a/": false, `a\b`: false, "a\x00": false, "a\nb": false,
-	}
-	for name, want := range tests {
-		if got := cleanName(name); got != want {
-			t.Errorf("cleanName(%q) = %v, want %v", name, got, want)
-		}
-	}
-}
-
 // ---- events ----
 
 // sse reads server-sent events from a stream.

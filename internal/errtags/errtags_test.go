@@ -29,8 +29,8 @@ func sources(t *testing.T) (code, tests map[string]string) {
 			if strings.Contains(abs, string(filepath.Separator)+"errtags"+string(filepath.Separator)) {
 				return nil // the catalogue and its test name every tag
 			}
-			if strings.HasSuffix(abs, filepath.Join("internal", "api", "errors.go")) {
-				return nil // the HTTP status table names every tag without raising any
+			if strings.Contains(abs, string(filepath.Separator)+"apptest"+string(filepath.Separator)) {
+				return nil // support code for tests, not part of the program
 			}
 			b, err := os.ReadFile(path)
 			if err != nil {

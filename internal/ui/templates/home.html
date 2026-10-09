@@ -1,0 +1,17 @@
+{{define "content"}}<section>
+  <h1>Bowl of Scenes</h1>
+  <p>Combine reusable prompt pieces with a one-line command and run every combination on your ComfyUI servers.</p>
+  <ol class="steps">
+    <li><a href="/servers">Add a server</a> and check that it is online.</li>
+    <li><a href="/generators">Add a generator</a> (and maybe a <a href="/fixers">fixer</a>) from a ComfyUI workflow.</li>
+    <li>Fill <a href="/groups">groups</a> with items.</li>
+    <li>Open a <a href="/projects">project</a>, preview a command, add it and run it.</li>
+  </ol>
+  <h2>Where things stand</h2>
+  <ul class="facts">
+    <li>{{.Data.Servers}} server{{if ne .Data.Servers 1}}s{{end}}, {{.Data.Online}} online</li>
+    <li>{{.Data.Generators}} generator{{if ne .Data.Generators 1}}s{{end}}</li>
+    <li>{{.Data.Groups}} group{{if ne .Data.Groups 1}}s{{end}}</li>
+    <li>{{.Data.Projects}} project{{if ne .Data.Projects 1}}s{{end}}</li>
+  </ul>
+</section>{{end}}

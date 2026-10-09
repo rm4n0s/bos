@@ -1,15 +1,10 @@
 package api
 
 import (
-	"io"
-	"io/fs"
 	"net/http"
-	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/rm4n0s/bos/internal/domain"
-	"github.com/rm4n0s/errors"
 )
 
 func (a *API) commandRoutes() {
@@ -226,36 +221,5 @@ func (a *API) downloadCommand(w http.ResponseWriter, r *http.Request) error {
 	}
 	name := "command-" + strconv.FormatInt(id, 10) + ".zip"
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
-	return a.serveStored(w, r, path, "application/zip")
-}
-
-// serveStored sends a stored file. It supports ranges when the file store
-// hands out a seekable file, and refuses folders.
-func (a *API) serveStored(w http.ResponseWriter, r *http.Request, path, contentType string) error {
-	f, err := a.Files.Open(path)
-	if err != nil {
-		return err
-	}
-	var modified time.Time
-	if st, ok := f.(interface{ Stat() (fs.FileInfo, error) }); ok {
-		if info, err := st.Stat(); err == nil {
-			if info.IsDir() {
-				_ = f.Close() // nothing was read; the missing file is the error to report
-				return errors.New("FileNotFound", "there is no such file")
-			}
-			modified = info.ModTime()
-		}
-	}
-	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Security-Policy", "sandbox")
-	if seeker, ok := f.(io.ReadSeeker); ok {
-		http.ServeContent(w, r, filepath.Base(path), modified, seeker)
-	} else if _, err := io.Copy(w, f); err != nil {
-		a.Logger.Warn("could not send a file", "error", err.Error())
-	}
-	if err := f.Close(); err != nil {
-		return errors.NewErr("FileStoreFailure", err).SetMetadata("operation", "close")
-	}
-	return nil
+	return a.fileServer.Send(w, r, path, "application/zip")
 }

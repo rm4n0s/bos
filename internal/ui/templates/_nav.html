@@ -1,0 +1,8 @@
+{{define "nav"}}<nav>
+  <a href="/servers"{{if eq .Nav "servers"}} aria-current="page"{{end}}>Servers</a>
+  <a href="/generators"{{if eq .Nav "generators"}} aria-current="page"{{end}}>Generators</a>
+  <a href="/fixers"{{if eq .Nav "fixers"}} aria-current="page"{{end}}>Fixers</a>
+  <a href="/groups"{{if eq .Nav "groups"}} aria-current="page"{{end}}>Groups</a>
+  <a href="/projects"{{if eq .Nav "projects"}} aria-current="page"{{end}}>Projects</a>
+  <a href="/repl"{{if eq .Nav "repl"}} aria-current="page"{{end}}>REPL</a>
+</nav>{{end}}

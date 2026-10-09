@@ -10,6 +10,7 @@ import (
 	"github.com/rm4n0s/bos/internal/api"
 	"github.com/rm4n0s/bos/internal/config"
 	"github.com/rm4n0s/bos/internal/files"
+	"github.com/rm4n0s/bos/internal/ui"
 	"github.com/rm4n0s/errors"
 )
 
@@ -59,12 +60,22 @@ func serve(ctx context.Context, configPath string, getenv func(string) string, l
 		ready(lis.Addr())
 	}
 	rest := api.New(a.apiDeps(logger))
+	web, err := ui.New(a.uiDeps(logger))
+	if err != nil {
+		return err
+	}
+	// The REST API owns /api/v1 and /healthz; the web interface owns the rest.
+	root := http.NewServeMux()
+	root.Handle("/api/v1/", rest.Handler())
+	root.Handle("/healthz", rest.Handler())
+	root.Handle("/", web.Handler())
 	srv := &http.Server{
-		Handler:           rest.Handler(),
+		Handler:           root,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	// The event stream never ends by itself; stop it when the shutdown starts.
+	// The live streams never end by themselves; stop them when the shutdown starts.
 	srv.RegisterOnShutdown(rest.Stop)
+	srv.RegisterOnShutdown(web.Stop)
 	return runServer(ctx, srv, lis, shutdownTimeout, logger)
 }
 

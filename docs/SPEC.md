@@ -1009,7 +1009,7 @@ Full pages are plain `GET`s that return a complete HTML document. Everything int
 |---|---|---|
 | Page | `GET /` · `/servers` · `/generators` · `/fixers` · `/groups` · `/groups/{id}/items` · `/projects` · `/projects/{id}/commands` · `/commands/{id}/jobs` · `/repl` | One per screen of §4; the common header menu is part of every page |
 | Fragment (read) | `GET /ui/servers/table?page=2` · `GET /ui/groups/{id}/items/list` | Return an SSE response that patches the table/list; used for paging, filtering and refresh |
-| Action (write) | `POST /ui/servers` · `PUT /ui/servers/{id}` · `DELETE /ui/servers/{id}` · `POST /ui/commands/{id}/run` … | Read the signals (JSON body, `Datastar-Request: true`), call a service, patch the affected element(s) and close the dialog via a signal patch |
+| Action (write) | `POST /ui/servers` (creates, or updates when the form carries an id) · `DELETE /ui/servers/{id}` · `POST /ui/commands/{id}/run` … | Read the signals (JSON body, `Datastar-Request: true`), call a service, patch the affected element(s) and close the dialog via a signal patch |
 | Upload | `POST /ui/groups/{id}/items` | The form uses Datastar's `contentType: 'form'`, which sends `multipart/form-data` |
 | Live stream | `GET /ui/stream/commands/{id}` · `GET /ui/stream/toasts` | Long-lived SSE connections (§16.4) |
 | Preview | `POST /ui/commands/preview` | Live feedback while typing (§16.3) |
@@ -1051,8 +1051,8 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 - The server listens on `127.0.0.1:<port>` by default; exposing it on another address requires explicit configuration, and a warning is logged if `auth_token` is empty.
 - If `auth_token` is set, the UI shows a sign-in form once, stores a signed cookie (`HttpOnly`, `SameSite=Strict`), and both the UI and the REST API honour the token.
 - **CSRF.** All state-changing `/ui/` routes require the header `Datastar-Request: true` and a same-origin `Origin`/`Sec-Fetch-Site`; others are rejected with `403`. Cookies are `SameSite=Strict`.
-- Response header `Content-Security-Policy` allows scripts only from `'self'`; user-supplied text (prompts, names) is always HTML-escaped by `html/template`. Datastar attribute values that interpolate user data are escaped for attribute context; user text is never placed inside an expression.
-- File routes serve only from the configured directories, one path segment, with `Content-Type` fixed by extension and `X-Content-Type-Options: nosniff`.
+- Response header `Content-Security-Policy` allows scripts only from `'self'` (plus `'unsafe-eval'`, because Datastar compiles the expressions of its attributes with the `Function` constructor; no inline script and no remote script is allowed), and nothing else from outside: `default-src 'none'`, styles, images and connections from `'self'`, `frame-ancestors 'none'`; user-supplied text (prompts, names) is always HTML-escaped by `html/template`. Datastar attribute values that interpolate user data are escaped for attribute context; user text is never placed inside an expression.
+- File routes serve only from the configured directories, a relative path of plain segments (§15.2), with `Content-Type` fixed by extension and `X-Content-Type-Options: nosniff`.
 
 ## 17. Error handling (`github.com/rm4n0s/errors`)
 

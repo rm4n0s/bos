@@ -222,7 +222,7 @@ func TestServeServesTheAPI(t *testing.T) {
 
 	// One connection per request: net/http waits up to five seconds for a spare
 	// connection that never sent a request, which would hide what is tested.
-	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
+	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	open := func(method, path, body string, headers map[string]string) *http.Response {
 		t.Helper()
 		// t.Context, not ctx: the stream must outlive the shutdown signal.
@@ -250,6 +250,13 @@ func TestServeServesTheAPI(t *testing.T) {
 
 	if code := status("GET", "/api/v1/projects", "", nil); code != http.StatusUnauthorized {
 		t.Errorf("without the token: status = %d", code)
+	}
+	// The web interface shares the port: its pages send a visitor to sign in.
+	if code := status("GET", "/servers", "", nil); code != http.StatusSeeOther {
+		t.Errorf("web page without the cookie: status = %d", code)
+	}
+	if code := status("GET", "/static/datastar.js", "", nil); code != http.StatusOK {
+		t.Errorf("static script: status = %d", code)
 	}
 	auth := map[string]string{"Authorization": "Bearer s3cret", "Content-Type": "application/json"}
 	if code := status("POST", "/api/v1/projects", `{"name":"Demo"}`, auth); code != http.StatusCreated {

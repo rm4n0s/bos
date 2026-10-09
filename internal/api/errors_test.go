@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/rm4n0s/bos/internal/errtags"
 	"github.com/rm4n0s/errors"
 )
 
@@ -179,23 +178,6 @@ func TestNonApplicationErrors(t *testing.T) {
 	}
 	if !strings.Contains(a.logs.String(), "boom") {
 		t.Error("the panic was not logged")
-	}
-}
-
-// TestStatusTableCoversTheCatalogue fails when a tag of the catalogue has no
-// HTTP status (SPEC §17.2).
-func TestStatusTableCoversTheCatalogue(t *testing.T) {
-	known := map[string]bool{}
-	for _, tag := range errtags.All() {
-		known[tag.Name] = true
-		if _, ok := statusOf[tag.Name]; !ok {
-			t.Errorf("the tag %s has no HTTP status", tag.Name)
-		}
-	}
-	for tag := range statusOf {
-		if !known[tag] {
-			t.Errorf("the status table names %s, which is not in the catalogue", tag)
-		}
 	}
 }
 

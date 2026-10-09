@@ -118,6 +118,7 @@ func All() []Tag {
 		{Name: "MigrationFailed", Group: Infrastructure},
 		{Name: "FileStoreFailure", Group: Infrastructure},
 		{Name: "FileOutsideStorage", Group: Infrastructure},
+		{Name: "TemplateInvalid", Group: Infrastructure},
 		{Name: "ConfigInvalid", Group: Infrastructure},
 		{Name: "ConfigNotReadable", Group: Infrastructure},
 		{Name: "ListenFailed", Group: Infrastructure},

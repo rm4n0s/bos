@@ -15,6 +15,7 @@ import (
 
 	"github.com/rm4n0s/bos/internal/events"
 	"github.com/rm4n0s/bos/internal/files"
+	"github.com/rm4n0s/bos/internal/filesrv"
 	"github.com/rm4n0s/bos/internal/service"
 )
 
@@ -29,9 +30,7 @@ const defaultKeepAlive = 15 * time.Second
 
 // Dirs are the storage directories the API writes uploads to and serves files
 // from (SPEC §2).
-type Dirs struct {
-	Results, ControlNet, IPAdapter, Regions, Thumbnails, Downloads string
-}
+type Dirs = filesrv.Dirs
 
 // Deps is everything the API needs, handed over by main (SPEC §14.3, rule 3).
 type Deps struct {
@@ -54,8 +53,9 @@ type Deps struct {
 // API is the REST front end.
 type API struct {
 	Deps
-	mux    *http.ServeMux
-	routes []route
+	mux        *http.ServeMux
+	fileServer *filesrv.Server
+	routes     []route
 
 	stop     context.Context
 	stopFunc context.CancelFunc
@@ -69,7 +69,7 @@ func New(deps Deps) *API {
 	if deps.KeepAlive <= 0 {
 		deps.KeepAlive = defaultKeepAlive
 	}
-	a := &API{Deps: deps, mux: http.NewServeMux()}
+	a := &API{Deps: deps, mux: http.NewServeMux(), fileServer: &filesrv.Server{Files: deps.Files, Dirs: deps.Dirs, Logger: deps.Logger}}
 	a.stop, a.stopFunc = context.WithCancel(context.Background())
 	a.mux.HandleFunc("GET /healthz", healthz)
 	a.registerAll()

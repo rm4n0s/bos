@@ -115,3 +115,20 @@ func (s *ServerService) LoRAs(ctx context.Context, id domain.ID) ([]string, erro
 	}
 	return client.ListModels(ctx, "loras")
 }
+
+// Test asks a server whether it answers (SPEC §16.3, "test connection"). An
+// unanswered server is ServerUnreachable.
+func (s *ServerService) Test(ctx context.Context, id domain.ID) error {
+	srv, err := s.Store.Repos().Servers().Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if s.Fleet == nil {
+		return errors.New("ServerUnreachable", "no connection to the servers is available", "server", srv.CodeName)
+	}
+	client, err := s.Fleet.Client(ctx, *srv)
+	if err != nil {
+		return err
+	}
+	return client.Ping(ctx)
+}

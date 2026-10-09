@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/rm4n0s/bos/internal/errtags"
 )
 
 func (a *API) openAPIRoutes() {
@@ -121,10 +123,7 @@ func operation(r route) map[string]any {
 		byStatus[http.StatusBadRequest] = []string{"InvalidRequest"}
 	}
 	for _, tag := range r.Errors {
-		status, ok := statusOf[tag]
-		if !ok {
-			status = http.StatusInternalServerError
-		}
+		status := errtags.Status(tag)
 		byStatus[status] = appendUnique(byStatus[status], tag)
 	}
 	statuses := make([]int, 0, len(byStatus))
