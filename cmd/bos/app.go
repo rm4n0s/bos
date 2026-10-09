@@ -36,7 +36,12 @@ type appOption func(*appTuning)
 type appTuning struct {
 	probeInterval time.Duration
 	pollInterval  time.Duration
+	// logLevel, when set, is changed to the level of the configuration.
+	logLevel *slog.LevelVar
 }
+
+// withLogLevel lets the configuration set the level of the logger main built.
+func withLogLevel(v *slog.LevelVar) appOption { return func(t *appTuning) { t.logLevel = v } }
 
 // newApp opens the store and creates or updates its schema (SPEC §2, startup
 // step 2), then builds the services and the scheduler over it. Call run to

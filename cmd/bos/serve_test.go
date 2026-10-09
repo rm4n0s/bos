@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -285,5 +286,63 @@ func TestServeServesTheAPI(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the open event stream held up the shutdown")
+	}
+}
+
+// quick makes the scheduler and the adapter poll every few milliseconds.
+func quick(t *appTuning) { t.probeInterval, t.pollInterval = 10*time.Millisecond, 10*time.Millisecond }
+
+func workflowFile(t *testing.T, kind, name string) string {
+	t.Helper()
+	return filepath.Join("..", "..", "examples", "workflows", kind, name)
+}
+
+// syncBuffer is a log destination that several goroutines may write.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string { s.mu.Lock(); defer s.mu.Unlock(); return s.b.String() }
+
+func TestLogLevelFromTheConfiguration(t *testing.T) {
+	for level, wantRequests := range map[string]bool{"debug": true, "info": false} {
+		t.Run(level, func(t *testing.T) {
+			var logs syncBuffer
+			lv := &slog.LevelVar{}
+			logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: lv}))
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			addr := make(chan net.Addr, 1)
+			done := make(chan error, 1)
+			go func() {
+				done <- serve(ctx, "", testEnv(t, map[string]string{"BOS_LOG_LEVEL": level}), logger, func(a net.Addr) { addr <- a }, withLogLevel(lv))
+			}()
+			select {
+			case a := <-addr:
+				if code := get(t, "http://"+a.String()+"/healthz?token=secret"); code != 200 {
+					t.Fatalf("status = %d", code)
+				}
+			case err := <-done:
+				t.Fatal(err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("no start")
+			}
+			cancel()
+			<-done
+			out := logs.String()
+			if got := strings.Contains(out, `"msg":"request"`) && strings.Contains(out, `"path":"/healthz"`); got != wantRequests {
+				t.Errorf("requests logged = %v, want %v:\n%s", got, wantRequests, out)
+			}
+			if strings.Contains(out, "secret") {
+				t.Errorf("the query string reached the log:\n%s", out)
+			}
+		})
 	}
 }

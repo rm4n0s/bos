@@ -104,7 +104,8 @@ One command runs end to end against a real ComfyUI, driven by a temporary test h
 ## Step 12 – Hardening and acceptance (`feat/hardening`)
 
 - Graceful shutdown, structured logging, and the tag-by-tag error scenarios still missing.
-- A full run of acceptance tests 1–41 against the fake ComfyUI, then a smoke test against a real ComfyUI.
+- A full run of acceptance tests 1–41 against the fake ComfyUI (`docs/ACCEPTANCE.md`), then a smoke test against a real ComfyUI.
+- Remove the temporary harness of Milestone A.
 
 ## Step 13 – Command-line client (`feat/cli`)
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -41,6 +42,7 @@ func TestLoadDefaults(t *testing.T) {
 		"CivitaiDomain":       DefaultCivitaiDomain,
 		"GraceSeconds":        DefaultGraceSeconds,
 		"CivitaiPauseSeconds": DefaultCivitaiPause,
+		"LogLevel":            DefaultLogLevel,
 		"MaxJobAttempts":      DefaultMaxJobAttempts,
 		"ListenAddr":          DefaultListenAddr,
 		"UploadLimit":         int64(DefaultUploadLimitBytes),
@@ -132,9 +134,9 @@ func TestLoadFailures(t *testing.T) {
 		},
 		{
 			name:     "bad values",
-			content:  `{"database":"d","results_dir":"a","controlnet_dir":"b","ipadapter_dir":"c","regions_dir":"e","thumbnails_dir":"f","downloads_dir":"g","listen_addr":"nope","grace_seconds":-1,"civitai_pause_seconds":-3,"max_job_attempts":-2,"event_log_size":5}`,
+			content:  `{"database":"d","results_dir":"a","controlnet_dir":"b","ipadapter_dir":"c","regions_dir":"e","thumbnails_dir":"f","downloads_dir":"g","listen_addr":"nope","grace_seconds":-1,"civitai_pause_seconds":-3,"log_level":"loud","max_job_attempts":-2,"event_log_size":5}`,
 			route:    "Load->Config.Validate.ConfigInvalid",
-			problems: []string{"listen_addr must be host:port", "civitai_pause_seconds must not be negative", "grace_seconds must not be negative", "max_job_attempts must be at least 1", "event_log_size must be at least 100"},
+			problems: []string{"listen_addr must be host:port", "log_level must be debug, info, warn or error", "civitai_pause_seconds must not be negative", "grace_seconds must not be negative", "max_job_attempts must be at least 1", "event_log_size must be at least 100"},
 		},
 	}
 	for _, tt := range tests {
@@ -199,6 +201,14 @@ func TestExposedWithoutAuth(t *testing.T) {
 		c := &Config{ListenAddr: tt.addr, AuthToken: tt.token}
 		if got := c.ExposedWithoutAuth(); got != tt.want {
 			t.Errorf("ExposedWithoutAuth(%q, %q) = %v, want %v", tt.addr, tt.token, got, tt.want)
+		}
+	}
+}
+
+func TestLevel(t *testing.T) {
+	for in, want := range map[string]slog.Level{"debug": slog.LevelDebug, "info": slog.LevelInfo, "warn": slog.LevelWarn, "error": slog.LevelError, "": slog.LevelInfo} {
+		if got := (&Config{LogLevel: in}).Level(); got != want {
+			t.Errorf("Level(%q) = %v, want %v", in, got, want)
 		}
 	}
 }

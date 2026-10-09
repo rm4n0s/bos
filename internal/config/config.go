@@ -7,6 +7,7 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"net"
 	"os"
 	"reflect"
@@ -24,6 +25,7 @@ const EnvPrefix = "BOS_"
 const (
 	DefaultCivitaiDomain    = "civitai.com"
 	DefaultCivitaiPause     = 15
+	DefaultLogLevel         = "info"
 	DefaultGraceSeconds     = 30
 	DefaultMaxJobAttempts   = 3
 	DefaultListenAddr       = "127.0.0.1:8080"
@@ -56,6 +58,8 @@ type Config struct {
 	UploadLimit         int64    `json:"upload_limit_bytes"`
 	CORSAllowList       []string `json:"cors_allow_list"`
 	EventLogSize        int      `json:"event_log_size"`
+	// LogLevel is debug, info, warn or error; at debug every request is logged.
+	LogLevel string `json:"log_level"`
 }
 
 // Load reads the JSON file at path, applies environment overrides taken from
@@ -133,6 +137,9 @@ func (c *Config) applyDefaults() {
 	if c.CivitaiDomain == "" {
 		c.CivitaiDomain = DefaultCivitaiDomain
 	}
+	if c.LogLevel == "" {
+		c.LogLevel = DefaultLogLevel
+	}
 	if c.CivitaiPauseSeconds == 0 {
 		c.CivitaiPauseSeconds = DefaultCivitaiPause
 	}
@@ -173,6 +180,11 @@ func (c *Config) Validate() error {
 	}
 	if _, _, err := net.SplitHostPort(c.ListenAddr); err != nil {
 		problems = append(problems, "listen_addr must be host:port")
+	}
+	switch c.LogLevel {
+	case "debug", "info", "warn", "error":
+	default:
+		problems = append(problems, "log_level must be debug, info, warn or error")
 	}
 	if c.CivitaiPauseSeconds < 0 {
 		problems = append(problems, "civitai_pause_seconds must not be negative")
@@ -223,4 +235,13 @@ func (c *Config) ExposedWithoutAuth() bool {
 	}
 	ip := net.ParseIP(host)
 	return ip == nil || !ip.IsLoopback()
+}
+
+// Level is the slog level named by LogLevel.
+func (c *Config) Level() slog.Level {
+	var l slog.Level
+	if err := l.UnmarshalText([]byte(c.LogLevel)); err != nil {
+		return slog.LevelInfo // Validate has refused anything else
+	}
+	return l
 }
