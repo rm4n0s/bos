@@ -32,9 +32,9 @@ Lists print as tables; with `--json` the answer is printed exactly as the server
 
 Long texts and workflows are read from files with `@`: `--workflow @wf.json`, `--text @lines.txt`. `--file body.json` (or `--file -` for standard input) gives a whole JSON body. **Updates change only what you name**: `bosctl server update 1 --max-jobs 2` keeps everything else.
 
+Put a command text in **single quotes**, so that the shell leaves `$`, `*`, `>` and `(` alone.
 
 Driving `bosctl` from an AI agent? Give it the [guide for agents](../agents.md).
-Put a command text in **single quotes**, so that the shell leaves `$`, `*`, `>` and `(` alone.
 
 ## The REST API
 
