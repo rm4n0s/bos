@@ -224,3 +224,6 @@ func pageParam(r *http.Request) (domain.Page, error) {
 	}
 	return domain.Page{Number: n}.Normalised(), nil
 }
+
+// selectorOf makes a patch address the element a CSS selector matches.
+func selectorOf(selector string) datastar.PatchElementOption { return datastar.WithSelector(selector) }

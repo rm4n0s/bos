@@ -42,9 +42,12 @@ type testUI struct {
 
 type option func(*Deps)
 
-func newTestUI(t *testing.T, opts ...option) *testUI {
+func newTestUI(t *testing.T, opts ...option) *testUI { return newTestUIWith(t, nil, opts...) }
+
+// newTestUIWith also changes what the services are built from.
+func newTestUIWith(t *testing.T, svcOpts []func(*service.Deps), opts ...option) *testUI {
 	t.Helper()
-	env := apptest.New(t)
+	env := apptest.New(t, svcOpts...)
 	deps := Deps{
 		Services: env.Services, Events: env.Events, Files: env.Files, Dirs: env.Dirs,
 		Logger: env.Logger, KeepAlive: 50 * time.Millisecond, UploadLimit: 1 << 20,

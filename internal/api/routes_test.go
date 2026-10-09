@@ -16,7 +16,7 @@ import (
 // asserts the documented success code of each route (SPEC §20, acceptance 26).
 // It ends by checking that no registered route was left out.
 func TestEveryRoute(t *testing.T) {
-	a := newTestAPI(t)
+	a, comfy := withCivitai(t)
 	ok := func(r reply, status int) reply { t.Helper(); return a.expect(r, status, "") }
 
 	ok(a.do("GET", "/healthz", nil), 200)
@@ -116,6 +116,14 @@ func TestEveryRoute(t *testing.T) {
 		if renamed["renamed"] != float64(1) {
 			t.Errorf("renamed = %v", renamed)
 		}
+
+		civ := ok(a.do("POST", "/api/v1/groups/import-civitai", map[string]any{
+			"name": "Foxes", "code_name": "foxes", "comfyui_path": comfy, "models": []map[string]any{{"model_id": 7}},
+		}), 202).json()
+		a.api.Services.Civitai.Wait()
+		ok(a.do("POST", "/api/v1/groups/"+jsonNumber(civ["id"].(float64))+"/items/civitai", map[string]any{"model_id": 8, "comfyui_path": comfy}), 202)
+		a.api.Services.Civitai.Wait()
+		ok(a.do("DELETE", "/api/v1/groups/"+jsonNumber(civ["id"].(float64)), nil), 204)
 	})
 
 	t.Run("projects and commands", func(t *testing.T) {
@@ -212,7 +220,8 @@ func TestEveryRoute(t *testing.T) {
 	t.Run("events, files and the contract", func(t *testing.T) {
 		a.events.Append(eventOf("processing"))
 		ev := ok(a.do("GET", "/api/v1/events", nil), 200).json()
-		if len(ev["events"].([]any)) != 1 || ev["last_id"] != float64(1) || ev["gap"] != false {
+		list := ev["events"].([]any) // the imports above left their own events before this one
+		if n := len(list); n == 0 || ev["last_id"] != float64(n) || ev["gap"] != false || list[n-1].(map[string]any)["type"] != "processing" {
 			t.Errorf("events = %v", ev)
 		}
 		thumbs := storedFiles(t, a.dirs.Thumbnails)

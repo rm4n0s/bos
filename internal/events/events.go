@@ -24,6 +24,10 @@ const (
 	ServerOnline    Type = "server_online"
 	ServerOffline   Type = "server_offline"
 	CommandFinished Type = "command_finished"
+	// The import of LoRAs from Civitai (SPEC §9) reports through the same log.
+	ImportProgress Type = "import_progress"
+	ImportFinished Type = "import_finished"
+	ImportError    Type = "import_error"
 )
 
 // Event is one entry of the log. Fields that do not apply are zero.
@@ -34,7 +38,10 @@ type Event struct {
 	CommandID domain.ID `json:"command_id"`
 	ProjectID domain.ID `json:"project_id"`
 	// Server is the code name of the server concerned.
-	Server    string    `json:"server"`
+	Server string `json:"server"`
+	// GroupID and Message are set by the import events.
+	GroupID   domain.ID `json:"group_id,omitempty"`
+	Message   string    `json:"message,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

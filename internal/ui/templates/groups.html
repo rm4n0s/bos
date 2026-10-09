@@ -1,7 +1,8 @@
-{{define "content"}}<section data-signals='{"_armed":0,"groups":{"open":false,"importOpen":false},"tags":{"scope":"item","from":"","to":""}}'>
+{{define "content"}}<section data-signals='{"_armed":0,"groups":{"open":false,"importOpen":false,"civitaiOpen":false},"tags":{"scope":"item","from":"","to":""}}'>
   <div class="bar">
     <h1>Groups</h1>
     <div class="buttons">
+      <button type="button" class="secondary" data-on:click="@get('/ui/groups/civitai/new')">Import from Civitai</button>
       <button type="button" class="secondary" data-on:click="@get('/ui/groups/import/new')">Import from text</button>
       <button type="button" data-on:click="@get('/ui/groups/new')">Add group</button>
     </div>
@@ -27,6 +28,17 @@
       <div class="buttons">
         <button type="button" class="secondary" data-on:click="$groups.importOpen=false">Cancel</button>
         <button type="submit">Create group</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal" data-class:open="$groups.civitaiOpen">
+    <form class="dialog wide stack" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/groups/civitai', {contentType: 'form'})">
+      <div id="group-civitai-body">{{template "group_civitai_form" .Data.Blank}}</div>
+      <p class="error" id="groups-civitai-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$groups.civitaiOpen=false">Cancel</button>
+        <button type="submit">Start the import</button>
       </div>
     </form>
   </div>
@@ -121,3 +133,14 @@
 </div>{{end}}
 
 {{define "tags_panel_box"}}<div id="tags-panel">{{template "tags_panel" .}}</div>{{end}}
+
+{{define "group_civitai_form"}}
+<h2>Import LoRAs from Civitai</h2>
+<p class="hint">Makes a group with one item for each model: its trigger words become the prompt and the LoRA is copied into ComfyUI. The downloads go on in the background, with a pause between them; you will see a message for each one.</p>
+<div class="row">
+  <label>Group name <input name="name" maxlength="100" required></label>
+  <label>Code name <input name="code_name" maxlength="100" required></label>
+</div>
+<label>Tags (separated by commas) <input name="tags" list="group-tag-names"></label>
+{{template "civitai_fields" .}}
+{{end}}

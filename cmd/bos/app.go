@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rm4n0s/bos/internal/api"
+	"github.com/rm4n0s/bos/internal/civitai"
 	"github.com/rm4n0s/bos/internal/comfy"
 	"github.com/rm4n0s/bos/internal/config"
 	"github.com/rm4n0s/bos/internal/domain"
@@ -82,8 +83,10 @@ func wire(ctx context.Context, cfg *config.Config, db *store.DB, logger *slog.Lo
 	})
 	svc := service.New(service.Deps{
 		Store: service.NewStore(db), Files: fs, Fleet: sched, Dispatcher: sched, Logger: logger,
-		Dirs:   service.Dirs{Results: cfg.ResultsDir, Regions: cfg.RegionsDir, Downloads: cfg.DownloadsDir},
-		Limits: service.Limits{PreviewSoftLimit: cfg.PreviewSoftMax},
+		Dirs:    service.Dirs{Results: cfg.ResultsDir, Regions: cfg.RegionsDir, Downloads: cfg.DownloadsDir, CivitaiCache: cfg.CivitaiCacheDir},
+		Limits:  service.Limits{PreviewSoftLimit: cfg.PreviewSoftMax},
+		Civitai: civitai.New(civitai.Options{Token: cfg.CivitaiToken, Domain: cfg.CivitaiDomain, Logger: logger}),
+		Events:  log, Pause: time.Duration(cfg.CivitaiPauseSeconds) * time.Second, Background: ctx,
 	})
 	return &app{cfg: cfg, db: db, files: fs, events: log, services: svc, sched: sched}, nil
 }
@@ -128,5 +131,9 @@ func (a *app) run(ctx context.Context, logger *slog.Logger) (stop func()) {
 	}
 }
 
-// close releases the store.
-func (a *app) close() error { return a.db.Close() }
+// close waits for the imports that are still running, which stop when the
+// program does, and releases the store.
+func (a *app) close() error {
+	a.services.Civitai.Wait()
+	return a.db.Close()
+}

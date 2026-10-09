@@ -1,8 +1,11 @@
-{{define "content"}}<section data-signals='{"_armed":0,"items":{"open":false}}'>
+{{define "content"}}<section data-signals='{"_armed":0,"items":{"open":false,"civitaiOpen":false}}'>
   <p class="muted"><a href="/groups">Groups</a> › {{.Data.Group.Name}} <code>{{.Data.Group.CodeName}}</code></p>
   <div class="bar">
     <h1>{{.Data.Group.Name}}</h1>
-    <button type="button" data-on:click="@get('/ui/groups/{{.Data.Group.ID}}/items/new')">Add item</button>
+    <div class="buttons">
+      <button type="button" class="secondary" data-on:click="@get('/ui/groups/{{.Data.Group.ID}}/items/civitai/new')">Add from Civitai</button>
+      <button type="button" data-on:click="@get('/ui/groups/{{.Data.Group.ID}}/items/new')">Add item</button>
+    </div>
   </div>
   {{template "items_table" .Data}}
   <div class="modal" data-class:open="$items.open">
@@ -15,9 +18,20 @@
       </div>
     </form>
   </div>
+  <div class="modal" data-class:open="$items.civitaiOpen">
+    <form class="dialog wide stack" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/groups/{{.Data.Group.ID}}/items/civitai', {contentType: 'form'})">
+      <h2>Add LoRAs from Civitai to {{.Data.Group.Name}}</h2>
+      {{template "civitai_fields" .Data.Blank}}
+      <p class="error" id="items-civitai-error"></p>
+      <div class="buttons">
+        <button type="button" class="secondary" data-on:click="$items.civitaiOpen=false">Cancel</button>
+        <button type="submit">Start the import</button>
+      </div>
+    </form>
+  </div>
 </section>{{end}}
 
-{{define "items_table"}}<div id="items-table">
+{{define "items_table"}}<div id="items-table" data-group="{{.Group.ID}}">
 {{if not .Items}}<p class="empty">No items yet — add one.</p>{{else}}
 <table>
   <thead><tr><th></th><th>Code name</th><th>Name</th><th>Positive prompt</th><th>Tags</th><th></th></tr></thead>

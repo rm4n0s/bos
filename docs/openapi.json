@@ -1412,6 +1412,64 @@
         "summary": "Create a group; the thumbnail may be uploaded"
       }
     },
+    "/groups/import-civitai": {
+      "post": {
+        "operationId": "postGroupsImportCivitai",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error tags: InvalidRequest"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error tags: CivitaiNotConfigured, GroupCodeNameTaken"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error tags: CodeNameInvalid"
+          }
+        },
+        "summary": "Create a group and import LoRAs from Civitai into it, in the background"
+      }
+    },
     "/groups/import-text": {
       "post": {
         "operationId": "postGroupsImportText",
@@ -1797,6 +1855,75 @@
           }
         },
         "summary": "Create an item; its images may be uploaded"
+      }
+    },
+    "/groups/{id}/items/civitai": {
+      "post": {
+        "operationId": "postGroupsIdItemsCivitai",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error tags: InvalidRequest"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error tags: GroupNotFound"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error tags: CivitaiNotConfigured"
+          }
+        },
+        "summary": "Add one Civitai LoRA to a group as an item, in the background"
       }
     },
     "/items/{id}": {

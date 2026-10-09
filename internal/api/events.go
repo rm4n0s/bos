@@ -113,8 +113,10 @@ func writeEvent(w http.ResponseWriter, e events.Event) error {
 		CommandID domain.ID `json:"command_id"`
 		ProjectID domain.ID `json:"project_id"`
 		Server    string    `json:"server"`
+		GroupID   domain.ID `json:"group_id,omitempty"`
+		Message   string    `json:"message,omitempty"`
 		CreatedAt string    `json:"created_at"`
-	}{e.JobID, e.CommandID, e.ProjectID, e.Server, e.CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")})
+	}{e.JobID, e.CommandID, e.ProjectID, e.Server, e.GroupID, e.Message, e.CreatedAt.Format("2006-01-02T15:04:05.999999999Z07:00")})
 	if err != nil {
 		return err
 	}

@@ -38,13 +38,14 @@ func TestLoadDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]any{
-		"CivitaiDomain":  DefaultCivitaiDomain,
-		"GraceSeconds":   DefaultGraceSeconds,
-		"MaxJobAttempts": DefaultMaxJobAttempts,
-		"ListenAddr":     DefaultListenAddr,
-		"UploadLimit":    int64(DefaultUploadLimitBytes),
-		"EventLogSize":   DefaultEventLogSize,
-		"AuthToken":      "",
+		"CivitaiDomain":       DefaultCivitaiDomain,
+		"GraceSeconds":        DefaultGraceSeconds,
+		"CivitaiPauseSeconds": DefaultCivitaiPause,
+		"MaxJobAttempts":      DefaultMaxJobAttempts,
+		"ListenAddr":          DefaultListenAddr,
+		"UploadLimit":         int64(DefaultUploadLimitBytes),
+		"EventLogSize":        DefaultEventLogSize,
+		"AuthToken":           "",
 	}
 	v := reflect.ValueOf(cfg).Elem()
 	for field, w := range want {
@@ -131,9 +132,9 @@ func TestLoadFailures(t *testing.T) {
 		},
 		{
 			name:     "bad values",
-			content:  `{"database":"d","results_dir":"a","controlnet_dir":"b","ipadapter_dir":"c","regions_dir":"e","thumbnails_dir":"f","downloads_dir":"g","listen_addr":"nope","grace_seconds":-1,"max_job_attempts":-2,"event_log_size":5}`,
+			content:  `{"database":"d","results_dir":"a","controlnet_dir":"b","ipadapter_dir":"c","regions_dir":"e","thumbnails_dir":"f","downloads_dir":"g","listen_addr":"nope","grace_seconds":-1,"civitai_pause_seconds":-3,"max_job_attempts":-2,"event_log_size":5}`,
 			route:    "Load->Config.Validate.ConfigInvalid",
-			problems: []string{"listen_addr must be host:port", "grace_seconds must not be negative", "max_job_attempts must be at least 1", "event_log_size must be at least 100"},
+			problems: []string{"listen_addr must be host:port", "civitai_pause_seconds must not be negative", "grace_seconds must not be negative", "max_job_attempts must be at least 1", "event_log_size must be at least 100"},
 		},
 	}
 	for _, tt := range tests {

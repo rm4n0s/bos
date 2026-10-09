@@ -18,6 +18,7 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
+	github.com/rm4n0s/gocivitailib v0.0.0-20261009181628-c1e9d5ad6792 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 )

@@ -23,6 +23,7 @@ const EnvPrefix = "BOS_"
 // Defaults for the optional settings of SPEC §2.
 const (
 	DefaultCivitaiDomain    = "civitai.com"
+	DefaultCivitaiPause     = 15
 	DefaultGraceSeconds     = 30
 	DefaultMaxJobAttempts   = 3
 	DefaultListenAddr       = "127.0.0.1:8080"
@@ -35,24 +36,26 @@ const (
 // Config is the application configuration. Zero values of optional fields are
 // replaced by their defaults when the configuration is loaded.
 type Config struct {
-	Database        string   `json:"database"`
-	ResultsDir      string   `json:"results_dir"`
-	ControlNetDir   string   `json:"controlnet_dir"`
-	IPAdapterDir    string   `json:"ipadapter_dir"`
-	RegionsDir      string   `json:"regions_dir"`
-	ThumbnailsDir   string   `json:"thumbnails_dir"`
-	DownloadsDir    string   `json:"downloads_dir"`
-	CivitaiCacheDir string   `json:"civitai_cache_dir"`
-	CivitaiToken    string   `json:"civitai_token"`
-	CivitaiDomain   string   `json:"civitai_domain"`
-	GraceSeconds    int      `json:"grace_seconds"`
-	MaxJobAttempts  int      `json:"max_job_attempts"`
-	PreviewSoftMax  int      `json:"preview_soft_limit"`
-	ListenAddr      string   `json:"listen_addr"`
-	AuthToken       string   `json:"auth_token"`
-	UploadLimit     int64    `json:"upload_limit_bytes"`
-	CORSAllowList   []string `json:"cors_allow_list"`
-	EventLogSize    int      `json:"event_log_size"`
+	Database        string `json:"database"`
+	ResultsDir      string `json:"results_dir"`
+	ControlNetDir   string `json:"controlnet_dir"`
+	IPAdapterDir    string `json:"ipadapter_dir"`
+	RegionsDir      string `json:"regions_dir"`
+	ThumbnailsDir   string `json:"thumbnails_dir"`
+	DownloadsDir    string `json:"downloads_dir"`
+	CivitaiCacheDir string `json:"civitai_cache_dir"`
+	CivitaiToken    string `json:"civitai_token"`
+	CivitaiDomain   string `json:"civitai_domain"`
+	// CivitaiPauseSeconds is the pause between two downloads of one import.
+	CivitaiPauseSeconds int      `json:"civitai_pause_seconds"`
+	GraceSeconds        int      `json:"grace_seconds"`
+	MaxJobAttempts      int      `json:"max_job_attempts"`
+	PreviewSoftMax      int      `json:"preview_soft_limit"`
+	ListenAddr          string   `json:"listen_addr"`
+	AuthToken           string   `json:"auth_token"`
+	UploadLimit         int64    `json:"upload_limit_bytes"`
+	CORSAllowList       []string `json:"cors_allow_list"`
+	EventLogSize        int      `json:"event_log_size"`
 }
 
 // Load reads the JSON file at path, applies environment overrides taken from
@@ -130,6 +133,9 @@ func (c *Config) applyDefaults() {
 	if c.CivitaiDomain == "" {
 		c.CivitaiDomain = DefaultCivitaiDomain
 	}
+	if c.CivitaiPauseSeconds == 0 {
+		c.CivitaiPauseSeconds = DefaultCivitaiPause
+	}
 	if c.GraceSeconds == 0 {
 		c.GraceSeconds = DefaultGraceSeconds
 	}
@@ -167,6 +173,9 @@ func (c *Config) Validate() error {
 	}
 	if _, _, err := net.SplitHostPort(c.ListenAddr); err != nil {
 		problems = append(problems, "listen_addr must be host:port")
+	}
+	if c.CivitaiPauseSeconds < 0 {
+		problems = append(problems, "civitai_pause_seconds must not be negative")
 	}
 	if c.GraceSeconds < 0 {
 		problems = append(problems, "grace_seconds must not be negative")

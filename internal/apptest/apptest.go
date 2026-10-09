@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/rm4n0s/bos/internal/civitai"
 	"github.com/rm4n0s/bos/internal/comfy"
 	"github.com/rm4n0s/bos/internal/domain"
 	"github.com/rm4n0s/bos/internal/events"
@@ -38,7 +39,7 @@ type Env struct {
 }
 
 // New builds an Env; everything is closed when the test ends.
-func New(t *testing.T) *Env {
+func New(t *testing.T, opts ...func(*service.Deps)) *Env {
 	t.Helper()
 	db, err := store.Open(t.Context(), store.InMemory)
 	if err != nil {
@@ -65,11 +66,16 @@ func New(t *testing.T) *Env {
 	logger := slog.New(slog.NewTextHandler(&lockedWriter{w: logs}, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	fleet := &Fleet{Down: map[domain.ID]bool{}}
 	wakes := &Wakes{}
-	svc := service.New(service.Deps{
-		Store: service.NewStore(db), Files: fs, Fleet: fleet, Dispatcher: wakes, Logger: logger,
+	log := events.NewLog(100, nil)
+	deps := service.Deps{
+		Store: service.NewStore(db), Files: fs, Fleet: fleet, Dispatcher: wakes, Logger: logger, Events: log,
 		Dirs: service.Dirs{Results: dirs.Results, Regions: dirs.Regions, Downloads: dirs.Downloads},
-	})
-	return &Env{Services: svc, DB: db, Events: events.NewLog(100, nil), Files: fs, Dirs: dirs, Root: root, Logger: logger, Logs: logs, Fleet: fleet, Wakes: wakes}
+	}
+	for _, o := range opts {
+		o(&deps)
+	}
+	svc := service.New(deps)
+	return &Env{Services: svc, DB: db, Events: log, Files: fs, Dirs: dirs, Root: root, Logger: logger, Logs: logs, Fleet: fleet, Wakes: wakes}
 }
 
 // lockedWriter makes a strings.Builder safe for the logger's goroutines.
@@ -150,3 +156,27 @@ func (client) ListModels(_ context.Context, folder string) ([]string, error) {
 }
 func (client) Cancel(context.Context, string) error { return nil }
 func (client) Close() error                         { return nil }
+
+// FakeCivitai is civitai.Models with a small catalogue: model 7 "Dancing Fox"
+// with two trigger words, model 8 "Sleepy Owl" (already cached). Any other id is
+// not found.
+type FakeCivitai struct{}
+
+// Configured implements civitai.Models.
+func (FakeCivitai) Configured() bool { return true }
+
+// Download implements civitai.Models.
+func (FakeCivitai) Download(_ context.Context, id int, _ string) (civitai.Model, error) {
+	switch id {
+	case 7:
+		return civitai.Model{ID: 7, Name: "Dancing Fox", TriggerWords: []string{"dancing fox", "sparkles"}}, nil
+	case 8:
+		return civitai.Model{ID: 8, Name: "Sleepy Owl", Skipped: true}, nil
+	}
+	return civitai.Model{}, errors.New("CivitaiModelNotFound", "there is no such model on Civitai", "model_id", id)
+}
+
+// Install implements civitai.Models.
+func (FakeCivitai) Install(m civitai.Model, _, subfolder string) (string, error) {
+	return civitai.ModelName(m.ID, subfolder), nil
+}

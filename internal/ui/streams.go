@@ -224,6 +224,9 @@ func (u *UI) drawToasts(r *http.Request, s *stream, batch []events.Event, gap bo
 			return err
 		}
 	}
+	if err := u.drawImportEvents(r, s, batch); err != nil {
+		return err
+	}
 	if repl {
 		// On the REPL page the picture replaces itself when the job ends.
 		if err := u.drawRepl(r, s); err != nil {

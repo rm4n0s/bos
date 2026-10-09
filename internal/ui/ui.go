@@ -105,6 +105,7 @@ func (u *UI) registerAll() {
 	u.projectRoutes()
 	u.groupRoutes()
 	u.itemRoutes()
+	u.civitaiRoutes()
 	u.commandRoutes()
 	u.jobRoutes()
 	u.replRoutes()

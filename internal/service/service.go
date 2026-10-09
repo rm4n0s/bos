@@ -12,10 +12,13 @@ import (
 	"encoding/binary"
 	"io"
 	"log/slog"
+	"time"
 
+	"github.com/rm4n0s/bos/internal/civitai"
 	"github.com/rm4n0s/bos/internal/comfy"
 	"github.com/rm4n0s/bos/internal/command"
 	"github.com/rm4n0s/bos/internal/domain"
+	"github.com/rm4n0s/bos/internal/events"
 	"github.com/rm4n0s/errors"
 )
 
@@ -175,6 +178,9 @@ type Dirs struct {
 	Regions string
 	// Downloads is where the export archive of a command goes.
 	Downloads string
+	// CivitaiCache is where downloaded models are kept; empty when Civitai is
+	// not configured.
+	CivitaiCache string
 }
 
 // Limits are the configured bounds of a command (SPEC §2, §6.11).
@@ -200,6 +206,17 @@ type Deps struct {
 	Dirs       Dirs
 	Limits     Limits
 	Logger     *slog.Logger
+	// Civitai downloads LoRAs (SPEC §9); optional.
+	Civitai civitai.Models
+	// Events receives the progress of imports; optional.
+	Events *events.Log
+	// Pause is the wait between two downloads of one import (SPEC §19.4).
+	Pause time.Duration
+	// Sleep waits for a pause; the default honours the context. Tests replace it.
+	Sleep func(ctx context.Context, d time.Duration) error
+	// Background is the context of work that outlives a request, such as an
+	// import; the default never ends.
+	Background context.Context
 	// NewSeed returns a random 64-bit number; the default reads crypto/rand.
 	NewSeed func() uint64
 }
@@ -216,6 +233,7 @@ type Services struct {
 	Commands   *CommandService
 	Jobs       *JobService
 	Repl       *ReplService
+	Civitai    *CivitaiService
 }
 
 // New builds the services over deps.
@@ -227,17 +245,19 @@ func New(deps Deps) *Services {
 		deps.NewSeed = RandomSeed
 	}
 	b := base{Deps: deps}
+	groups, items := &GroupService{base: b}, &ItemService{base: b}
 	return &Services{
 		Servers:    &ServerService{base: b},
 		Generators: &GeneratorService{base: b},
 		Fixers:     &FixerService{base: b},
-		Groups:     &GroupService{base: b},
-		Items:      &ItemService{base: b},
+		Groups:     groups,
+		Items:      items,
 		Tags:       &TagService{base: b},
 		Projects:   &ProjectService{base: b},
 		Commands:   &CommandService{base: b},
 		Jobs:       &JobService{base: b},
 		Repl:       &ReplService{base: b},
+		Civitai:    &CivitaiService{base: b, groups: groups, items: items, sem: make(chan struct{}, 1)},
 	}
 }
 

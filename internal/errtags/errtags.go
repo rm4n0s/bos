@@ -108,11 +108,11 @@ func All() []Tag {
 		{Name: "ComfyUIPromptLost", Group: ComfyUI},
 		{Name: "ComfyUICallCancelled", Group: ComfyUI},
 
-		{Name: "CivitaiNotConfigured", Group: Civitai, Pending: true},
-		{Name: "CivitaiModelNotFound", Group: Civitai, Pending: true},
-		{Name: "CivitaiRateLimited", Group: Civitai, Pending: true},
-		{Name: "CivitaiDownloadFailed", Group: Civitai, Pending: true},
-		{Name: "CivitaiMetadataInvalid", Group: Civitai, Pending: true},
+		{Name: "CivitaiNotConfigured", Group: Civitai},
+		{Name: "CivitaiModelNotFound", Group: Civitai},
+		{Name: "CivitaiRateLimited", Group: Civitai},
+		{Name: "CivitaiDownloadFailed", Group: Civitai},
+		{Name: "CivitaiMetadataInvalid", Group: Civitai},
 
 		{Name: "StoreFailure", Group: Infrastructure},
 		{Name: "MigrationFailed", Group: Infrastructure},

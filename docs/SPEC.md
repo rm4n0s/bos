@@ -49,6 +49,7 @@ A single configuration source supplies:
 | Civitai LoRA cache directory | no | Local cache for downloaded LoRAs |
 | Civitai API token | no | Required for any Civitai download |
 | Civitai domain | no | Default `civitai.com` (the site API is `https://<domain>`, the generation API `https://orchestration.<domain>`; §19) |
+| Civitai pause | no | Seconds to wait between two downloads of one import (§19.4). Default 15 |
 | Server grace period | no | Seconds a server may be unavailable before unpinned jobs are re-assigned elsewhere (§8.7). Default 30 |
 | Max job attempts | no | How many times a job is retried after its server became unreachable (§8.7). Default 3 |
 | Preview soft limit | no | Job count above which the preview warns (§6.11) |
@@ -910,10 +911,10 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 | `GET /groups` (filter `?tag=`) · `POST /groups` | list / create (fields include `tags`; thumbnail via multipart) | 200 / 201 | `GroupCodeNameTaken`, `CodeNameInvalid`, `CodeNameReserved` |
 | `GET /groups/{id}` · `PUT` · `DELETE` | get / edit / delete (removes items and files) | | `GroupNotFound` |
 | `POST /groups/import-text` | body: group fields + `text` (one item per line) | 201 | `GroupCodeNameTaken` |
-| `POST /groups/import-civitai` | body: group fields + `models:[{model_id,model_strength,model_clip}]`, ComfyUI path and LoRA sub-folder | 202 | `CivitaiNotConfigured`, `CivitaiDownloadFailed` |
+| `POST /groups/import-civitai` | body: group fields + `models:[{model_id,model_strength,model_clip}]` (a strength left out is 1), `comfyui_path` (the ComfyUI installation) and `lora_subfolder` (below `models/loras`). The group is created at once and returned; the downloads go on in the background, one import at a time, with a pause between models, and report as `import_progress`, `import_error` and `import_finished` events (§15.4) that carry `group_id` and `message` | 202 | `CivitaiNotConfigured`, `InvalidRequest` (an unusable sub-folder or ComfyUI path) |
 | `GET /groups/{id}/items` · `POST /groups/{id}/items` | list / create (multipart for images) | 200 / 201 | `ItemCodeNameTaken`, `GroupNotFound`, `UploadTooLarge`, `MaskGenerationFailed` |
 | `GET /items/{id}` · `PUT` · `DELETE` | get / edit / delete | | `ItemNotFound` |
-| `POST /groups/{id}/items/civitai` | add one Civitai LoRA as an item | 202 | as above |
+| `POST /groups/{id}/items/civitai` | add one Civitai LoRA as an item: `{model_id, model_strength, model_clip, comfyui_path, lora_subfolder}`; returns the group, the item arrives in the background | 202 | `CivitaiNotConfigured`, `GroupNotFound`, `InvalidRequest` |
 
 **Tags**
 
@@ -1248,7 +1249,7 @@ From §9:
 - `CivitaiNotConfigured` when the token or the cache directory is not configured (the library would return `ErrMissingToken`; the adapter checks first so nothing is attempted).
 - Pass the configured token and domain to `NewClient` explicitly; do not rely on environment variables.
 - Pause between consecutive downloads in a batch (configurable, default 15 s, as in the original). The library's retries handle `429` within a download; the pause is the application's politeness.
-- Copying the model into a ComfyUI `models/loras/<subfolder>/` directory (§9) is application code in `internal/civitai`; it needs filesystem access to that directory and otherwise fails with `FileStoreFailure`.
+- Copying the model into a ComfyUI `models/loras/<subfolder>/` directory (§9) is application code in `internal/civitai`; it needs filesystem access to that directory. A ComfyUI folder without `models/loras`, or a sub-folder that is not a plain relative path, is the caller's mistake (`InvalidRequest`, checked before anything is downloaded); a copy that fails is `FileStoreFailure`. The copy goes to a temporary name and is renamed, so ComfyUI never sees half a model.
 - The LoRA item is built from `Model`: `code_name` = model id, `name` = model name, positive prompt = trigger words separated by blank lines, one LoRA entry `<subfolder>/<id>.safetensors` with the chosen strengths.
 - Error mapping, using `errors.Is` / `errors.As` on the library's errors and wrapping with `errors.NewErr`:
 

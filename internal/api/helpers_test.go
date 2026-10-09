@@ -122,7 +122,10 @@ type testAPI struct {
 
 type option func(*Deps)
 
-func newTestAPI(t *testing.T, opts ...option) *testAPI {
+func newTestAPI(t *testing.T, opts ...option) *testAPI { return newTestAPIWith(t, nil, opts...) }
+
+// newTestAPIWith also lets the test change what the services are built from.
+func newTestAPIWith(t *testing.T, svcOpts []func(*service.Deps), opts ...option) *testAPI {
 	t.Helper()
 	db, err := store.Open(t.Context(), store.InMemory)
 	check(t, err)
@@ -139,10 +142,14 @@ func newTestAPI(t *testing.T, opts ...option) *testAPI {
 	logs := &strings.Builder{}
 	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	log := events.NewLog(100, nil)
-	svc := service.New(service.Deps{
-		Store: service.NewStore(db), Files: fs, Fleet: testFleet{}, Dispatcher: &wakeLog{}, Logger: logger,
+	sd := service.Deps{
+		Store: service.NewStore(db), Files: fs, Fleet: testFleet{}, Dispatcher: &wakeLog{}, Logger: logger, Events: log,
 		Dirs: service.Dirs{Results: dirs.Results, Regions: dirs.Regions, Downloads: dirs.Downloads},
-	})
+	}
+	for _, o := range svcOpts {
+		o(&sd)
+	}
+	svc := service.New(sd)
 	deps := Deps{Services: svc, Events: log, Files: fs, Dirs: dirs, UploadLimit: 1 << 20, Logger: logger, KeepAlive: 50 * time.Millisecond}
 	for _, o := range opts {
 		o(&deps)
