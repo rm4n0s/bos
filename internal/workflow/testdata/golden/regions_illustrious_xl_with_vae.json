@@ -1,0 +1,267 @@
+{
+  "10": {
+    "_meta": {
+      "title": "Load VAE"
+    },
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "sdxl_vae.safetensors"
+    }
+  },
+  "11": {
+    "_meta": {
+      "title": "BOS Region Prompt red"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "4a",
+        0
+      ],
+      "text": "red prompt"
+    }
+  },
+  "12": {
+    "_meta": {
+      "title": "BOS Region Mask red"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/red.png"
+    }
+  },
+  "13": {
+    "_meta": {
+      "title": "BOS Region Mask Channel red"
+    },
+    "class_type": "ImageToMask",
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "12",
+        0
+      ]
+    }
+  },
+  "14": {
+    "_meta": {
+      "title": "BOS Region Set Mask red"
+    },
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": [
+        "11",
+        0
+      ],
+      "mask": [
+        "13",
+        0
+      ],
+      "set_cond_area": "default",
+      "strength": 1
+    }
+  },
+  "15": {
+    "_meta": {
+      "title": "BOS Region Combine red"
+    },
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": [
+        "6",
+        0
+      ],
+      "conditioning_2": [
+        "14",
+        0
+      ]
+    }
+  },
+  "16": {
+    "_meta": {
+      "title": "BOS Region Prompt blue"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "4a",
+        0
+      ],
+      "text": "blue prompt"
+    }
+  },
+  "17": {
+    "_meta": {
+      "title": "BOS Region Mask blue"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/blue.png"
+    }
+  },
+  "18": {
+    "_meta": {
+      "title": "BOS Region Mask Channel blue"
+    },
+    "class_type": "ImageToMask",
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "17",
+        0
+      ]
+    }
+  },
+  "19": {
+    "_meta": {
+      "title": "BOS Region Set Mask blue"
+    },
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": [
+        "16",
+        0
+      ],
+      "mask": [
+        "18",
+        0
+      ],
+      "set_cond_area": "default",
+      "strength": 1
+    }
+  },
+  "20": {
+    "_meta": {
+      "title": "BOS Region Combine blue"
+    },
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": [
+        "15",
+        0
+      ],
+      "conditioning_2": [
+        "19",
+        0
+      ]
+    }
+  },
+  "3": {
+    "_meta": {
+      "title": "KSampler"
+    },
+    "class_type": "KSampler",
+    "inputs": {
+      "cfg": 6,
+      "denoise": 1,
+      "latent_image": [
+        "5",
+        0
+      ],
+      "model": [
+        "4",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "positive": [
+        "20",
+        0
+      ],
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "seed": 41754494229476,
+      "steps": 24
+    }
+  },
+  "4": {
+    "_meta": {
+      "title": "Load Checkpoint"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "waiIllustriousSDXL_v160.safetensors"
+    }
+  },
+  "4a": {
+    "_meta": {
+      "title": "CLIP Skip"
+    },
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": [
+        "4",
+        1
+      ],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "5": {
+    "_meta": {
+      "title": "Empty Latent Image"
+    },
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "batch_size": 1,
+      "height": 1024,
+      "width": 1024
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "Positive"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "4a",
+        0
+      ],
+      "text": ""
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "Negative"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "4a",
+        0
+      ],
+      "text": ""
+    }
+  },
+  "8": {
+    "_meta": {
+      "title": "VAE Decode"
+    },
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    }
+  },
+  "9": {
+    "_meta": {
+      "title": "Save Image"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    }
+  }
+}

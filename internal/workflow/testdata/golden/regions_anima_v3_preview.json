@@ -1,0 +1,265 @@
+{
+  "1": {
+    "_meta": {
+      "title": "Load Diffusion Model \u2014 AnimaYume v0.4"
+    },
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "anima/animayume_v04.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "10": {
+    "_meta": {
+      "title": "BOS Region Prompt red"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "red prompt"
+    }
+  },
+  "11": {
+    "_meta": {
+      "title": "BOS Region Mask red"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/red.png"
+    }
+  },
+  "12": {
+    "_meta": {
+      "title": "BOS Region Mask Channel red"
+    },
+    "class_type": "ImageToMask",
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "11",
+        0
+      ]
+    }
+  },
+  "13": {
+    "_meta": {
+      "title": "BOS Region Set Mask red"
+    },
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": [
+        "10",
+        0
+      ],
+      "mask": [
+        "12",
+        0
+      ],
+      "set_cond_area": "default",
+      "strength": 1
+    }
+  },
+  "14": {
+    "_meta": {
+      "title": "BOS Region Combine red"
+    },
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": [
+        "4",
+        0
+      ],
+      "conditioning_2": [
+        "13",
+        0
+      ]
+    }
+  },
+  "15": {
+    "_meta": {
+      "title": "BOS Region Prompt blue"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "blue prompt"
+    }
+  },
+  "16": {
+    "_meta": {
+      "title": "BOS Region Mask blue"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/blue.png"
+    }
+  },
+  "17": {
+    "_meta": {
+      "title": "BOS Region Mask Channel blue"
+    },
+    "class_type": "ImageToMask",
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "16",
+        0
+      ]
+    }
+  },
+  "18": {
+    "_meta": {
+      "title": "BOS Region Set Mask blue"
+    },
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": [
+        "15",
+        0
+      ],
+      "mask": [
+        "17",
+        0
+      ],
+      "set_cond_area": "default",
+      "strength": 1
+    }
+  },
+  "19": {
+    "_meta": {
+      "title": "BOS Region Combine blue"
+    },
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": [
+        "14",
+        0
+      ],
+      "conditioning_2": [
+        "18",
+        0
+      ]
+    }
+  },
+  "2": {
+    "_meta": {
+      "title": "Load Text Encoder \u2014 Qwen3 0.6B"
+    },
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "cosmos"
+    }
+  },
+  "3": {
+    "_meta": {
+      "title": "Load VAE \u2014 Qwen Image VAE"
+    },
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    }
+  },
+  "4": {
+    "_meta": {
+      "title": "Positive Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": ""
+    }
+  },
+  "5": {
+    "_meta": {
+      "title": "Negative Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": ""
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "Empty Latent Image \u2014 768x1280 Portrait (~1MP)"
+    },
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "batch_size": 1,
+      "height": 1024,
+      "width": 1024
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "KSampler"
+    },
+    "class_type": "KSampler",
+    "inputs": {
+      "cfg": 4.0,
+      "denoise": 1,
+      "latent_image": [
+        "6",
+        0
+      ],
+      "model": [
+        "1",
+        0
+      ],
+      "negative": [
+        "5",
+        0
+      ],
+      "positive": [
+        "19",
+        0
+      ],
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "seed": 42,
+      "steps": 25
+    }
+  },
+  "8": {
+    "_meta": {
+      "title": "VAE Decode"
+    },
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    }
+  },
+  "9": {
+    "_meta": {
+      "title": "SaveImage"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "AnimaYume",
+      "images": [
+        "8",
+        0
+      ]
+    }
+  }
+}

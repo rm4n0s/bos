@@ -1,0 +1,64 @@
+{
+  "1": {
+    "_meta": {
+      "title": "Load Image"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "your_input_character.png",
+      "upload": "image"
+    }
+  },
+  "3": {
+    "_meta": {
+      "title": "Remove Background (AILAB)"
+    },
+    "class_type": "RMBG",
+    "inputs": {
+      "alpha_matting": true,
+      "image": ["1", 0],
+      "invert_output": false,
+      "mask_blur": 2,
+      "mask_offset": 0,
+      "model": "RMBG-2.0",
+      "output_format": "Alpha",
+      "process_res": 1024,
+      "sensitivity": 0.5,
+      "threshold": 0.35,
+      "background": "Alpha"
+    }
+  },
+  "5": {
+    "_meta": {
+      "title": "Composite with Transparency"
+    },
+    "class_type": "ImageCompositeMasked",
+    "inputs": {
+      "destination": ["3", 0],
+      "mask": ["3", 1],
+      "resize_source": false,
+      "source": ["3", 0],
+      "x": 0,
+      "y": 0
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "Preview"
+    },
+    "class_type": "PreviewImage",
+    "inputs": {
+      "images": ["5", 0]
+    }
+  },
+  "9": {
+    "_meta": {
+      "title": "Save Transparent Image"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "character_transparent_%time",
+      "images": ["5", 0]
+    }
+  }
+}

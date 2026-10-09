@@ -1,0 +1,392 @@
+{
+  "10": {
+    "_meta": {
+      "title": "Load VAE"
+    },
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "sdxl_vae.safetensors"
+    }
+  },
+  "11": {
+    "_meta": {
+      "title": "BOS CLIP Vision 1"
+    },
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+    }
+  },
+  "12": {
+    "_meta": {
+      "title": "BOS IPAdapter Reference 1"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/ref.png"
+    }
+  },
+  "13": {
+    "_meta": {
+      "title": "BOS IPAdapter Model 1"
+    },
+    "class_type": "IPAdapterModelLoader",
+    "inputs": {
+      "ipadapter_file": "ip-adapter_sd15.bin"
+    }
+  },
+  "14": {
+    "_meta": {
+      "title": "BOS Apply IPAdapter 1"
+    },
+    "class_type": "IPAdapterAdvanced",
+    "inputs": {
+      "clip_vision": [
+        "11",
+        0
+      ],
+      "combine_embeds": "concat",
+      "embeds_scaling": "V only",
+      "end_at": 1,
+      "image": [
+        "12",
+        0
+      ],
+      "ipadapter": [
+        "13",
+        0
+      ],
+      "model": [
+        "15",
+        0
+      ],
+      "start_at": 0,
+      "weight": 0.6,
+      "weight_type": "linear"
+    }
+  },
+  "15": {
+    "_meta": {
+      "title": "BOS LoRA style_a.safetensors"
+    },
+    "class_type": "LoraLoader",
+    "inputs": {
+      "clip": [
+        "4",
+        1
+      ],
+      "lora_name": "style_a.safetensors",
+      "model": [
+        "4",
+        0
+      ],
+      "strength_clip": 0.6,
+      "strength_model": 0.8
+    }
+  },
+  "16": {
+    "_meta": {
+      "title": "BOS ControlNet Image openpose 1"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/pose.png"
+    }
+  },
+  "17": {
+    "_meta": {
+      "title": "BOS Preprocessor openpose 1"
+    },
+    "class_type": "OpenposePreprocessor",
+    "inputs": {
+      "detect_body": "enable",
+      "detect_face": "enable",
+      "detect_hand": "enable",
+      "image": [
+        "16",
+        0
+      ]
+    }
+  },
+  "18": {
+    "_meta": {
+      "title": "BOS Preview openpose 1"
+    },
+    "class_type": "PreviewImage",
+    "inputs": {
+      "images": [
+        "17",
+        0
+      ]
+    }
+  },
+  "19": {
+    "_meta": {
+      "title": "BOS ControlNet Model openpose 1"
+    },
+    "class_type": "ControlNetLoader",
+    "inputs": {
+      "control_net_name": "cn.safetensors"
+    }
+  },
+  "20": {
+    "_meta": {
+      "title": "BOS Apply ControlNet openpose 1"
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "control_net": [
+        "19",
+        0
+      ],
+      "end_percent": 1,
+      "image": [
+        "17",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "positive": [
+        "28",
+        0
+      ],
+      "start_percent": 0,
+      "strength": 0.9
+    }
+  },
+  "21": {
+    "_meta": {
+      "title": "BOS Region Prompt red"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "4a",
+        0
+      ],
+      "text": "red prompt"
+    }
+  },
+  "22": {
+    "_meta": {
+      "title": "BOS Region Mask red"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/red.png"
+    }
+  },
+  "23": {
+    "_meta": {
+      "title": "BOS Region Mask Channel red"
+    },
+    "class_type": "ImageToMask",
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "22",
+        0
+      ]
+    }
+  },
+  "24": {
+    "_meta": {
+      "title": "BOS Region Set Mask red"
+    },
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": [
+        "21",
+        0
+      ],
+      "mask": [
+        "23",
+        0
+      ],
+      "set_cond_area": "default",
+      "strength": 1
+    }
+  },
+  "25": {
+    "_meta": {
+      "title": "BOS Region Combine red"
+    },
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": [
+        "6",
+        0
+      ],
+      "conditioning_2": [
+        "24",
+        0
+      ]
+    }
+  },
+  "26": {
+    "_meta": {
+      "title": "BOS Region Prompt r"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "4a",
+        0
+      ],
+      "text": "rect"
+    }
+  },
+  "27": {
+    "_meta": {
+      "title": "BOS Region Set Area r"
+    },
+    "class_type": "ConditioningSetArea",
+    "inputs": {
+      "conditioning": [
+        "26",
+        0
+      ],
+      "height": 100,
+      "strength": 1,
+      "width": 100,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "28": {
+    "_meta": {
+      "title": "BOS Region Combine r"
+    },
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": [
+        "25",
+        0
+      ],
+      "conditioning_2": [
+        "27",
+        0
+      ]
+    }
+  },
+  "3": {
+    "_meta": {
+      "title": "KSampler"
+    },
+    "class_type": "KSampler",
+    "inputs": {
+      "cfg": 6,
+      "denoise": 1,
+      "latent_image": [
+        "5",
+        0
+      ],
+      "model": [
+        "14",
+        0
+      ],
+      "negative": [
+        "20",
+        1
+      ],
+      "positive": [
+        "20",
+        0
+      ],
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "seed": 4242,
+      "steps": 28
+    }
+  },
+  "4": {
+    "_meta": {
+      "title": "Load Checkpoint"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "waiIllustriousSDXL_v160.safetensors"
+    }
+  },
+  "4a": {
+    "_meta": {
+      "title": "CLIP Skip"
+    },
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": [
+        "15",
+        1
+      ],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "5": {
+    "_meta": {
+      "title": "Empty Latent Image"
+    },
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "batch_size": 1,
+      "height": 1024,
+      "width": 768
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "Positive"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "4a",
+        0
+      ],
+      "text": "alice, red hair"
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "Negative"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "4a",
+        0
+      ],
+      "text": "ugly"
+    }
+  },
+  "8": {
+    "_meta": {
+      "title": "VAE Decode"
+    },
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "10",
+        0
+      ]
+    }
+  },
+  "9": {
+    "_meta": {
+      "title": "Save Image"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    }
+  }
+}

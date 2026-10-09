@@ -1,0 +1,150 @@
+{
+  "4": {
+    "_meta": {
+      "title": "Load Checkpoint"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "garageMixNoobVPredEPS_v10EPS.safetensors"
+    }
+  },
+  "4a": {
+    "_meta": {
+      "title": "CLIP Skip"
+    },
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": ["4", 1],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "4b": {
+    "_meta": {
+      "title": "Load VAE"
+    },
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "sdxl_vae.safetensors"
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "Positive"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["4a", 0],
+      "text": "(highly detailed:1.2), masterpiece, best quality"
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "Negative"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["4a", 0],
+      "text": "text, watermark, bad quality, blurry"
+    }
+  },
+  "9": {
+    "_meta": {
+      "title": "Save Image"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ComfyUI_tile_upscale",
+      "images": ["17", 0]
+    }
+  },
+  "8": {
+    "_meta": {
+      "title": "Load Image"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "your_image.png"
+    }
+  },
+  "10": {
+    "_meta": {
+      "title": "Load ControlNet Model (Tile SDXL)"
+    },
+    "class_type": "ControlNetLoader",
+    "inputs": {
+      "control_net_name": "xinsir-controlnet-tile-sdxl-1.0.safetensors"
+    }
+  },
+  "11": {
+    "_meta": {
+      "title": "Upscale Image"
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "image": ["8", 0],
+      "upscale_model": ["12", 0]
+    }
+  },
+  "12": {
+    "_meta": {
+      "title": "Load Upscale Model"
+    },
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x-AnimeSharp.pth"
+    }
+  },
+  "13": {
+    "_meta": {
+      "title": "Apply ControlNet"
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "strength": 0.7,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "control_net": ["10", 0],
+      "image": ["11", 0]
+    }
+  },
+  "14": {
+    "_meta": {
+      "title": "VAE Encode"
+    },
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["11", 0],
+      "vae": ["4b", 0]
+    }
+  },
+  "15": {
+    "_meta": {
+      "title": "KSampler (Refine)"
+    },
+    "class_type": "KSampler",
+    "inputs": {
+      "cfg": 5,
+      "denoise": 0.4,
+      "latent_image": ["14", 0],
+      "model": ["4", 0],
+      "negative": ["13", 1],
+      "positive": ["13", 0],
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "seed": 31754494229486,
+      "steps": 20
+    }
+  },
+  "17": {
+    "_meta": {
+      "title": "VAE Decode (Final)"
+    },
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["15", 0],
+      "vae": ["4b", 0]
+    }
+  }
+}

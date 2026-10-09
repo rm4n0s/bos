@@ -1,0 +1,108 @@
+{
+  "4": {
+    "_meta": {
+      "title": "Load Checkpoint"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "garageMixNoobVPredEPS_v10EPS.safetensors"
+    }
+  },
+  "4a": {
+    "_meta": {
+      "title": "CLIP Skip"
+    },
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": ["4", 1],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "4b": {
+    "_meta": {
+      "title": "Load VAE"
+    },
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "sdxl_vae.safetensors"
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "Positive"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["4a", 0],
+      "text": "(perfect eyes:1.3), (detailed pupils:1.2), highly detailed"
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "Negative"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["4a", 0],
+      "text": "text, watermark, bad eyes, crooked eyes, asymmetric eyes"
+    }
+  },
+  "8": {
+    "_meta": {
+      "title": "Load Image"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "your_image.png"
+    }
+  },
+  "9": {
+    "_meta": {
+      "title": "Save Image"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ComfyUI_adetailer",
+      "images": ["15", 0]
+    }
+  },
+  "10": {
+    "_meta": {
+      "title": "VAE Encode"
+    },
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["8", 0],
+      "vae": ["4b", 0]
+    }
+  },
+  "11": {
+    "_meta": {
+      "title": "ADetailer"
+    },
+    "class_type": "ADetailer",
+    "inputs": {
+      "ad_model": "face_yolov8m.pt",
+      "ad_prompt": "(perfect eyes:1.3), detailed face",
+      "ad_negative_prompt": "bad eyes, blurry",
+      "strength": 0.4,
+      "blur": 4,
+      "dilation": 4,
+      "image": ["8", 0],
+      "model": ["4", 0],
+      "clip": ["4a", 0],
+      "vae": ["4b", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0]
+    }
+  },
+  "15": {
+    "_meta": {
+      "title": "Get Result"
+    },
+    "class_type": "PreviewImage",
+    "inputs": {
+      "images": ["11", 0]
+    }
+  }
+}

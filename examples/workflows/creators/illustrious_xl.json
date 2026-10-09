@@ -1,0 +1,90 @@
+{
+  "3": {
+    "_meta": {
+      "title": "KSampler"
+    },
+    "class_type": "KSampler",
+    "inputs": {
+      "cfg": 6,
+      "denoise": 1,
+      "latent_image": ["5", 0],
+      "model": ["4", 0],
+      "negative": ["7", 0],
+      "positive": ["6", 0],
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "seed": 41754494229476,
+      "steps": 24
+    }
+  },
+  "4": {
+    "_meta": {
+      "title": "Load Checkpoint"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "waiIllustriousSDXL_v160.safetensors"
+    }
+  },
+  "4a": {
+    "_meta": {
+      "title": "CLIP Skip"
+    },
+    "class_type": "CLIPSetLastLayer",
+    "inputs": {
+      "clip": ["4", 1],
+      "stop_at_clip_layer": -2
+    }
+  },
+  "5": {
+    "_meta": {
+      "title": "Empty Latent Image"
+    },
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "batch_size": 1,
+      "height": 1024,
+      "width": 1024
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "Positive"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["4a", 0],
+      "text": ""
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "Negative"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["4a", 0],
+      "text": ""
+    }
+  },
+  "8": {
+    "_meta": {
+      "title": "VAE Decode"
+    },
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["4", 2]
+    }
+  },
+  "9": {
+    "_meta": {
+      "title": "Save Image"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": ["8", 0]
+    }
+  }
+}

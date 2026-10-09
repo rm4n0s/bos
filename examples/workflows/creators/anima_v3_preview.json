@@ -1,0 +1,100 @@
+{
+  "1": {
+    "_meta": {
+      "title": "Load Diffusion Model \u2014 AnimaYume v0.4"
+    },
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "anima/animayume_v04.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "_meta": {
+      "title": "Load Text Encoder \u2014 Qwen3 0.6B"
+    },
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "cosmos"
+    }
+  },
+  "3": {
+    "_meta": {
+      "title": "Load VAE \u2014 Qwen Image VAE"
+    },
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    }
+  },
+  "4": {
+    "_meta": {
+      "title": "Positive Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["2", 0],
+      "text": ""
+    }
+  },
+  "5": {
+    "_meta": {
+      "title": "Negative Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": ["2", 0],
+      "text": ""
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "Empty Latent Image \u2014 768x1280 Portrait (~1MP)"
+    },
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "batch_size": 1,
+      "height": 1024,
+      "width": 1024
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "KSampler"
+    },
+    "class_type": "KSampler",
+    "inputs": {
+      "cfg": 4.0,
+      "denoise": 1,
+      "latent_image": ["6", 0],
+      "model": ["1", 0],
+      "negative": ["5", 0],
+      "positive": ["4", 0],
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "seed": 42,
+      "steps": 25
+    }
+  },
+  "8": {
+    "_meta": {
+      "title": "VAE Decode"
+    },
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["7", 0],
+      "vae": ["3", 0]
+    }
+  },
+  "9": {
+    "_meta": {
+      "title": "SaveImage"
+    },
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "AnimaYume",
+      "images": ["8", 0]
+    }
+  }
+}

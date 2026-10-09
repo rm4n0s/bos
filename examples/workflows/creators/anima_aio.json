@@ -1,0 +1,100 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "_meta": { "title": "Load nArnima Turbo AIO — UNet" },
+    "inputs": {
+      "unet_name": "anima/narnimaTurboAllInOne_v1.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+
+  "2": {
+    "class_type": "CLIPLoader",
+    "_meta": { "title": "Load Qwen3-0.6B Text Encoder" },
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion"
+    }
+  },
+
+  "3": {
+    "class_type": "VAELoader",
+    "_meta": { "title": "Load Qwen Image VAE" },
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    }
+  },
+
+  "4": {
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": { "title": "Flow Shift = 3.0 (ANIMA default)" },
+    "inputs": {
+      "model": ["1", 0],
+      "shift": 3.0
+    }
+  },
+
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "Positive Prompt" },
+    "inputs": {
+      "text": "",
+      "clip": ["2", 0]
+    }
+  },
+
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "Negative Prompt" },
+    "inputs": {
+      "text": "",
+      "clip": ["2", 0]
+    }
+  },
+
+  "7": {
+    "class_type": "EmptyLatentImage",
+    "_meta": { "title": "Empty Latent — 960x1440" },
+    "inputs": {
+      "width": 960,
+      "height": 1440,
+      "batch_size": 1
+    }
+  },
+
+  "8": {
+    "class_type": "KSampler",
+    "_meta": { "title": "KSampler — er_sde / beta / CFG 1.0 / 16 steps" },
+    "inputs": {
+      "model": ["4", 0],
+      "positive": ["5", 0],
+      "negative": ["6", 0],
+      "latent_image": ["7", 0],
+      "seed": 1234567890,
+      "control_after_generate": "randomize",
+      "steps": 16,
+      "cfg": 1.0,
+      "sampler_name": "er_sde",
+      "scheduler": "beta",
+      "denoise": 1.0
+    }
+  },
+
+  "9": {
+    "class_type": "VAEDecode",
+    "_meta": { "title": "Decode with Qwen VAE" },
+    "inputs": {
+      "samples": ["8", 0],
+      "vae": ["3", 0]
+    }
+  },
+
+  "10": {
+    "class_type": "SaveImage",
+    "_meta": { "title": "Save Image" },
+    "inputs": {
+      "images": ["9", 0],
+      "filename_prefix": "nArnima_Turbo"
+    }
+  }
+}
