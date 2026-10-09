@@ -16,7 +16,7 @@ A step entry in `IMPLEMENTED.md` contains: the step number and title, the branch
 ## Step 1 – Project skeleton (`feat/skeleton`)
 
 - `go.mod` for `github.com/rm4n0s/bos` on Go 1.26.3; the `cmd/bos` and `internal/…` layout of SPEC §14.2.
-- `golangci-lint` configuration and a GitHub Actions workflow running the four checks.
+- `golangci-lint` configuration (no `.github/` directory and no CI workflow: the four checks are run locally).
 - A thin `main`: load the JSON configuration (SPEC §2), open SQLite, serve `/healthz`, shut down cleanly.
 - Replace the Qt/miqt project notes in `CLAUDE.md` with notes that describe this project.
 - Add the approved dependencies.

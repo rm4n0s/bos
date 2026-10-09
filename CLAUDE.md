@@ -67,7 +67,7 @@ Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never
 - Commit messages: imperative mood, e.g. "Add retry to client"
 - Use the `gh` CLI for PRs, issues and CI: `gh pr create`, `gh pr view`, `gh run list`
 - PRs: short description, link the issue (`Closes #123`), keep them small
-- CI runs in GitHub Actions (`.github/workflows/`); make sure it passes before marking a PR ready
+- No `.github/` directory and no GitHub Actions workflows: never add them. The four Definition-of-done checks are run locally
 
 ## Don't
 - Don't edit generated files (`*.pb.go`, `*_gen.go`); regenerate them with `make generate`
