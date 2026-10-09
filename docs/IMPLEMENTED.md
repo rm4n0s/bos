@@ -261,3 +261,13 @@ The harness is temporary and is removed in step 12.
 - Deviations from the spec:
   - `repl run` takes the server's code name as `--on` (`--server` is the address of bos).
   - SPEC §15.6 says the body is built from flags or `--file`; item fields that are lists of objects (ControlNets, regions, IP-Adapter) are given as JSON (`--controlnets '[…]'` or `@file`), LoRAs and Civitai models as `name:model:clip` and `id:model:clip`.
+
+## Step 14 – Documentation and tutorial
+- Branch: feat/docs
+- Last code commit: 4e41cc1
+- Date: 2026-10-10
+- Delivered: `README.md` (what the program is, requirements, installing and running, a table of the documents, the safety notes, a short developer section). `docs/guide/`: concepts, install, configuration (every setting), the catalogue (servers, generators, fixers, groups and items, tags), the command language with examples and common mistakes, running and following commands, Civitai, and the three interfaces (web page, `bosctl`, REST and events). `docs/troubleshooting.md`: one section for each of the 76 error tags, what it means and what to do. `docs/tutorial.md`: a first batch from nothing to a downloaded archive, once on the web page (with three screenshots in `docs/img/`) and once with `bosctl`. `docs/cli.md` (step 13) and `docs/openapi.json` (step 9) are the references. Tests: `TestTutorial` runs every command of the `bosctl` blocks of the tutorial, in order, against the whole program and the stand-in ComfyUI and checks the exit code the tutorial states (so the tutorial cannot say something that does not work); `internal/acceptance` checks that every tag of the catalogue has a section in the troubleshooting guide, that every relative link of every Markdown file (and its heading) resolves, and that the configuration guide has a row for every setting.
+- Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
+- Deviations from the spec: none.
+  - The screenshots were taken with headless Firefox against the program with the stand-in ComfyUI; the pictures in the jobs screenshot are generated placeholders, not real model output.
+  - Nothing in the guide could be checked against a real ComfyUI or Civitai; the walkthrough of the web page was followed on the stand-in only.
