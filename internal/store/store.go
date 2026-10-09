@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/glebarez/sqlite"
 	"github.com/rm4n0s/errors"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -95,8 +95,8 @@ func Open(ctx context.Context, location string, opts ...Option) (*DB, error) {
 // block the writer.
 func dsn(location string) string {
 	q := url.Values{}
-	q.Add("_pragma", "busy_timeout(5000)")
-	q.Add("_pragma", "foreign_keys(1)")
+	q.Set("_busy_timeout", "5000")
+	q.Set("_foreign_keys", "1")
 	q.Set("_txlock", "immediate")
 	if location == InMemory {
 		name := "bos-mem-" + strconv.FormatUint(memoryCounter.Add(1), 10)
@@ -104,7 +104,7 @@ func dsn(location string) string {
 		q.Set("cache", "shared")
 		return "file:" + name + "?" + q.Encode()
 	}
-	q.Add("_pragma", "journal_mode(WAL)")
+	q.Set("_journal_mode", "WAL")
 	return "file:" + strings.TrimPrefix(location, "file:") + "?" + q.Encode()
 }
 

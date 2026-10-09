@@ -1,6 +1,6 @@
 # Implementation plan
 
-Companion to [SPEC.md](SPEC.md). Each step is one `feat/…` branch and one small pull request. A step is done when `gofmt`, `go vet ./...`, `golangci-lint run` and `go test -race ./...` pass. Every step that adds a failure case also adds its error tag (SPEC §17.2) and a test that asserts the route. Dependencies are limited to the approved set in SPEC §14.4: `gorm.io/gorm`, `github.com/glebarez/sqlite`, `github.com/starfederation/datastar-go`, `rm4n0s/errors`, `rm4n0s/comfyui-client-go`, `rm4n0s/gocivitailib`. Anything else needs approval first.
+Companion to [SPEC.md](SPEC.md). Each step is one `feat/…` branch and one small pull request. A step is done when `gofmt`, `go vet ./...`, `golangci-lint run` and `go test -race ./...` pass. Every step that adds a failure case also adds its error tag (SPEC §17.2) and a test that asserts the route. Dependencies are limited to the approved set in SPEC §14.4: `gorm.io/gorm`, `gorm.io/driver/sqlite`, `github.com/starfederation/datastar-go`, `rm4n0s/errors`, `rm4n0s/comfyui-client-go`, `rm4n0s/gocivitailib`. Anything else needs approval first.
 
 ## Rules
 

@@ -797,7 +797,7 @@ Sections 1–13 describe behaviour and stay technology-neutral. Sections 14–20
 | ComfyUI | `github.com/rm4n0s/comfyui-client-go` behind an internal port (§18) |
 | Civitai | `github.com/rm4n0s/gocivitailib` behind an internal port (§19) |
 | HTTP, JSON, logging, files, zip, images | Standard library: `net/http` (Go 1.22+ method/path patterns), `encoding/json`, `log/slog`, `os`, `archive/zip`, `image/*`, `embed`, `html/template` |
-| Storage | SQLite through `gorm.io/gorm` with the `github.com/glebarez/sqlite` driver (§14.4) |
+| Storage | SQLite through `gorm.io/gorm` with the official `gorm.io/driver/sqlite` driver (§14.4) |
 
 Further dependencies require explicit approval (project rule); the approved set is in §14.4. `gorilla/websocket` arrives transitively through `comfyui-client-go` and is not a new direct dependency.
 
@@ -838,7 +838,7 @@ internal/files             file storage under the configured directories, upload
 
 | # | Decision | Outcome |
 |---|---|---|
-| D1 | Database access | `gorm.io/gorm` with `github.com/glebarez/sqlite` (pure Go, no cgo). The driver is glue over the SQLite engine of `modernc.org/sqlite/lib`; `go.mod` pins `modernc.org/sqlite` to a current release so the engine is current. No SQL is written by hand: queries use gorm's builder, and records in `internal/store` map to the domain types |
+| D1 | Database access | `gorm.io/gorm` with the official `gorm.io/driver/sqlite` (SQLite through `github.com/mattn/go-sqlite3`, so **cgo and a C compiler are required** to build and run). No SQL is written by hand: queries use gorm's builder, and records in `internal/store` map to the domain types |
 | D2 | Configuration file | JSON (standard library), with environment-variable overrides |
 | D3 | HTML templating | `html/template` |
 | D4 | Datastar server SDK | `github.com/starfederation/datastar-go` (`NewSSE`, `PatchElements`, `MarshalAndPatchSignals`, `ReadSignals`) |
@@ -847,7 +847,7 @@ internal/files             file storage under the configured directories, upload
 | D7 | Authentication | Listen on `127.0.0.1` by default; optional shared bearer token (§15.1, §16.6) |
 | D8 | Schema migrations | Numbered Go migrations that use gorm's `Migrator` on structs frozen for each migration, applied in order, one transaction each, version stored in a table |
 
-New direct dependencies are therefore exactly: `gorm.io/gorm`, `github.com/glebarez/sqlite`, `github.com/starfederation/datastar-go`, and the three `rm4n0s` libraries.
+New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/sqlite`, `github.com/starfederation/datastar-go`, and the three `rm4n0s` libraries.
 
 ## 15. REST API
 
