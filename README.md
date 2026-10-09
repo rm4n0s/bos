@@ -45,6 +45,7 @@ Then follow the [tutorial](docs/tutorial.md): from an empty program to a finishe
 | [User guide](docs/guide/README.md) | Every concept and screen |
 | [Command language](docs/guide/commands.md) | The one-line language, with examples |
 | [`bosctl` reference](docs/cli.md) | Every terminal command (generated) |
+| [Guide for AI agents](docs/agents.md) | Rules and a tested worked session for a program that drives `bosctl` |
 | [REST API](docs/openapi.json) | The OpenAPI description; the running server serves it at `/api/v1/openapi.json` |
 | [Troubleshooting](docs/troubleshooting.md) | Every error the program can give, and what to do |
 | [Specification](docs/SPEC.md) | The exact behaviour, for people who build on it or check it |
