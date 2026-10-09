@@ -1,6 +1,6 @@
 # Bowl of Scenes — Product Specification
 
-**Part I (§1–14)** describes *what* the system does and is technology-neutral: operations are named abstractly. **Part II (§15–21)** binds it to the chosen technology: a **Go** server with a **REST API** and a **Datastar** web UI, using the libraries `rm4n0s/errors`, `rm4n0s/comfyui-client-go` and `rm4n0s/gocivitailib`. Where the two parts differ in detail, Part I defines the behaviour and Part II the delivery.
+**Part I (§1–13)** describes *what* the system does and is technology-neutral: operations are named abstractly. **Part II (§13–20)** binds it to the chosen technology: a **Go** server with a **REST API** and a **Datastar** web UI, using the libraries `rm4n0s/errors`, `rm4n0s/comfyui-client-go` and `rm4n0s/gocivitailib`. Where the two parts differ in detail, Part I defines the behaviour and Part II the delivery.
 
 The two external systems the product integrates with are part of the requirements and are named explicitly:
 
@@ -48,15 +48,15 @@ A single configuration source supplies:
 | Downloads directory | yes | Per-command export archives |
 | Civitai LoRA cache directory | no | Local cache for downloaded LoRAs |
 | Civitai API token | no | Required for any Civitai download |
-| Civitai domain | no | Default `civitai.com` (the site API is `https://<domain>`, the generation API `https://orchestration.<domain>`; §20) |
+| Civitai domain | no | Default `civitai.com` (the site API is `https://<domain>`, the generation API `https://orchestration.<domain>`; §19) |
 | Server grace period | no | Seconds a server may be unavailable before unpinned jobs are re-assigned elsewhere (§8.7). Default 30 |
 | Max job attempts | no | How many times a job is retried after its server became unreachable (§8.7). Default 3 |
 | Preview soft limit | no | Job count above which the preview warns (§6.11) |
-| Listen address | no | Default `127.0.0.1:8080` (§17.6) |
-| Auth token | no | Shared bearer token for the API and UI (§16.1, §17.6) |
-| Upload size limit | no | Maximum size of one uploaded file (§16.1) |
+| Listen address | no | Default `127.0.0.1:8080` (§16.6) |
+| Auth token | no | Shared bearer token for the API and UI (§15.1, §16.6) |
+| Upload size limit | no | Maximum size of one uploaded file (§15.1) |
 | CORS allow-list | no | Origins allowed to call the API cross-origin; default none |
-| Event log size | no | Number of events retained (§8.5, §16.4); default 100 |
+| Event log size | no | Number of events retained (§8.5, §15.4); default 100 |
 
 Directories are created at startup if missing. All stored files must be retrievable (read-only) by the user interface, e.g. to display thumbnails and results.
 
@@ -708,7 +708,7 @@ Static plans therefore never leave work unassigned, but they can leave a server 
 
 **Server loss.** If the server of a running job becomes unreachable, the job's execution is abandoned (best effort cancel), its status returns to `queued`, and `attempts` increases. After `max job attempts` the job becomes `error`, with a message naming the server. This does **not** halt the rest of the command.
 
-**Input files.** Everything a workflow reads — reference images, ControlNet images, mask images, IP-Adapter images and the image fed to a fixer — MUST be available to the target server. The system SHOULD upload the file through ComfyUI's upload facility before submitting, under a unique name, for every server (§19.6); passing a path is only allowed for `is_local` servers. Results are always downloaded to the application's results location, whichever server produced them.
+**Input files.** Everything a workflow reads — reference images, ControlNet images, mask images, IP-Adapter images and the image fed to a fixer — MUST be available to the target server. The system SHOULD upload the file through ComfyUI's upload facility before submitting, under a unique name, for every server (§18.6); passing a path is only allowed for `is_local` servers. Results are always downloaded to the application's results location, whichever server produced them.
 
 **Model availability.** The same generator workflow runs everywhere, so checkpoint, LoRA, ControlNet and IP-Adapter model names must exist on every target. The system does not install models; a missing model surfaces as a workflow failure. The preview SHOULD warn when a LoRA used by the command is not listed by one of the targets (§9, last bullet).
 
@@ -746,35 +746,7 @@ The README of the original lists the author's ComfyUI custom nodes, noting uncer
 
 From the injectors, the target ComfyUI must provide: `IPAdapterAdvanced`, `IPAdapterModelLoader`, `CLIPVisionLoader`; `ControlNetApplyAdvanced` and the preprocessors in §8.2; core nodes `LoraLoader`, `LoraLoaderModelOnly`, `ConditioningSetMask`, `ConditioningSetArea`, `ConditioningCombine`, `ImageToMask`. Each fixer additionally needs whatever nodes its own workflow uses.
 
-## 13. Defects in the original (do not carry over)
-
-Recorded so a reimplementation decides each explicitly.
-
-**Command language**
-1. Zipping items that have ControlNets fails because the wrong field name is read. Zipped items have no group or item identity, so the job's `{group, item}` list is wrong; zipped code_names are concatenated with no separator (the grammar spec fixes this: §6.4).
-2. If a selection has include and exclude lists, the include list is ignored. *Resolved by construction: §6.3 S2 forbids it.*
-3. Validation of merged selections incorrectly treats the merge as a single group named `a+b` and reports it missing.
-4. Template and region selections are not item-validated at add time, so typos only fail later during expansion. *Resolved: §6.11 validates every nesting depth.*
-5. Operators require exact single-space surroundings; other spacing mis-parses. *Resolved: §6.1 is token-based.*
-6. In region expansion, LoRAs from one region combination accumulate into the next job's LoRA list.
-
-**Commands**
-7. Editing only name/description without changing the text does nothing.
-8. Inserting a command shifts orders *before* validation, so a validation failure leaves a gap.
-9. Stop cannot interrupt a job that is already processing.
-10. A command becomes `finished` only when the job flagged `is_last` finishes. *Resolved: finished when all jobs are finished (§7.1).*
-
-**Execution**
-11. A job whose server is offline is dropped from the in-memory queue yet stays `queued` forever. *Addressed: §8.7 (grace period, re-assignment, retries).*
-12. All jobs run serially even across different servers. *Resolved: §6.9 and §8.7.*
-13. If a workflow returns several images, each overwrites the same result file; only the last survives.
-14. A fixer failure is not caught, leaving the job `processing`. A fixer's own prompt text and `save_image_title` are stored but never used.
-15. Creating a fixer does not persist its prompt node titles.
-16. The REPL job passes a nonexistent field and carries no output attributes, so image attribute overrides don't apply to it.
-17. Editing an item cannot clear its LoRA list (empty input is ignored).
-18. Deleting a server does not remove it from the live server map until the next probe.
-
-## 14. Acceptance tests
+## 13. Acceptance tests
 
 1. `s -$ g: a * b(~x) * c(y)` parses into three selections with correct include/exclude; adding `> f1 > f2` gives fixers `[f1, f2]`.
 1a. Every row of the valid table in §6.12 parses and yields the stated job count; every row of the invalid table is rejected with the stated rule (S1–S8, T1–T5, R1, lexical or semantic) and the offending token's position.
@@ -809,27 +781,27 @@ Recorded so a reimplementation decides each explicitly.
 
 # Part II — Technical binding: Go, REST, Datastar
 
-Sections 1–14 describe behaviour and stay technology-neutral. Sections 15–21 bind that behaviour to the chosen technology. Where they appear to conflict, §1–14 define *what* happens and §15–21 define *how* it is delivered.
+Sections 1–13 describe behaviour and stay technology-neutral. Sections 14–20 bind that behaviour to the chosen technology. Where they appear to conflict, §1–13 define *what* happens and §13–20 define *how* it is delivered.
 
-## 15. Technology and architecture
+## 14. Technology and architecture
 
-### 15.1 Stack
+### 14.1 Stack
 
 | Concern | Choice |
 |---|---|
 | Language | Go ≥ 1.26.3 (the version the three project libraries declare in `go.mod`) |
 | Delivery | One server process, one binary, serving the REST API, the web UI and the static files |
-| API | REST over HTTP, JSON bodies, versioned under `/api/v1` (§16) |
-| UI | Server-rendered HTML enhanced with **Datastar** (v1 SSE protocol); no client-side build step (§17) |
-| Errors | `github.com/rm4n0s/errors` — used for every error, project-wide (§18) |
-| ComfyUI | `github.com/rm4n0s/comfyui-client-go` behind an internal port (§19) |
-| Civitai | `github.com/rm4n0s/gocivitailib` behind an internal port (§20) |
+| API | REST over HTTP, JSON bodies, versioned under `/api/v1` (§15) |
+| UI | Server-rendered HTML enhanced with **Datastar** (v1 SSE protocol); no client-side build step (§16) |
+| Errors | `github.com/rm4n0s/errors` — used for every error, project-wide (§17) |
+| ComfyUI | `github.com/rm4n0s/comfyui-client-go` behind an internal port (§18) |
+| Civitai | `github.com/rm4n0s/gocivitailib` behind an internal port (§19) |
 | HTTP, JSON, logging, files, zip, images | Standard library: `net/http` (Go 1.22+ method/path patterns), `encoding/json`, `log/slog`, `os`, `archive/zip`, `image/*`, `embed`, `html/template` |
-| Storage | SQLite through `database/sql` with `modernc.org/sqlite` (§15.4) |
+| Storage | SQLite through `database/sql` with `modernc.org/sqlite` (§14.4) |
 
-Further dependencies require explicit approval (project rule); the approved set is in §15.4. `gorilla/websocket` arrives transitively through `comfyui-client-go` and is not a new direct dependency.
+Further dependencies require explicit approval (project rule); the approved set is in §14.4. `gorilla/websocket` arrives transitively through `comfyui-client-go` and is not a new direct dependency.
 
-### 15.2 Package layout
+### 14.2 Package layout
 
 Follows the repository layout rules: thin `cmd/`, application code in `internal/`, tests beside the code.
 
@@ -845,24 +817,24 @@ internal/store             repositories over SQLite; schema migrations (§10)
 internal/service           application services (use cases): servers, generators, fixers, tags,
                            groups, items, projects, commands, jobs, repl, civitai import
 internal/scheduler         server monitor, dispatcher, per-server runners, event log (§8)
-internal/comfy             ComfyUI port + adapter over comfyui-client-go, event hub (§19)
-internal/civitai           Civitai `Models` port + adapter over gocivitailib; LoRA copy into ComfyUI (§20)
+internal/comfy             ComfyUI port + adapter over comfyui-client-go, event hub (§18)
+internal/civitai           Civitai `Models` port + adapter over gocivitailib; LoRA copy into ComfyUI (§19)
 internal/events            ordered, bounded event log with subscriptions (§8.5)
-internal/api               REST handlers, DTOs, error mapping (§16)
-internal/ui                Datastar handlers, templates, embedded static assets (§17)
+internal/api               REST handlers, DTOs, error mapping (§15)
+internal/ui                Datastar handlers, templates, embedded static assets (§16)
 internal/files             file storage under the configured directories, upload handling, safe serving
 ```
 
-### 15.3 Architecture rules
+### 14.3 Architecture rules
 
 1. **One application core, two thin front ends.** `internal/api` and `internal/ui` both call `internal/service`; neither contains business rules, and the UI never calls the REST API. This keeps both in step by construction.
-2. **Dependencies point inward.** `domain` and `command` import nothing from the project. `service` depends on small interfaces (ports) for the store, ComfyUI, Civitai, files and clock, defined next to the code that uses them; concrete adapters are wired in `cmd/bos`. This is what lets §21 use fakes.
+2. **Dependencies point inward.** `domain` and `command` import nothing from the project. `service` depends on small interfaces (ports) for the store, ComfyUI, Civitai, files and clock, defined next to the code that uses them; concrete adapters are wired in `cmd/bos`. This is what lets §20 use fakes.
 3. **No global mutable state.** Everything (config, store, hub, scheduler, event log) is constructed in `main` and injected through constructors.
 4. **`context.Context` first** on anything that does I/O. Request contexts propagate into services; background workers take the application context and stop cleanly on shutdown (`http.Server.Shutdown`, then workers, then store).
 5. **Concurrency.** Each server runner is a goroutine owned by the scheduler; shared state is behind the scheduler/hub/event-log types, never touched directly by handlers. Claiming a job is a single atomic store operation (e.g. `UPDATE … WHERE status='queued' AND id=?` returning the affected row count).
 6. **Pure core for the command language.** Lexing, parsing, validation against a read-only catalogue interface, and expansion (item lists, product, `where`, sample, repeat, spread) are deterministic functions testable without a database.
 
-### 15.4 Decisions (confirmed)
+### 14.4 Decisions (confirmed)
 
 | # | Decision | Outcome |
 |---|---|---|
@@ -872,14 +844,14 @@ internal/files             file storage under the configured directories, upload
 | D4 | Datastar server SDK | `github.com/starfederation/datastar-go` (`NewSSE`, `PatchElements`, `MarshalAndPatchSignals`, `ReadSignals`) |
 | D5 | Person segmentation (the original's YOLO model) | **Removed.** Regions come from colour masks and coordinates only (§7.3) |
 | D6 | Image formats for mask references | PNG only (flat colours); thumbnails and other images: PNG, JPEG, GIF. `image/webp` is not in the standard library |
-| D7 | Authentication | Listen on `127.0.0.1` by default; optional shared bearer token (§16.1, §17.6) |
+| D7 | Authentication | Listen on `127.0.0.1` by default; optional shared bearer token (§15.1, §16.6) |
 | D8 | Schema migrations | Numbered SQL files embedded with `embed`, applied in order, version stored in a table |
 
 New direct dependencies are therefore exactly: `modernc.org/sqlite`, `github.com/starfederation/datastar-go`, and the three `rm4n0s` libraries.
 
-## 16. REST API
+## 15. REST API
 
-### 16.1 Conventions
+### 15.1 Conventions
 
 | Topic | Rule |
 |---|---|
@@ -892,23 +864,23 @@ New direct dependencies are therefore exactly: `modernc.org/sqlite`, `github.com
 | Create | `201 Created`, `Location` header, full resource in the body |
 | Update | `PUT` replaces all editable fields; returns the resource |
 | Delete | `204 No Content`; deletion cascades are those of §7.4 |
-| Long-running | Starting work (`run`, `recreate`, imports) returns `202 Accepted` with the affected resource; progress is observed through §16.4 |
+| Long-running | Starting work (`run`, `recreate`, imports) returns `202 Accepted` with the affected resource; progress is observed through §15.4 |
 | Unknown JSON fields | Rejected with `400` |
 | Body limits | JSON bodies ≤ 8 MiB (workflows are large); upload size limits are configuration settings |
 | Auth | If `auth_token` is configured, every `/api/v1` request needs `Authorization: Bearer <token>` (`401` otherwise). `/healthz` is always open |
 | CORS | Off. Same-origin only unless an allow-list is configured |
 
-**Errors.** Every non-2xx response has this body, produced from an `*errors.Error` (§18):
+**Errors.** Every non-2xx response has this body, produced from an `*errors.Error` (§17):
 
 ```json
 {"error": {"tag": "CommandValidationFailed", "message": "command is not valid", "metadata": {"errors": [ … ]}}}
 ```
 
-`tag` is the stable, machine-readable identifier. The stack trace and route are **never** sent to clients; they are logged (§18.4).
+`tag` is the stable, machine-readable identifier. The stack trace and route are **never** sent to clients; they are logged (§17.4).
 
-### 16.2 Resources
+### 15.2 Resources
 
-`{id}` are integers. "Err" lists the notable tags (full list in §18.2).
+`{id}` are integers. "Err" lists the notable tags (full list in §17.2).
 
 **Servers**
 
@@ -953,7 +925,7 @@ New direct dependencies are therefore exactly: `modernc.org/sqlite`, `github.com
 |---|---|---|---|
 | `GET/POST /projects`, `GET/PUT/DELETE /projects/{id}` | CRUD (delete cascades per §7.4) | | `ProjectNotFound` |
 | `GET /projects/{id}/commands` | list, with `finished_jobs` / `total_jobs` | 200 | |
-| `POST /projects/{id}/commands` | body `{name, description, code, insert_at?}` | 201 | `Command*` (§18.2), `ProjectNotFound` |
+| `POST /projects/{id}/commands` | body `{name, description, code, insert_at?}` | 201 | `Command*` (§17.2), `ProjectNotFound` |
 | `POST /commands/preview` | body `{code}` → §7.2 preview; validation problems are returned **in the 200 body** (`valid`, `errors[]` each with `rule`, `message`, `position`, `warnings[]`, counts, per-server distribution), never as an HTTP error | 200 | `InvalidRequest` only |
 | `GET /commands/{id}` · `PUT` · `DELETE` | get / edit / delete | | `CommandNotFound`, `Command*` |
 | `POST /commands/{id}/move` | body `{order}` | 200 | |
@@ -971,11 +943,11 @@ New direct dependencies are therefore exactly: `modernc.org/sqlite`, `github.com
 | `POST /jobs/{id}/run` · `/stop` | §8.4 | 202 / 200 | `JobNotRunnable` |
 | `POST /repl/run` | §8.6 | 202 | `ReplInvalid` |
 | `GET /repl/last` | previous REPL job or `404` | 200 | `JobNotFound` |
-| `GET /events` | event log, see §16.4 | 200 | |
+| `GET /events` | event log, see §15.4 | 200 | |
 | `GET /files/{kind}/{name}` | read-only files; `kind` ∈ `results`, `thumbnails`, `controlnet`, `ipadapter`, `regions`, `downloads`. `name` is a single path segment; traversal is rejected | 200 | `FileNotFound` |
 | `GET /healthz` (no `/api/v1` prefix) | liveness | 200 | |
 
-### 16.3 Command text endpoints
+### 15.3 Command text endpoints
 
 `POST /commands/preview` and the validation inside `POST …/commands` and `PUT /commands/{id}` use the same parser and validator (§6). The error entries in `metadata.errors` are structured, so a client can underline the offending token:
 
@@ -985,7 +957,7 @@ New direct dependencies are therefore exactly: `modernc.org/sqlite`, `github.com
 
 `rule` is one of the identifiers of §6.3 (`S1`…`S8`, `T1`…`T5`, `R1`), `LEX` for lexical errors, `SYN` for grammar errors, or `SEM` for the semantic checks of §6.11.
 
-### 16.4 Events
+### 15.4 Events
 
 `GET /api/v1/events` serves the event log of §8.5.
 
@@ -993,13 +965,13 @@ New direct dependencies are therefore exactly: `modernc.org/sqlite`, `github.com
 - Otherwise: JSON `{"events":[…],"last_id":N}` for clients that poll, honouring `?after=<id>`.
 - If `after` / `Last-Event-ID` is older than the retained log, the server replies with the oldest retained events and sets `gap: true`, so the client knows to reload.
 
-### 16.5 Contract documentation
+### 15.5 Contract documentation
 
-An OpenAPI 3.1 document for §16 SHOULD be kept in the repository and embedded in the binary at `/api/v1/openapi.json`. A test MUST fail when a registered route is missing from it.
+An OpenAPI 3.1 document for §15 SHOULD be kept in the repository and embedded in the binary at `/api/v1/openapi.json`. A test MUST fail when a registered route is missing from it.
 
-## 17. Web UI (Datastar)
+## 16. Web UI (Datastar)
 
-### 17.1 Principles
+### 16.1 Principles
 
 1. **Hypermedia first.** The server renders HTML; the browser holds as little state as possible. Datastar attributes (`data-*`) declare behaviour in the markup; there is no JavaScript build step and no framework runtime beyond the Datastar script.
 2. **The Datastar script is vendored.** A pinned Datastar v1 file is embedded in the binary and served from `/static/`, so the UI works offline and nothing is loaded from a CDN (in line with the privacy requirement).
@@ -1009,9 +981,9 @@ An OpenAPI 3.1 document for §16 SHOULD be kept in the repository and embedded i
 4. **Signals are the client state**: form fields, the open dialog, the current page number, filters. Signal names are namespaced per screen (e.g. `$servers.form.name`).
 5. **Elements are addressed by stable `id`s** (`id="job-1234"`, `id="server-table"`), so a patch morphs the right element in place and keeps scroll and focus.
 6. **No business logic in handlers or templates.** Handlers translate between signals/forms and service calls, then render.
-7. **Both front ends share services.** The UI is not a client of the REST API (§15.3).
+7. **Both front ends share services.** The UI is not a client of the REST API (§14.3).
 
-### 17.2 Routes
+### 16.2 Routes
 
 Full pages are plain `GET`s that return a complete HTML document. Everything interactive is under `/ui/`.
 
@@ -1021,13 +993,13 @@ Full pages are plain `GET`s that return a complete HTML document. Everything int
 | Fragment (read) | `GET /ui/servers/table?page=2` · `GET /ui/groups/{id}/items/list` | Return an SSE response that patches the table/list; used for paging, filtering and refresh |
 | Action (write) | `POST /ui/servers` · `PUT /ui/servers/{id}` · `DELETE /ui/servers/{id}` · `POST /ui/commands/{id}/run` … | Read the signals (JSON body, `Datastar-Request: true`), call a service, patch the affected element(s) and close the dialog via a signal patch |
 | Upload | `POST /ui/groups/{id}/items` | The form uses Datastar's `contentType: 'form'`, which sends `multipart/form-data` |
-| Live stream | `GET /ui/stream/commands/{id}` · `GET /ui/stream/toasts` | Long-lived SSE connections (§17.4) |
-| Preview | `POST /ui/commands/preview` | Live feedback while typing (§17.3) |
+| Live stream | `GET /ui/stream/commands/{id}` · `GET /ui/stream/toasts` | Long-lived SSE connections (§16.4) |
+| Preview | `POST /ui/commands/preview` | Live feedback while typing (§16.3) |
 | Static | `GET /static/…` | Embedded Datastar script, CSS |
 
 Read actions use `GET` (signals arrive in the `datastar` query parameter); writes use `POST`/`PUT`/`DELETE` (signals arrive as a JSON body). Route paths in the UI are separate from `/api/v1` and are not a public contract.
 
-### 17.3 Screens
+### 16.3 Screens
 
 Each screen implements the capabilities of §4. UI-specific behaviour worth fixing in the spec:
 
@@ -1042,21 +1014,21 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 | Jobs | Grid or table of jobs with status, assigned server, thumbnail of the result, seed; click to open prompts for editing; error and trace shown for failed jobs |
 | REPL | Form as in §8.6; result image replaces itself when the job finishes |
 
-### 17.4 Live updates
+### 16.4 Live updates
 
 - The page for a command opens `data-init="@get('/ui/stream/commands/{id}')"`. The handler subscribes to the event log (§8.5), filters by command, and for each event re-renders only the affected job row and the progress header, sending `datastar-patch-elements` for `#job-<id>` and `#command-progress`.
 - `GET /ui/stream/toasts` is a global stream for the header: it renders a transient toast per `processing` / `finished` / `error` event. This replaces polling of the original "latest notification".
 - Streams honour `Last-Event-ID` after a dropped connection and end when the request context is cancelled. A keep-alive comment is sent every 15 s.
 - Events are coalesced per element (at most one patch per job per 250 ms) so a fast batch does not flood the browser.
 
-### 17.5 Forms and errors
+### 16.5 Forms and errors
 
 - A validation or business failure in a UI action returns **200** with a patch into the form's error container (message derived from the error `Tag` and metadata; field-level where the metadata names the field). The dialog stays open. Datastar's default behaviour on HTTP errors is not relied on for user-visible messages.
 - Unexpected failures (`500`) patch a generic toast; the detailed error goes to the log.
 - Destructive actions (delete group, project, command) ask for confirmation in-page before sending the request.
 - Empty states say what to do next ("No servers yet — add one").
 
-### 17.6 Security
+### 16.6 Security
 
 - The server listens on `127.0.0.1:<port>` by default; exposing it on another address requires explicit configuration, and a warning is logged if `auth_token` is empty.
 - If `auth_token` is set, the UI shows a sign-in form once, stores a signed cookie (`HttpOnly`, `SameSite=Strict`), and both the UI and the REST API honour the token.
@@ -1064,20 +1036,20 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 - Response header `Content-Security-Policy` allows scripts only from `'self'`; user-supplied text (prompts, names) is always HTML-escaped by `html/template`. Datastar attribute values that interpolate user data are escaped for attribute context; user text is never placed inside an expression.
 - File routes serve only from the configured directories, one path segment, with `Content-Type` fixed by extension and `X-Content-Type-Options: nosniff`.
 
-## 18. Error handling (`github.com/rm4n0s/errors`)
+## 17. Error handling (`github.com/rm4n0s/errors`)
 
-### 18.1 Rules
+### 17.1 Rules
 
 These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 
 1. Every error is produced with `errors.New`, `errors.NewErr` or `errors.NewErrf`; `fmt.Errorf` and the standard `errors` package are not imported. The package re-exports `Is`, `As` and `Unwrap`.
-2. **Library note:** the current constructors are `New`, `NewErr` and `NewErrf`; the older `NewFromErr` no longer exists. `gocivitailib` will use the standard library `errors` instead (§20.1), and its errors are wrapped at the adapter boundary (§20.4). **New failure with a fixed message:** `errors.New("Tag", "message", "key", value, …)`. **Wrapping a foreign error** (database driver, `comfyui-client-go`, `gocivitailib`, stdlib): `errors.NewErr("Tag", err)`, adding metadata with `.SetMetadata("key", value, …)`. `SetMetadata` replaces the metadata map, so set it once with all pairs.
+2. **Library note:** the current constructors are `New`, `NewErr` and `NewErrf`; the older `NewFromErr` no longer exists. `gocivitailib` will use the standard library `errors` instead (§19.1), and its errors are wrapped at the adapter boundary (§19.4). **New failure with a fixed message:** `errors.New("Tag", "message", "key", value, …)`. **Wrapping a foreign error** (database driver, `comfyui-client-go`, `gocivitailib`, stdlib): `errors.NewErr("Tag", err)`, adding metadata with `.SetMetadata("key", value, …)`. `SetMetadata` replaces the metadata map, so set it once with all pairs.
 3. An error that is already an `*errors.Error` is returned **untouched** (`return err`); re-wrapping would replace the tag and the stack and break route tests. `errors.FromError` is a plain type assertion, so nothing may wrap these errors.
 4. Functions return `error`, never `*errors.Error`.
-5. Every new failure case has its **own unique PascalCase tag** and a test that asserts the route (§21).
+5. Every new failure case has its **own unique PascalCase tag** and a test that asserts the route (§20).
 6. Method names are part of the testable contract: a route is `Type.Method->Type.Method.Tag` (outermost to innermost). Renaming a service method changes routes and their tests.
 
-### 18.2 Tag catalogue and HTTP mapping
+### 17.2 Tag catalogue and HTTP mapping
 
 `internal/api` owns one table `tag → HTTP status` (default 500). A test fails if a tag in the catalogue has no entry. The catalogue below is the initial set; each new failure case adds its own tag and entry.
 
@@ -1097,19 +1069,19 @@ These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 
 Errors that happen **inside a job** are not HTTP responses; the scheduler stores the tag, message and the `ToJson()` trace on the job (`error`, `traceback`) and emits an `error` event.
 
-### 18.3 Where errors are created
+### 17.3 Where errors are created
 
 - `internal/command` returns `CommandLexError` / `CommandSyntaxError` / `CommandRestrictionViolated` with `position` and `rule` in metadata; the validator in `service` aggregates semantic problems into **one** `CommandValidationFailed` whose metadata lists all of them (§6.11: errors are collected, not first-fail).
 - `internal/store` wraps driver errors with `NewErr("StoreFailure", err)` and translates unique-constraint violations into the matching `*CodeNameTaken` tag with `errors.New`.
 - Adapters in `internal/comfy` and `internal/civitai` wrap library errors (which use `fmt.Errorf`) with `NewErr`, so no foreign error crosses a port.
 
-### 18.4 Logging
+### 17.4 Logging
 
 Errors are logged once, at the boundary that handles them (HTTP middleware, scheduler runner), with `log/slog`: the message, and the result of `appErr.ToJson()` as a structured attribute so the failure can be replayed in a test with `errors.FromJson`. An error is never logged and then returned again.
 
-## 19. ComfyUI integration (`comfyui-client-go`)
+## 18. ComfyUI integration (`comfyui-client-go`)
 
-### 19.1 What the library provides (verified against the repository, commit `26c3013`)
+### 18.1 What the library provides (verified against the repository, commit `26c3013`)
 
 Everything is in the root package; the only dependency is `gorilla/websocket`; a `Client` is safe for concurrent use; the library uses plain standard-library errors (wrapped with `%w`).
 
@@ -1126,7 +1098,7 @@ Everything is in the root package; the only dependency is `gorilla/websocket`; a
 | Errors | `*StatusError{Status, Body}`; `*NodeErrorsError{PromptID, NodeErrors, Message}`; `ErrPromptNotFound` (history entry not there yet), `ErrNodeClassNotFound`, `ErrClosed`, `ErrNoWebSocket` |
 | Workflow editing | Deterministic (nodes ordered by id, numeric ids first): `FindNodeIDsByTitle`, `FindNodeIDByTitle`, `DuplicateTitles`, `EditWorkflowByTitle`, `EditWorkflowByNodeID`, `EditWorkflowByClassType`, `EditInputsForClassType` (every node of a class), `MaxNumericNodeID`, `GetTitlesFromClassType[Containing]`, `TitleWithClassTypeExists`. Edits preserve other node fields, including integers too large for `float64` (64-bit seeds) |
 
-### 19.2 Port used by the application
+### 18.2 Port used by the application
 
 The scheduler and services depend on this interface, not on the library:
 
@@ -1145,9 +1117,9 @@ type Client interface {
 }
 ```
 
-`workflow.Graph` is `map[string]json.RawMessage`. `Result` carries the output files (images, video, 3D) and, on failure, the node, exception type and traceback. Failures are returned as `ComfyUIRejected`, `ComfyUIExecutionFailed` or `ServerUnreachable` errors (§18.2).
+`workflow.Graph` is `map[string]json.RawMessage`. `Result` carries the output files (images, video, 3D) and, on failure, the node, exception type and traceback. Failures are returned as `ComfyUIRejected`, `ComfyUIExecutionFailed` or `ServerUnreachable` errors (§17.2).
 
-### 19.3 Event hub
+### 18.3 Event hub
 
 ComfyUI sends the events of a prompt **only to the client id that queued it**, over **one WebSocket per client id**. Connecting a second client with the same id silently takes the events from the first. The library offers one reader goroutine per client (a second `Listen` while a stream is active returns the same channel). Therefore `internal/comfy` runs one **hub** per server connection:
 
@@ -1157,22 +1129,22 @@ ComfyUI sends the events of a prompt **only to the client id that queued it**, o
 4. **Connection loss.** The library does not reconnect: when `Done()` closes, all waiters fail with `ServerUnreachable`, the server is marked unavailable, and the hub creates a **new** `Client` with back-off until `Ping` succeeds. The library detects a silently dead connection by pinging every 20 s and timing out after 60 s, so loss detection can take up to a minute; the health probe (§8.1) usually notices sooner.
 5. **Recovering prompts after a reconnect.** A new client has a new id and will not receive events for prompts the old client queued. For a job whose `comfyui_prompt_id` is known, recovery therefore uses polling: `GetHistory` (finished → fetch outputs) and `Queue` (still running or pending → keep waiting by polling). Only if the prompt is in neither is the job returned to `queued` (§8.7).
 
-### 19.4 Library coverage of the application's needs
+### 18.4 Library coverage of the application's needs
 
 All of the following were requested for this specification and are present in the library.
 
 | # | Need | Provided by | What the adapter still does |
 |---|---|---|---|
-| G1 | Upload an image | `UploadImage`, `UploadResult.InputValue()` | Name and place files (§19.6) and put `InputValue()` in the `LoadImage` input |
-| G2 | List installed models | `ListModels(ctx, "loras")`, `ObjectInfo` | Compare against the LoRAs a command uses (§6.11 warning, §16.2 `/servers/{id}/loras`) |
-| G3 | Interrupt / remove from queue | `Interrupt`, `DeleteQueued`, `Queue` | See §19.7 on interrupt semantics |
+| G1 | Upload an image | `UploadImage`, `UploadResult.InputValue()` | Name and place files (§18.6) and put `InputValue()` in the `LoadImage` input |
+| G2 | List installed models | `ListModels(ctx, "loras")`, `ObjectInfo` | Compare against the LoRAs a command uses (§6.11 warning, §15.2 `/servers/{id}/loras`) |
+| G3 | Interrupt / remove from queue | `Interrupt`, `DeleteQueued`, `Queue` | See §18.7 on interrupt semantics |
 | G4 | Cheap health probe | `Ping` on a `WithoutWebSocket` client | One probe client per server, every second (§8.1) |
 | G5 | Non-image outputs | `NodeOutput.Files()` | Map the generator's output type (§3.2) to the files to keep |
-| G6 | Safe event reading | `Listen(ctx)`, `Done()`, `Err()` | The hub of §19.3 |
+| G6 | Safe event reading | `Listen(ctx)`, `Done()`, `Err()` | The hub of §18.3 |
 | G7 | Configurable HTTP timeout | `WithTimeout`, `WithHTTPClient`; no overall timeout | Bound each call with a context |
-| G8 | Deterministic editing | `FindNodeIDsByTitle`, `EditWorkflowByNodeID`, `EditInputsForClassType`, `DuplicateTitles`, `MaxNumericNodeID` | §19.5 |
+| G8 | Deterministic editing | `FindNodeIDsByTitle`, `EditWorkflowByNodeID`, `EditInputsForClassType`, `DuplicateTitles`, `MaxNumericNodeID` | §18.5 |
 
-### 19.5 Workflow editing
+### 18.5 Workflow editing
 
 - `internal/workflow` owns all graph changes (§8.2): attribute and seed edits, LoRA, ControlNet, IP-Adapter and region injection, output analysis. It uses the library's edit helpers for simple input changes and decodes nodes itself for structural injections (adding nodes, rewiring links), always on a per-job deep copy of the stored graph.
 - Seeds are written as `uint64`; the library preserves integers beyond `float64` precision.
@@ -1180,11 +1152,11 @@ All of the following were requested for this specification and are present in th
 - New node ids are allocated from `MaxNumericNodeID + 1`; non-numeric ids are ignored when computing it.
 - A sampler seed is set on **every** `KSampler` with `EditInputsForClassType`, and the number of nodes edited is checked (zero → `NoSamplerInWorkflow`).
 
-### 19.6 Input files
+### 18.6 Input files
 
 Every file a workflow reads is made available to the target server before submission (§8.7). **Decision:** upload for every server (`UploadImage`) and use `UploadResult.InputValue()` as the `LoadImage` input. Files are named by the **SHA-256 of their content** plus extension and placed in an application sub-folder (for example `bos/<hash>.png`): ComfyUI reuses a file whose content is identical, so a reference image shared by many jobs is stored once per server, and uploads never collide. The returned name, not the requested one, is always used. ComfyUI has no delete call, so uploaded inputs accumulate on the server; this is documented to the user. Passing an absolute path is permitted only for servers marked `is_local`, because it depends on how that ComfyUI build resolves `LoadImage` paths.
 
-### 19.7 Behaviours the adapter must handle
+### 18.7 Behaviours the adapter must handle
 
 | Situation | Handling |
 |---|---|
@@ -1194,9 +1166,9 @@ Every file a workflow reads is made available to the target server before submis
 | Application restart with jobs in `processing` | If the job's prompt id is still in history, collect its outputs instead of re-running; otherwise return the job to `queued` (acceptance test 28) |
 | `Listen` stream ends | Distinguish context cancellation (normal shutdown) from a dropped connection with `Err()` |
 
-## 20. Civitai integration (`gocivitailib`)
+## 19. Civitai integration (`gocivitailib`)
 
-### 20.1 What the library provides (verified against the repository, commit `c1e9d5a`)
+### 19.1 What the library provides (verified against the repository, commit `c1e9d5a`)
 
 Standard library only (tests use testify); errors are standard-library errors wrapped with `%w`.
 
@@ -1209,7 +1181,7 @@ Standard library only (tests use testify); errors are standard-library errors wr
 
 A token is required for every model **file** download and for the generation API; model metadata is public. The earlier defects of this library (use of the removed `NewFromErr`, a submit call that could never succeed, ignored HTTP statuses, debug output, missing defaults, an always-failing test) are fixed in this version; the dependency on `rm4n0s/errors` was dropped, so the project builds against a single `errors` version.
 
-### 20.2 Status of the requested changes
+### 19.2 Status of the requested changes
 
 | # | Item | Status |
 |---|---|---|
@@ -1224,7 +1196,7 @@ A token is required for every model **file** download and for the generation API
 | C9 | Rate limiting and retries | Done (`WithMaxRetries`, `*RateLimitedError`) |
 | C10 | Separate site and orchestration base URLs | Done (`WithSiteURL`, `WithOrchestrationURL`) |
 
-### 20.3 Port used by the application
+### 19.3 Port used by the application
 
 ```go
 package civitai
@@ -1251,7 +1223,7 @@ type Model struct {
 
 The adapter calls `gocivitailib.DownloadModel` and maps its `DownloadedModel` (`Info`, `Version`, `File`, `ModelPath`, `MetadataPath`, `Size`, `Skipped`) into `Model`.
 
-### 20.4 Requirements on the adapter
+### 19.4 Requirements on the adapter
 
 From §9:
 
@@ -1270,7 +1242,7 @@ From §9:
 | other `*StatusError`, `ErrHashMismatch`, `ErrNoDownloadableFile` | `CivitaiDownloadFailed` | `status`, `reason` |
 | `ErrInvalidResponse` | `CivitaiMetadataInvalid` | |
 
-### 20.5 Proposed, not committed: Civitai as a generation backend
+### 19.5 Proposed, not committed: Civitai as a generation backend
 
 Because the library already speaks Civitai's generation API (with request validation and status helpers), a command could target Civitai's cloud instead of, or next to, a ComfyUI server, reusing groups, items, `where`, `sample`, `repeat` and result handling. This would need:
 
@@ -1282,7 +1254,7 @@ Because the library already speaks Civitai's generation API (with request valida
 
 It is **not** part of this version of the specification; it is recorded so the port above can grow a `Generator` interface without reshaping the rest. A decision is needed before it is specified.
 
-## 21. Testing
+## 20. Testing
 
 All of this runs with `go test -race ./...`; tests live next to the code and are table-driven.
 
@@ -1294,17 +1266,17 @@ All of this runs with `go test -race ./...`; tests live next to the code and are
 | `internal/service` | With fake store, fake `comfy.Client`, fake `civitai.Models`, fake clock: preview vs add parity; recreate reproduces `sample` selection; state transitions of commands and jobs |
 | `internal/scheduler` | Fake clients with controllable latency and failures: `dynamic` beats `even` with unequal servers; static modes assign as §6.9; server loss → retry elsewhere after the grace period; `pinned` waits; workflow failure halts queued jobs but not running ones; `max_concurrent_jobs` respected; events ordered |
 | `internal/comfy` | An `httptest` server that implements the ComfyUI endpoints used, with a WebSocket endpoint: hub routing, buffering of early events, reconnect |
-| `internal/api` | `httptest` round trips for every route of §16.2: status codes, envelope, pagination, uploads, unknown-field rejection, tag→status table completeness, OpenAPI coverage |
+| `internal/api` | `httptest` round trips for every route of §15.2: status codes, envelope, pagination, uploads, unknown-field rejection, tag→status table completeness, OpenAPI coverage |
 | `internal/ui` | `httptest` against handlers: assert the SSE events (`datastar-patch-elements`/`-signals`), CSRF rejection without the header, escaping of hostile text, live stream resumes from `Last-Event-ID` |
-| Errors | For **every** tag in §18.2 a test asserts the route, e.g. `appErr.HasRoute("CommandService.Add->Validator.Validate.CommandValidationFailed")`, and the HTTP mapping |
+| Errors | For **every** tag in §17.2 a test asserts the route, e.g. `appErr.HasRoute("CommandService.Add->Validator.Validate.CommandValidationFailed")`, and the HTTP mapping |
 
 Definition of done for any change (project rule): `gofmt`, `go vet ./...`, `golangci-lint run`, `go test -race ./...` all pass, and any skipped step is reported.
 
 Additional acceptance tests for this Part:
 
-26. Every route of §16.2 exists, returns the documented success code, and returns the error envelope of §16.1 for each listed tag.
+26. Every route of §15.2 exists, returns the documented success code, and returns the error envelope of §15.1 for each listed tag.
 27. `POST /commands/preview` for an invalid command returns `200` with `valid:false` and structured errors; the same command posted to create a command returns `422` with tag `CommandValidationFailed`.
-28. Stopping the server mid-batch (`SIGTERM`) finishes in-flight HTTP requests, stops the workers, and leaves no job in `processing` after the next start: a job whose prompt id is still known to ComfyUI has its outputs collected, any other is returned to `queued` (§19.7).
+28. Stopping the server mid-batch (`SIGTERM`) finishes in-flight HTTP requests, stops the workers, and leaves no job in `processing` after the next start: a job whose prompt id is still known to ComfyUI has its outputs collected, any other is returned to `queued` (§18.7).
 29. Two browsers on the same command page receive the same job updates; a reconnect with `Last-Event-ID` receives only the missed events.
 30. A state-changing `/ui/` request without `Datastar-Request: true`, or from another origin, is rejected with `403`.
 31. A prompt containing `<script>` is rendered inert in every UI surface (tables, previews, toasts, stream patches).
@@ -1313,7 +1285,7 @@ Additional acceptance tests for this Part:
 34. After a dropped ComfyUI connection the hub reconnects with a new client, in-flight jobs that finished meanwhile are completed from history without re-running, and jobs still running are awaited by polling.
 35. A `QueuePrompt` that returns node errors together with a prompt id leaves the job running with warnings recorded; one that returns node errors without an id fails the job with `ComfyUIRejected`.
 36. The same reference image used by 100 jobs is uploaded once per server (content-hash name), and every job's `LoadImage` input uses the returned `InputValue()`.
-37. `civitai.Models.Download` maps each library error to its tag of §20.4; a second download of the same model reports `Skipped` and transfers nothing.
+37. `civitai.Models.Download` maps each library error to its tag of §19.4; a second download of the same model reports `Skipped` and transfers nothing.
 38. Tags are lower-cased on save and invalid ones (`Bad Tag!`) are rejected with `TagInvalid`; duplicates collapse; `#Combat` in a command matches an item tagged `combat`.
 39. `GET /tags?scope=item&prefix=co` lists only item tags starting with `co`, with counts; group tags are not included.
 40. Renaming an item tag to an existing tag merges them on every item and returns the commands whose text mentions the old tag; the commands themselves are unchanged.
