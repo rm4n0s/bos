@@ -244,7 +244,7 @@ The harness is temporary and is removed in step 12.
 
 ## Step 12 – Hardening and acceptance
 - Branch: feat/hardening
-- Last code commit: PENDING
+- Last code commit: e2a6efd
 - Date: 2026-10-10
 - Delivered: [ACCEPTANCE.md](ACCEPTANCE.md), a table of every acceptance test of the specification (1–41 and 1a–1c) with the tests that run it, and `internal/acceptance`, which fails when a number has no test or a named test does not exist, and which states in full the acceptance tests that no earlier test covered as a whole (4: every unknown name reported, also inside a template body, and nothing stored; 32; 38: tags lower-cased, collapsed, `#Combat` matching; 41). `cmd/bos` acceptance tests run the whole program over HTTP against the stand-in ComfyUI: a command with a fixer from preview to download (8, 10, 13, 24, 25 — the command is never finished while a job is not, events in order, the archive) and a stop in the middle of a batch followed by a start on the same database (28: nothing is lost, no job is left `processing`, the batch finishes). Structured logging: the `log_level` setting (debug, info, warn, error; changes the level of the logger `main` built) and, at debug, one line for every request (method, path, status, size, time; never the query). The error tags: every tag of the catalogue is raised and named in a test (enforced by `internal/errtags`), and the HTTP status table is complete. **The temporary harness of Milestone A (`bos harness`) is removed**: the program itself, with its web interface and the REST API, is how a real ComfyUI is tried now. `serve` accepts options for tests. The README moved to step 14.
 - Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
