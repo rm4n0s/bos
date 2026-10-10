@@ -28,6 +28,24 @@ func (s *JobService) ListByCommand(ctx context.Context, command domain.ID, statu
 	return r.Jobs().ListByCommand(ctx, command, status, p)
 }
 
+// Results returns every finished job of a command, in job order: the whole
+// collection, not one page of it. Only a finished job has its result (the path
+// of one that is not finished is only planned). The picture viewer walks
+// through it.
+func (s *JobService) Results(ctx context.Context, command domain.ID) ([]domain.Job, error) {
+	var out []domain.Job
+	for page := 1; ; page++ {
+		got, err := s.ListByCommand(ctx, command, domain.StatusFinished, domain.Page{Number: page, Size: domain.MaxPageSize})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, got.Items...)
+		if page >= got.TotalPages {
+			return out, nil
+		}
+	}
+}
+
 // Run queues an idle job (SPEC §8.4). Any other status is JobNotRunnable.
 func (s *JobService) Run(ctx context.Context, id domain.ID) (*domain.Job, error) {
 	r := s.Store.Repos()

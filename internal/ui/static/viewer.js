@@ -1,19 +1,52 @@
 // The picture viewer of the job list. A click on a result picture (a link with
 // data-viewer) opens it over the page, and the buttons, the arrow keys or a
 // swipe move to the previous and the next picture of the list. A click with a
-// modifier key, or a middle click, still opens the picture in a new tab. It
-// does not talk to the server; the list is whatever is on the page, so the
-// pictures that arrive while the page is open are in it.
+// modifier key, or a middle click, still opens the picture in a new tab.
+//
+// The list is the whole collection, not the page on the screen: the table says
+// where to ask for it (data-pictures). The viewer starts with the pictures of
+// the page, so it opens at once, and swaps in the whole list when it arrives. At
+// the last picture it asks again, so pictures that finished meanwhile are
+// reached too. If the server cannot be asked, the pictures of the page remain.
 (function () {
   'use strict';
   var SELECTOR = '#jobs-table a[data-viewer]';
   var root = null;     // the overlay, made on first use
   var image, caption, count, prev, next, close, open;
+  var list = [];       // the pictures to walk through: {href, label}
   var current = null;  // href of the picture shown
   var position = 0;    // its index, for when the list changed under it
   var opener = null;   // what had the focus before
 
   function links() { return Array.prototype.slice.call(document.querySelectorAll(SELECTOR)); }
+
+  function fromPage() {
+    return links().map(function (l) { return { href: l.getAttribute('href'), label: l.getAttribute('data-viewer') || '' }; });
+  }
+
+  // load asks the server for every picture of the collection; it gives null
+  // when there is no answer.
+  function load() {
+    var table = document.getElementById('jobs-table');
+    var url = table && table.getAttribute('data-pictures');
+    if (!url || !window.fetch) { return Promise.resolve(null); }
+    return fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rows) {
+        if (!Array.isArray(rows) || rows.length === 0) { return null; }
+        return rows.map(function (p) { return { href: p.url, label: p.label || '' }; });
+      })
+      .catch(function () { return null; });
+  }
+
+  // refresh swaps in the whole collection and redraws the picture that is shown.
+  function refresh() {
+    return load().then(function (all) {
+      if (!all || !root || root.hidden) { return; }
+      list = all;
+      draw();
+    });
+  }
 
   function button(label, cls, text) {
     var b = document.createElement('button');
@@ -75,37 +108,51 @@
     }, { passive: true });
   }
 
-  function indexOfCurrent(all) {
-    for (var i = 0; i < all.length; i++) {
-      if (all[i].getAttribute('href') === current) { return i; }
+  function indexOfCurrent() {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].href === current) { return i; }
     }
-    // The list was redrawn without the picture: stay near where it was.
-    return Math.min(position, all.length - 1);
+    // The picture is not in the list: stay near where it was.
+    return Math.min(position, list.length - 1);
   }
 
-  function show(link) {
-    var all = links();
-    var i = all.indexOf(link);
-    if (i < 0) { return; }
-    current = link.getAttribute('href');
+  // draw shows the picture at the current place of the list.
+  function draw() {
+    var i = indexOfCurrent();
+    var item = list[i];
+    if (!item) { return; }
+    current = item.href;
     position = i;
-    image.src = current;
-    image.alt = link.getAttribute('data-viewer') || '';
-    caption.textContent = link.getAttribute('data-viewer') || '';
-    count.textContent = (i + 1) + ' / ' + all.length;
+    if (image.getAttribute('src') !== current) { image.src = current; }
+    image.alt = item.label;
+    caption.textContent = item.label;
+    count.textContent = (i + 1) + ' / ' + list.length;
     open.href = current;
     prev.disabled = i === 0;
-    next.disabled = i === all.length - 1;
+    next.disabled = i === list.length - 1;
     // Load the neighbours now, so the next click is instant.
-    [all[i - 1], all[i + 1]].forEach(function (l) { if (l) { new Image().src = l.getAttribute('href'); } });
+    [list[i - 1], list[i + 1]].forEach(function (p) { if (p) { new Image().src = p.href; } });
+  }
+
+  function show(i) {
+    current = list[i].href;
+    draw();
   }
 
   function step(by) {
-    var all = links();
-    if (all.length === 0) { hide(); return; }
-    var i = indexOfCurrent(all) + by;
-    if (i < 0 || i >= all.length) { return; }
-    show(all[i]);
+    if (list.length === 0) { hide(); return; }
+    var i = indexOfCurrent() + by;
+    if (i < 0) { return; }
+    if (i >= list.length) {
+      // At the end: some pictures may have finished since the list was loaded.
+      var before = list.length;
+      refresh().then(function () {
+        var j = indexOfCurrent() + 1;
+        if (list.length > before && j < list.length) { show(j); }
+      });
+      return;
+    }
+    show(i);
   }
 
   function reveal(link) {
@@ -113,8 +160,18 @@
     opener = document.activeElement;
     root.hidden = false;
     document.body.classList.add('viewer-open');
-    show(link);
+    list = fromPage();
+    current = link.getAttribute('href');
+    position = links().indexOf(link);
+    if (position < 0) {
+      // A picture that is not on the page (the dialog of a job): show it, and
+      // the whole list will put it in its place.
+      list.unshift({ href: current, label: link.getAttribute('data-viewer') || '' });
+      position = 0;
+    }
+    draw();
     close.focus();
+    refresh();
   }
 
   function hide() {

@@ -28,7 +28,7 @@
   {{range .Counts}}<span class="chip">{{.Count}} {{.Status}}</span>{{end}}
 </div>{{end}}
 
-{{define "jobs_table"}}<div id="jobs-table">
+{{define "jobs_table"}}<div id="jobs-table" data-pictures="/ui/commands/{{.Command.ID}}/jobs/pictures{{if .Status}}?status={{.Status | urlquery}}{{end}}">
 {{if not .Items}}<p class="empty">{{if .Status}}No job is {{.Status}}.{{else}}This command has no jobs.{{end}}</p>{{else}}
 <table>
   <thead><tr><th>#</th><th>Result</th><th>Status</th><th>Server</th><th>Prompt</th><th>Seed</th><th></th></tr></thead>

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -230,4 +231,48 @@ func TestSummaryAndCounts(t *testing.T) {
 	wantRoute(t, err, "CommandService.Summary", "CommandNotFound")
 	_, err = e.Jobs.Counts(ctx(t), 999)
 	wantRoute(t, err, "JobService.Counts", "CommandNotFound")
+}
+
+// The results of a command are all of them, past the 200 of a page, in job
+// order, and only the finished jobs.
+func TestResultsOfACommandAreTheWholeCollection(t *testing.T) {
+	e := newEnv(t)
+	w := e.world(t)
+	cmd := e.add(t, w, "gpu1 -$ anime: characters repeat 70 with seed=5") // 3 items x 70 = 210 jobs, two pages
+	jobs := e.jobsOf(t, cmd.ID)
+	if len(jobs) <= domain.MaxPageSize {
+		t.Fatalf("%d jobs: the test needs more than a page", len(jobs))
+	}
+	var want []domain.ID
+	for i, j := range jobs {
+		if i%2 == 0 { // the others stay idle, with only the planned path of a result
+			e.setJob(t, j.ID, func(j *domain.Job) {
+				j.Status, j.ResultPath = domain.StatusFinished, "r/"+strconv.FormatInt(j.ID, 10)+".png"
+			})
+			want = append(want, j.ID)
+		}
+	}
+	// The last job is on the second page.
+	last := jobs[len(jobs)-1]
+	e.setJob(t, last.ID, func(j *domain.Job) { j.Status, j.ResultPath = domain.StatusFinished, "r/last.png" })
+	want = append(want, last.ID)
+
+	got, err := e.Jobs.Results(ctx(t), cmd.ID)
+	check(t, err)
+	if len(got) != len(want) {
+		t.Fatalf("%d results, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i].ID != want[i] {
+			t.Fatalf("result %d is job %d, want %d (job order)", i, got[i].ID, want[i])
+		}
+	}
+
+	none, err := e.Jobs.Results(ctx(t), e.add(t, w, "gpu1 -$ anime: characters").ID)
+	check(t, err)
+	if len(none) != 0 {
+		t.Errorf("a command with nothing finished has %d results", len(none))
+	}
+	_, err = e.Jobs.Results(ctx(t), 999)
+	wantRoute(t, err, "JobService.Results->JobService.ListByCommand", "CommandNotFound")
 }

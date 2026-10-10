@@ -2,6 +2,7 @@ package ui
 
 import (
 	"bufio"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -286,4 +287,74 @@ func TestPagesStartTheToastStream(t *testing.T) {
 	mustContain(t, "page", u.get("/servers").Body, "@get('/ui/stream/toasts'", "openWhenHidden")
 	au := newTestUI(t, func(d *Deps) { d.AuthToken = "x" })
 	mustNotContain(t, "sign-in page", au.get("/login").Body, "/ui/stream/toasts")
+}
+
+// The viewer walks through every picture of the command, not the ones of the
+// page that is on the screen.
+func TestPictureListIsTheWholeCollection(t *testing.T) {
+	u := newTestUI(t)
+	project := u.commandWorld()
+	cmd, err := u.env.Services.Commands.Add(t.Context(), project, serviceCommand("gpu1 -$ anime: characters repeat 10 with seed=5"))
+	check(t, err)
+	jobs, err := u.env.DB.Repos().Jobs.AllByCommand(t.Context(), cmd.ID)
+	check(t, err)
+	if len(jobs) <= domain.DefaultPageSize {
+		t.Fatalf("%d jobs: the test needs more than a page", len(jobs))
+	}
+	var want []string
+	for i, j := range jobs {
+		if i%3 == 1 { // some jobs are not finished
+			continue
+		}
+		name := "/files/results/1/job" + itoa(j.ID) + ".png"
+		u.setJob(j.ID, func(j *domain.Job) {
+			j.Status, j.ResultPath = domain.StatusFinished, u.env.Dirs.Results+"/1/job"+itoa(j.ID)+".png"
+		})
+		want = append(want, name)
+	}
+	listURL := "/ui/commands/" + itoa(cmd.ID) + "/jobs"
+
+	// The page of the list holds only 20 jobs, and says where the whole list is.
+	page := u.get("/commands/" + itoa(cmd.ID) + "/jobs")
+	mustContain(t, "table", page.Body, `id="jobs-table" data-pictures="/ui/commands/`+itoa(cmd.ID)+`/jobs/pictures"`)
+	if n := strings.Count(page.Body, "data-viewer="); n >= len(want) {
+		t.Fatalf("the page has %d pictures: the test needs a collection larger than a page", n)
+	}
+
+	pictures := func(path string) []map[string]string {
+		t.Helper()
+		r := u.get(path)
+		if r.Status != 200 || !strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+			t.Fatalf("%s: status %d, content type %q", path, r.Status, r.Header.Get("Content-Type"))
+		}
+		var got []map[string]string
+		check(t, json.Unmarshal([]byte(r.Body), &got))
+		return got
+	}
+	got := pictures(listURL + "/pictures")
+	if len(got) != len(want) {
+		t.Fatalf("%d pictures, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i]["url"] != want[i] || !strings.HasPrefix(got[i]["label"], "Job ") {
+			t.Fatalf("picture %d = %v, want %s (job order)", i, got[i], want[i])
+		}
+	}
+
+	// The filter the table shows applies to the list: finished is all of them,
+	// the other statuses have no pictures.
+	mustContain(t, "filtered table", u.datastar("GET", listURL+"/table?status=finished", struct{}{}).patches(),
+		`data-pictures="/ui/commands/`+itoa(cmd.ID)+`/jobs/pictures?status=finished"`)
+	if n := len(pictures(listURL + "/pictures?status=finished")); n != len(want) {
+		t.Errorf("finished: %d pictures, want %d", n, len(want))
+	}
+	if n := len(pictures(listURL + "/pictures?status=error")); n != 0 {
+		t.Errorf("error: %d pictures", n)
+	}
+	if r := u.get(listURL + "/pictures?status=nope"); r.Status != http.StatusBadRequest {
+		t.Errorf("a bad status: status %d", r.Status)
+	}
+	if u.get("/ui/commands/999/jobs/pictures").Status != 404 || u.get("/ui/commands/x/jobs/pictures").Status != 404 {
+		t.Error("a missing command must be a 404")
+	}
 }

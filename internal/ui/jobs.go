@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"github.com/rm4n0s/bos/internal/domain"
+	"github.com/rm4n0s/errors"
 )
 
 // jobView is a job as the grid shows it.
@@ -103,7 +105,56 @@ func (u *UI) jobsTable(r *http.Request, commandID domain.ID) (jobsTable, error) 
 	}, nil
 }
 
+// picture is one result picture of the viewer's list.
+type picture struct {
+	URL   string `json:"url"`
+	Label string `json:"label"`
+}
+
+// pictures lists every picture of a command's jobs, in job order, not just the
+// ones of the page on the screen. A status other than finished has none.
+func (u *UI) pictures(r *http.Request, commandID domain.ID) ([]picture, error) {
+	status := domain.Status(r.URL.Query().Get("status"))
+	if status != "" && !status.Valid() {
+		return nil, errors.New("InvalidRequest", "unknown job status", "status", string(status))
+	}
+	out := []picture{}
+	if status != "" && status != domain.StatusFinished {
+		return out, nil
+	}
+	jobs, err := u.Services.Jobs.Results(r.Context(), commandID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range jobs {
+		if v := u.jobViewOf(&jobs[i]); v.IsImage && v.ResultURL != "" {
+			out = append(out, picture{URL: v.ResultURL, Label: "Job " + strconv.FormatInt(v.ID, 10)})
+		}
+	}
+	return out, nil
+}
+
 func (u *UI) jobRoutes() {
+	u.handle("GET /ui/commands/{id}/jobs/pictures", func(w http.ResponseWriter, r *http.Request) {
+		id, err := pathID(r, "id")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		list, err := u.pictures(r, id)
+		if appErr, ok := errors.FromError(err); ok && appErr.Tag == "InvalidRequest" {
+			http.Error(w, appErr.Message, http.StatusBadRequest)
+			return
+		}
+		if err != nil {
+			u.notFoundOrFail(w, r, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(list); err != nil {
+			u.Logger.Warn("could not write the picture list", "error", err.Error())
+		}
+	})
 	u.handle("GET /commands/{id}/jobs", func(w http.ResponseWriter, r *http.Request) {
 		id, err := pathID(r, "id")
 		if err != nil {
