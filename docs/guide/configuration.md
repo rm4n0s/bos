@@ -2,6 +2,8 @@
 
 The configuration is one JSON file, given with `-config`, plus environment variables (`BOS_` and the setting in capitals; they win over the file). A key the program does not know is an error, and every problem in the file is reported together when the program starts.
 
+**A missing file is created.** If the file after `-config` does not exist, the program writes it (and its folder) on start: the database and every folder go under a `data` folder next to the file, as full paths, and the address is `127.0.0.1:8080`. An existing file is never changed. If the file cannot be written, the program stops with `ConfigNotWritable`.
+
 | Setting | Required | Default | Meaning |
 |---|---|---|---|
 | `database` | yes | | The SQLite file (`:memory:` keeps nothing between runs) |

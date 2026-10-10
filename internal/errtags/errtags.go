@@ -121,6 +121,7 @@ func All() []Tag {
 		{Name: "TemplateInvalid", Group: Infrastructure},
 		{Name: "ConfigInvalid", Group: Infrastructure},
 		{Name: "ConfigNotReadable", Group: Infrastructure},
+		{Name: "ConfigNotWritable", Group: Infrastructure},
 		{Name: "ListenFailed", Group: Infrastructure},
 		{Name: "ServeFailed", Group: Infrastructure},
 		{Name: "ShutdownFailed", Group: Infrastructure},

@@ -103,9 +103,60 @@ func routeOf(t *testing.T, err error) *errors.Error {
 }
 
 func TestServeConfigFailure(t *testing.T) {
-	err := serve(t.Context(), filepath.Join(t.TempDir(), "none.json"), testEnv(t, nil), testLogger(t), nil)
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "config.json"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	// A directory where the file should be: it exists, so it is not created, and it cannot be read.
+	err := serve(t.Context(), filepath.Join(dir, "config.json"), testEnv(t, nil), testLogger(t), nil)
 	if appErr := routeOf(t, err); !appErr.HasRoute("serve->Load.ConfigNotReadable") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
+	}
+}
+
+func TestServeConfigNotWritable(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := serve(t.Context(), filepath.Join(file, "config.json"), testEnv(t, nil), testLogger(t), nil)
+	if appErr := routeOf(t, err); !appErr.HasRoute("serve->EnsureFile.ConfigNotWritable") {
+		t.Errorf("unexpected failure path: %s", appErr.Route())
+	}
+}
+
+func TestServeCreatesMissingConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "conf", "bos.json")
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	ready := make(chan net.Addr, 1)
+	done := make(chan error, 1)
+	// No BOS_* paths: everything must come from the file that serve creates.
+	go func() {
+		done <- serve(ctx, path, func(k string) string {
+			if k == "BOS_LISTEN_ADDR" {
+				return "127.0.0.1:0"
+			}
+			return ""
+		}, testLogger(t), func(a net.Addr) { ready <- a })
+	}()
+	select {
+	case <-ready:
+	case err := <-done:
+		t.Fatalf("serve returned early: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not start")
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{path, filepath.Join(dir, "conf", "data", "bos.db"), filepath.Join(dir, "conf", "data", "results")} {
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("expected %s to exist: %v", p, err)
+		}
 	}
 }
 

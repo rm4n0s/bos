@@ -7,9 +7,11 @@ package config
 import (
 	"bytes"
 	"encoding/json"
+	"io/fs"
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -60,6 +62,65 @@ type Config struct {
 	EventLogSize        int      `json:"event_log_size"`
 	// LogLevel is debug, info, warn or error; at debug every request is logged.
 	LogLevel string `json:"log_level"`
+}
+
+// EnsureFile creates the configuration file at path when it does not exist,
+// with every storage location under a data directory next to it, so that a
+// first run needs no hand-written configuration. It reports whether it
+// created the file. An existing file is never touched, and an empty path (no
+// file) does nothing.
+func EnsureFile(path string) (created bool, err error) {
+	if path == "" {
+		return false, nil
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false, errors.NewErr("ConfigNotWritable", err).SetMetadata("path", path)
+	}
+	dir := filepath.Dir(abs)
+	raw, err := json.MarshalIndent(defaultsUnder(filepath.Join(dir, "data")), "", "  ")
+	if err != nil {
+		return false, errors.NewErr("ConfigNotWritable", err).SetMetadata("path", abs)
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return false, errors.NewErr("ConfigNotWritable", err).SetMetadata("path", abs)
+	}
+	// O_EXCL: an existing file, or one created meanwhile, is left alone.
+	f, err := os.OpenFile(abs, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, fs.ErrExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, errors.NewErr("ConfigNotWritable", err).SetMetadata("path", abs)
+	}
+	_, werr := f.Write(append(raw, '\n'))
+	if cerr := f.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		// Do not leave a half-written file that would fail on the next start.
+		appErr := errors.NewErr("ConfigNotWritable", werr).SetMetadata("path", abs)
+		if rerr := os.Remove(abs); rerr != nil {
+			appErr = appErr.SetMetadata("remove_error", rerr.Error())
+		}
+		return false, appErr
+	}
+	return true, nil
+}
+
+// defaultsUnder is the content of a new configuration file: the required
+// settings, all below data, and the default listen address.
+func defaultsUnder(data string) map[string]string {
+	return map[string]string{
+		"database":       filepath.Join(data, "bos.db"),
+		"results_dir":    filepath.Join(data, "results"),
+		"controlnet_dir": filepath.Join(data, "controlnet"),
+		"ipadapter_dir":  filepath.Join(data, "ipadapter"),
+		"regions_dir":    filepath.Join(data, "regions"),
+		"thumbnails_dir": filepath.Join(data, "thumbnails"),
+		"downloads_dir":  filepath.Join(data, "downloads"),
+		"listen_addr":    DefaultListenAddr,
+	}
 }
 
 // Load reads the JSON file at path, applies environment overrides taken from

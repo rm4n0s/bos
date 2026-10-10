@@ -212,3 +212,95 @@ func TestLevel(t *testing.T) {
 		}
 	}
 }
+
+func TestEnsureFileCreatesDefaultsNextToTheFile(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "etc", "bos")
+	path := filepath.Join(dir, "my.json")
+
+	created, err := EnsureFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !created {
+		t.Fatal("created = false, want true")
+	}
+	cfg, err := Load(path, envFrom(nil))
+	if err != nil {
+		t.Fatalf("the created file does not load: %v", err)
+	}
+	data := filepath.Join(dir, "data")
+	want := map[string]string{
+		"Database":      filepath.Join(data, "bos.db"),
+		"ResultsDir":    filepath.Join(data, "results"),
+		"ControlNetDir": filepath.Join(data, "controlnet"),
+		"IPAdapterDir":  filepath.Join(data, "ipadapter"),
+		"RegionsDir":    filepath.Join(data, "regions"),
+		"ThumbnailsDir": filepath.Join(data, "thumbnails"),
+		"DownloadsDir":  filepath.Join(data, "downloads"),
+		"ListenAddr":    DefaultListenAddr,
+	}
+	v := reflect.ValueOf(cfg).Elem()
+	for field, w := range want {
+		if got := v.FieldByName(field).String(); got != w {
+			t.Errorf("%s = %q, want %q", field, got, w)
+		}
+	}
+}
+
+func TestEnsureFileRelativePathUsesTheWorkingDirectory(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	if _, err := EnsureFile("config.json"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load("config.json", envFrom(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(dir, "data", "bos.db"); cfg.Database != want {
+		t.Errorf("Database = %q, want %q", cfg.Database, want)
+	}
+}
+
+func TestEnsureFileKeepsAnExistingFile(t *testing.T) {
+	path := writeConfig(t, minimalJSON)
+
+	created, err := EnsureFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created {
+		t.Error("created = true for a file that exists")
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != minimalJSON {
+		t.Errorf("the existing file was changed:\n%s", got)
+	}
+}
+
+func TestEnsureFileEmptyPathDoesNothing(t *testing.T) {
+	created, err := EnsureFile("")
+	if err != nil || created {
+		t.Errorf("EnsureFile(\"\") = %v, %v; want false, nil", created, err)
+	}
+}
+
+func TestEnsureFileNotWritable(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The parent of the configuration file is a regular file, so it cannot be a directory.
+	_, err := EnsureFile(filepath.Join(file, "config.json"))
+	appErr, ok := errors.FromError(err)
+	if !ok {
+		t.Fatalf("expected *errors.Error, got %T", err)
+	}
+	if !appErr.HasRoute("EnsureFile.ConfigNotWritable") {
+		t.Errorf("unexpected failure path: %s", appErr.Route())
+	}
+}

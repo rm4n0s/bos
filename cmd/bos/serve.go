@@ -18,10 +18,17 @@ import (
 // a termination signal.
 const shutdownTimeout = 10 * time.Second
 
-// serve follows the startup order of SPEC §2: load the configuration and
-// create the directories, open the store, then serve until ctx is cancelled.
+// serve follows the startup order of SPEC §2: create the configuration file if
+// it is missing, load it and create the directories, open the store, then serve until ctx is cancelled.
 // ready, if not nil, is called with the address once the listener is open.
 func serve(ctx context.Context, configPath string, getenv func(string) string, logger *slog.Logger, ready func(net.Addr), opts ...appOption) (err error) {
+	created, err := config.EnsureFile(configPath)
+	if err != nil {
+		return err
+	}
+	if created {
+		logger.Info("created the configuration file", "path", configPath)
+	}
 	cfg, err := config.Load(configPath, getenv)
 	if err != nil {
 		return err

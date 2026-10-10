@@ -59,11 +59,13 @@ A single configuration source supplies:
 | CORS allow-list | no | Origins allowed to call the API cross-origin; default none |
 | Event log size | no | Number of events retained (§8.5, §15.4); default 100 |
 
+If the configuration file named on the command line does not exist, it is created first: every storage location below a `data` directory next to the file (the database as `data/bos.db`, then `data/results`, `data/controlnet`, …), as absolute paths, and the default listen address. An existing file is never changed. If it cannot be written, startup is aborted with `ConfigNotWritable`.
+
 Directories are created at startup if missing. All stored files must be retrievable (read-only) by the user interface, e.g. to display thumbnails and results.
 
 ### Startup behaviour
 
-1. Load configuration; create directories.
+1. Create the configuration file if it is missing; load configuration; create directories.
 2. Open the data store, creating the schema if it does not exist.
 3. Start the background workers described in §8.
 
@@ -1084,7 +1086,7 @@ These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 | Workflow | `WorkflowInvalid`, `WorkflowTitleDuplicated`, `WorkflowTitleNotFound`, `OutputNodeNotFound`, `NoSamplerInWorkflow`, `InjectorFailed`, `RegionInvalid`, `MaskGenerationFailed` | 422 (on create/analyze) or recorded on the job |
 | ComfyUI | `ServerUnreachable`, `ComfyUIRejected` (node errors), `ComfyUIExecutionFailed` (traceback in metadata), `ComfyUIUploadFailed`, `ComfyUIResultMissing` | 502 / 503, or recorded on the job |
 | Civitai | `CivitaiNotConfigured`, `CivitaiModelNotFound`, `CivitaiRateLimited`, `CivitaiDownloadFailed`, `CivitaiMetadataInvalid` | 409, 404, 503, 502, 502 |
-| Infrastructure | `StoreFailure`, `MigrationFailed`, `FileStoreFailure`, `ConfigInvalid` | 500 (startup: abort) |
+| Infrastructure | `StoreFailure`, `MigrationFailed`, `FileStoreFailure`, `ConfigInvalid`, `ConfigNotReadable`, `ConfigNotWritable` | 500 (startup: abort) |
 
 Errors that happen **inside a job** are not HTTP responses; the scheduler stores the tag, message and the `ToJson()` trace on the job (`error`, `traceback`) and emits an `error` event.
 

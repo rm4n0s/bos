@@ -556,6 +556,13 @@ Not an error but often asked:
 **What to do.** Check the path after `-config` and the file's permissions.
 
 
+### `ConfigNotWritable`
+
+**Why.** The file after `-config` does not exist and the program could not create it (or its folder).
+
+**What to do.** Check that the folder can be written by you, or create the file yourself (see [the configuration](guide/configuration.md)).
+
+
 ### `ListenFailed`
 
 **Why.** The program cannot listen on `listen_addr`: the port is in use or the address is not this machine's.

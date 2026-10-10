@@ -29,9 +29,10 @@ You work in a web page, from a terminal (`bosctl`) or through a REST API. All th
 
 ```sh
 go build -o bin/ ./cmd/bos ./cmd/bosctl
-cp config.example.json config.json
 ./bin/bos -config config.json
 ```
+
+If `config.json` does not exist, the program creates it, with the database and all folders in a `data` folder next to it. To start from the commented example instead, `cp config.example.json config.json` first.
 
 Open <http://127.0.0.1:8080>. The first build compiles SQLite and takes a minute; later builds are quick. The data (database, results, uploads) goes where `config.json` says.
 
