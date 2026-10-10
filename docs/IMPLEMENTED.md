@@ -279,3 +279,11 @@ The harness is temporary and is removed in step 12.
 - Delivered: `docs/agents.md`, a short guide for a program that drives `bosctl`: setup, eleven rules (always `--json`; the exit codes; the error envelope and its tags; `preview` exits 0 even for an invalid command, so read `valid` and `jobs`; preview before add before run; quoting; keeping ids and paging; `--wait` and what each ending means, including a halted batch and a timeout; destructive calls; one writer per command; downloading files), the command language in ten lines, a worked session and a table of failures with the action to take. `TestTutorial` now runs the `bosctl` blocks of both the tutorial and the agent guide, and checks the JSON of the preview, the refused add and the finished run that the guide quotes. The README and the user guide link to it. Not a numbered step of the plan.
 - Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
 - Deviations from the spec: none.
+
+## After step 14 – Configuration file created when missing
+- Branch: feat/config-create
+- Last code commit: df2128a
+- Date: 2026-10-10
+- Delivered: `bos -config <path>` creates the file when it does not exist (`config.EnsureFile`, called first in `serve`). The database and every folder go under a `data` folder next to the file, as absolute paths, with `listen_addr` at its default; missing parent folders are created, an existing file is never changed, and an empty path does nothing. A file that cannot be written stops the start with the new tag `ConfigNotWritable` (500, Infrastructure). SPEC §2 and §17.2 (which now also lists `ConfigNotReadable`), the configuration guide, the troubleshooting guide and the README describe it. Tests: the defaults next to the file, a relative path, an existing file left alone, an empty path, the `ConfigNotWritable` route (in `config` and through `serve`), and `serve` starting from a missing file. `TestServeConfigFailure` now uses a directory in place of the file, because a missing file is no longer an error. Not a numbered step of the plan.
+- Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
+- Deviations from the spec: none (the spec was updated).
