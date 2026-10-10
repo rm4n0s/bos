@@ -19,6 +19,7 @@
 
 {{define "generators_table"}}<div id="generators-table">
 {{if not .Items}}<p class="empty">No generators yet — add one from a ComfyUI workflow.</p>{{else}}
+{{template "pager" .Pager}}
 <table>
   <thead><tr><th>Name</th><th>Code name</th><th>Output</th><th>Output node</th><th>Seed</th><th></th></tr></thead>
   <tbody>

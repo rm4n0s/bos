@@ -20,6 +20,7 @@
 
 {{define "commands_table"}}<div id="commands-table">
 {{if not .Items}}<p class="empty">No commands yet — add one.</p>{{else}}
+{{template "pager" .Pager}}
 <table>
   <thead><tr><th>#</th><th>Name</th><th>Command</th><th>Status</th><th></th></tr></thead>
   <tbody>

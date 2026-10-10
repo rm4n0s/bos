@@ -19,6 +19,7 @@
 
 {{define "fixers_table"}}<div id="fixers-table">
 {{if not .Items}}<p class="empty">No fixers yet — add one from a ComfyUI workflow.</p>{{else}}
+{{template "pager" .Pager}}
 <table>
   <thead><tr><th>Name</th><th>Code name</th><th>Image in</th><th>Image out</th><th></th></tr></thead>
   <tbody>

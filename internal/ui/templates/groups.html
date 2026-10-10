@@ -52,6 +52,7 @@
 {{if .Tag}}<p class="muted">Showing groups tagged <span class="chip">{{.Tag}}</span>
   <button type="button" class="secondary" data-on:click="@get('/ui/groups/table')">Show all</button></p>{{end}}
 {{if not .Items}}<p class="empty">{{if .Tag}}No group has this tag.{{else}}No groups yet — add one.{{end}}</p>{{else}}
+{{template "pager" .Pager}}
 <table>
   <thead><tr><th></th><th>Name</th><th>Code name</th><th>Tags</th><th>Features</th><th></th></tr></thead>
   <tbody>

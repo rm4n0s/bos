@@ -2,8 +2,11 @@
 
 {{define "toast"}}<div class="toast {{.Kind}}" role="status" data-init="setTimeout(() => el.remove(), 7000)">{{.Message}}</div>{{end}}
 
-{{define "pager"}}{{if gt .TotalPages 1}}<div class="pager">
-  <button type="button" data-on:click="@get('{{.Base}}{{.Sep}}page={{sub .Page 1}}')"{{if le .Page 1}} disabled{{end}}>Previous</button>
-  <span>Page {{.Page}} of {{.TotalPages}} · {{.Total}} in all</span>
-  <button type="button" data-on:click="@get('{{.Base}}{{.Sep}}page={{add .Page 1}}')"{{if ge .Page .TotalPages}} disabled{{end}}>Next</button>
-</div>{{end}}{{end}}
+{{define "pager"}}{{if gt .TotalPages 1}}<nav class="pager" aria-label="Pages">
+  <button type="button" class="secondary" title="First page" data-on:click="@get('{{.Base}}{{.Sep}}page=1')"{{if le .Page 1}} disabled{{end}}>« First</button>
+  <button type="button" class="secondary" title="Previous page" data-on:click="@get('{{.Base}}{{.Sep}}page={{sub .Page 1}}')"{{if le .Page 1}} disabled{{end}}>‹ Previous</button>
+  {{range .Numbers}}{{if .Gap}}<span class="gap">…</span>{{else if .Current}}<button type="button" class="current" aria-current="page" disabled>{{.N}}</button>{{else}}<button type="button" class="secondary" title="Page {{.N}}" data-on:click="@get('{{$.Base}}{{$.Sep}}page={{.N}}')">{{.N}}</button>{{end}}{{end}}
+  <button type="button" class="secondary" title="Next page" data-on:click="@get('{{.Base}}{{.Sep}}page={{add .Page 1}}')"{{if ge .Page .TotalPages}} disabled{{end}}>Next ›</button>
+  <button type="button" class="secondary" title="Last page" data-on:click="@get('{{.Base}}{{.Sep}}page={{.TotalPages}}')"{{if ge .Page .TotalPages}} disabled{{end}}>Last »</button>
+  <span class="count">Page {{.Page}} of {{.TotalPages}} · {{.Total}} in all</span>
+</nav>{{end}}{{end}}

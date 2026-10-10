@@ -1018,7 +1018,7 @@ Full pages are plain `GET`s that return a complete HTML document. Everything int
 | Kind | Examples | Notes |
 |---|---|---|
 | Page | `GET /` · `/servers` · `/generators` · `/fixers` · `/groups` · `/groups/{id}/items` · `/projects` · `/projects/{id}/commands` · `/commands/{id}/jobs` · `/repl` | One per screen of §4; the common header menu is part of every page |
-| Fragment (read) | `GET /ui/servers/table?page=2` · `GET /ui/groups/{id}/items/list` | Return an SSE response that patches the table/list; used for paging, filtering and refresh |
+| Fragment (read) | `GET /ui/servers/table?page=2` · `GET /ui/groups/{id}/items/list` | Return an SSE response that patches the table/list; used for paging, filtering and refresh. Every table of 20-row pages (servers, generators, fixers, groups, items, projects, commands, jobs) has its pager **above and below** it, shown when there is more than one page: *First*, *Previous*, the page numbers (the first and the last page, the current one with two on each side, and a gap `…` where pages are left out), *Next*, *Last*, and "Page n of m · total in all" |
 | Action (write) | `POST /ui/servers` (creates, or updates when the form carries an id) · `DELETE /ui/servers/{id}` · `POST /ui/commands/{id}/run` … | Read the signals (JSON body, `Datastar-Request: true`), call a service, patch the affected element(s) and close the dialog via a signal patch |
 | Upload | `POST /ui/groups/{id}/items` | The form uses Datastar's `contentType: 'form'`, which sends `multipart/form-data` |
 | Live stream | `GET /ui/stream/commands/{id}` · `GET /ui/stream/toasts` | Long-lived SSE connections (§16.4) |

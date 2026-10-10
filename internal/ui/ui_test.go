@@ -212,6 +212,42 @@ func TestServerTablePaging(t *testing.T) {
 	mustContain(t, "bad page", r.patches(), `class="toast error"`)
 }
 
+// The pager is above the table and below it, with first, previous, the page
+// numbers, next and last.
+func TestPagerIsAboveAndBelowTheTable(t *testing.T) {
+	u := newTestUI(t)
+	// The address sits in a script string of the attribute, where the template
+	// engine writes its slashes escaped.
+	get := func(page int) string { return `@get('\/ui\/servers\/table?page=` + itoa(int64(page)) + `')` }
+	for i := range 65 { // four pages of 20
+		code := "s" + string(rune('a'+i%26)) + string(rune('a'+i/26))
+		_, err := u.env.Services.Servers.Create(t.Context(), domain.Server{Name: "Server " + code, Host: "http://" + code + ":1", CodeName: code, MaxConcurrentJobs: 1})
+		check(t, err)
+	}
+	for name, body := range map[string]string{
+		"page":     u.get("/servers?page=2").Body,
+		"fragment": u.datastar("GET", "/ui/servers/table?page=2", struct{}{}).patches(),
+	} {
+		if n := strings.Count(body, `<nav class="pager"`); n != 2 {
+			t.Fatalf("%s: %d pagers, want 2 (above and below)", name, n)
+		}
+		if top, table, bottom := strings.Index(body, `<nav class="pager"`), strings.Index(body, "<table"), strings.LastIndex(body, `<nav class="pager"`); top >= table || table >= bottom {
+			t.Errorf("%s: the pagers are at %d and %d, the table at %d", name, top, bottom, table)
+		}
+		mustContain(t, name, body, get(1), get(3), get(4),
+			">« First<", ">‹ Previous<", ">Next ›<", ">Last »<", `aria-current="page" disabled>2</button>`, "Page 2 of 4 · 65 in all")
+	}
+	// On the first page First and Previous are off; on the last, Next and Last.
+	first := u.get("/servers").Body
+	mustContain(t, "first page", first, `title="First page" data-on:click="`+get(1)+`" disabled>`,
+		`title="Previous page" data-on:click="`+get(0)+`" disabled>`)
+	last := u.get("/servers?page=4").Body
+	mustContain(t, "last page", last, `title="Last page" data-on:click="`+get(4)+`" disabled>`)
+	// One page needs no pager.
+	v := newTestUI(t)
+	mustNotContain(t, "one page", v.get("/servers").Body, `<nav class="pager"`)
+}
+
 // TestHostileTextIsInert is acceptance 31 for the surfaces that exist so far.
 func TestHostileTextIsInert(t *testing.T) {
 	u := newTestUI(t)

@@ -33,6 +33,7 @@
 
 {{define "items_table"}}<div id="items-table" data-group="{{.Group.ID}}">
 {{if not .Items}}<p class="empty">No items yet — add one.</p>{{else}}
+{{template "pager" .Pager}}
 <table>
   <thead><tr><th></th><th>Code name</th><th>Name</th><th>Positive prompt</th><th>Tags</th><th></th></tr></thead>
   <tbody>

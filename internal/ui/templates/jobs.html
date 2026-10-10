@@ -30,6 +30,7 @@
 
 {{define "jobs_table"}}<div id="jobs-table" data-pictures="/ui/commands/{{.Command.ID}}/jobs/pictures{{if .Status}}?status={{.Status | urlquery}}{{end}}">
 {{if not .Items}}<p class="empty">{{if .Status}}No job is {{.Status}}.{{else}}This command has no jobs.{{end}}</p>{{else}}
+{{template "pager" .Pager}}
 <table>
   <thead><tr><th>#</th><th>Result</th><th>Status</th><th>Server</th><th>Prompt</th><th>Seed</th><th></th></tr></thead>
   <tbody>{{range .Items}}{{template "job_row" .}}{{end}}</tbody>

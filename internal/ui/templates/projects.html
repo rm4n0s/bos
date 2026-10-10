@@ -19,6 +19,7 @@
 
 {{define "projects_table"}}<div id="projects-table">
 {{if not .Items}}<p class="empty">No projects yet — add one.</p>{{else}}
+{{template "pager" .Pager}}
 <table>
   <thead><tr><th>Name</th><th>Created</th><th></th></tr></thead>
   <tbody>

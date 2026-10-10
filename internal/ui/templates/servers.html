@@ -25,6 +25,7 @@
 
 {{define "servers_table"}}<div id="servers-table">
 {{if not .Items}}<p class="empty">No servers yet — add one.</p>{{else}}
+{{template "pager" .Pager}}
 <table>
   <thead><tr><th>Name</th><th>Address</th><th>Code name</th><th>ComfyUI folder</th><th>Jobs</th><th>Status</th><th></th></tr></thead>
   <tbody>

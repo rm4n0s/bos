@@ -33,7 +33,7 @@ The preview and *Add* agree: the same text gives the same number of jobs.
 
 ## Jobs
 
-The jobs of a command are listed in the order the command defines. Each shows its status, the server that ran it, a small picture of the result, the seed, the prompt and the error.
+The jobs of a command are listed in the order the command defines, 20 to a page; the page buttons (first, previous, the page numbers, next, last) are above and below the list, as in every other table. Each shows its status, the server that ran it, a small picture of the result, the seed, the prompt and the error.
 
 **Looking at the pictures.** Click a small picture to see it large, over the same page. The `‹` and `›` buttons, or the left and right arrow keys (or a swipe on a touch screen), move to the previous and the next picture of the list; `Esc`, the `×` or a click beside the picture closes it. It goes through **all** the pictures of the command, not only the ones on the page you are looking at (the status filter you chose applies), so it can go on past the last picture of a page; the number in the corner is the place in the whole list. At the last picture it looks again, so pictures that finished while it was open are reached too. A click with `Ctrl`, `Shift` or the middle button still opens the picture alone in a new tab.
 

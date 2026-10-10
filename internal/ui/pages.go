@@ -51,6 +51,38 @@ type pagerData struct {
 	Page, TotalPages, Total, Size int
 }
 
+// pageNumber is one place in the row of page numbers: a page, or a gap.
+type pageNumber struct {
+	N       int
+	Current bool
+	Gap     bool
+}
+
+// pagerReach is how many pages are shown on each side of the current one.
+const pagerReach = 2
+
+// Numbers is the row of page buttons: the first page, the last page, the ones
+// next to the current page, and a gap where pages are left out. A gap that
+// would hide a single page shows that page instead.
+func (p pagerData) Numbers() []pageNumber {
+	var out []pageNumber
+	last := 0
+	for n := 1; n <= p.TotalPages; n++ {
+		if n != 1 && n != p.TotalPages && (n < p.Page-pagerReach || n > p.Page+pagerReach) {
+			continue
+		}
+		switch skipped := n - last - 1; {
+		case skipped == 1:
+			out = append(out, pageNumber{N: n - 1})
+		case skipped > 1:
+			out = append(out, pageNumber{Gap: true})
+		}
+		out = append(out, pageNumber{N: n, Current: n == p.Page})
+		last = n
+	}
+	return out
+}
+
 func pagerOf[T any](base string, p domain.Paged[T]) pagerData {
 	sep := "?"
 	if strings.Contains(base, "?") {
