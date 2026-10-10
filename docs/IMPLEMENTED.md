@@ -308,3 +308,11 @@ The harness is temporary and is removed in step 12.
   - SPEC §3.2, §8.2, §15.2, §16.2, §16.3, §16.5 and §17.2, the guides, the tutorial, the troubleshooting guide and `docs/openapi.json` describe it.
 - Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
 - Deviations from the spec: none (the spec was updated). Not run against a real ComfyUI. Generators saved earlier without titles keep working as before (the log warns) until they are saved again.
+
+## After step 14 – Picture viewer and no caching
+- Branch: feat/image-viewer
+- Last code commit: cfb752a
+- Date: 2026-10-10
+- Delivered: a click on a result picture of the job list (or on the picture of a job's dialog) opens it over the same page instead of a new tab, with previous and next buttons, the arrow keys, a swipe, `Esc`/`×`/a click beside it to close, a counter and an "open in a new tab" link; a click with a modifier key or the middle button still opens the picture alone. It goes through the pictures of the page of the list that is shown (`static/viewer.js`, embedded, no server calls). The interface no longer lets the browser keep anything: static files and `/files` results carry `Cache-Control: no-store` (pages already did); a kept style sheet next to a new script had broken the viewer on a real browser, and a re-run job keeps its file name. `TestAcceptanceWholeProgram` had a race of its own (it counted finished jobs and then read the command status, so it failed when the last job ended between the two reads) and read the status first now. Tests: the links and the script on the job list, no-store on pages, static files and results, the whole viewer in headless Firefox over WebDriver BiDi (open, buttons, keys, ends of the list, a redrawn list, three ways to close, a modifier click) and a screenshot with real pictures.
+- Checks: gofmt ✔  go vet ✔  golangci-lint ✔  go test -race ✔
+- Deviations from the spec: none (SPEC §16.2, §16.3 and §16.6 were updated). The viewer stops at the ends of the page; it does not go on to the next page of the list.
