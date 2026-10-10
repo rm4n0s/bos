@@ -31,10 +31,30 @@ type CivitaiService struct {
 }
 
 // CivitaiModel is one model to import with the strengths its LoRA entry gets.
+// VersionID, when not 0, picks that version of the model instead of the newest.
 type CivitaiModel struct {
 	ModelID       int
+	VersionID     int
 	StrengthModel float64
 	StrengthClip  float64
+}
+
+// label names the model in a message: `7`, or `7/456` with a version.
+func (m CivitaiModel) label() string {
+	if m.VersionID > 0 {
+		return strconv.Itoa(m.ModelID) + "/" + strconv.Itoa(m.VersionID)
+	}
+	return strconv.Itoa(m.ModelID)
+}
+
+// codeName is the code name of the item: the model id, followed by the
+// version id when one was asked for, so two versions of a model can both be in
+// a group. Only letters, digits and underscores make a name a command can use.
+func (m CivitaiModel) codeName(id int) string {
+	if m.VersionID > 0 {
+		return strconv.Itoa(id) + "_" + strconv.Itoa(m.VersionID)
+	}
+	return strconv.Itoa(id)
 }
 
 // CivitaiImport is the request to import models.
@@ -65,6 +85,9 @@ func (s *CivitaiService) check(in *CivitaiImport) error {
 	for _, m := range in.Models {
 		if m.ModelID < 1 {
 			return errors.New("InvalidRequest", "a model id is a positive number", "model_id", m.ModelID)
+		}
+		if m.VersionID < 0 {
+			return errors.New("InvalidRequest", "a version id is a positive number", "model_id", m.ModelID, "version_id", m.VersionID)
 		}
 	}
 	_, err := civitai.CheckTarget(in.ComfyPath, in.Subfolder)
@@ -137,8 +160,8 @@ func (s *CivitaiService) run(ctx context.Context, group domain.ID, in CivitaiImp
 			return
 		case err != nil:
 			failed++
-			logError(s.Logger, "a Civitai import failed", err, "model_id", m.ModelID)
-			s.emit(events.ImportError, group, "Model "+strconv.Itoa(m.ModelID)+": "+userMessage(err))
+			logError(s.Logger, "a Civitai import failed", err, "model_id", m.ModelID, "version_id", m.VersionID)
+			s.emit(events.ImportError, group, "Model "+m.label()+": "+userMessage(err))
 		default:
 			done++
 			s.emit(events.ImportProgress, group, "Imported "+item.Name+" ("+strconv.Itoa(i+1)+"/"+strconv.Itoa(len(in.Models))+").")
@@ -154,7 +177,7 @@ func (s *CivitaiService) run(ctx context.Context, group domain.ID, in CivitaiImp
 // importOne downloads a model, installs it and adds its item. skipped is true
 // when the model was already in the cache, so no pause is needed before the next.
 func (s *CivitaiService) importOne(ctx context.Context, group domain.ID, m CivitaiModel, in CivitaiImport) (item *domain.Item, skipped bool, err error) {
-	model, err := s.Civitai.Download(ctx, m.ModelID, s.Dirs.CivitaiCache)
+	model, err := s.Civitai.Download(ctx, m.ModelID, m.VersionID, s.Dirs.CivitaiCache)
 	if err != nil {
 		return nil, false, err
 	}
@@ -170,7 +193,7 @@ func (s *CivitaiService) importOne(ctx context.Context, group domain.ID, m Civit
 		title = string([]rune(title)[:maxName])
 	}
 	item, err = s.items.Create(ctx, group, domain.Item{
-		CodeName: strconv.Itoa(model.ID), Name: title,
+		CodeName: m.codeName(model.ID), Name: title,
 		PositivePrompt: strings.Join(model.TriggerWords, "\n\n"),
 		LoRAs:          []domain.LoRA{{Name: name, StrengthModel: m.StrengthModel, StrengthClip: m.StrengthClip}},
 	})

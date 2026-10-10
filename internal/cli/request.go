@@ -197,19 +197,27 @@ func parseLoRA(s string) (map[string]any, error) {
 	return out, nil
 }
 
-// parseModel reads `id[:model[:clip]]` for a Civitai import.
+// parseModel reads `id[/version][:model[:clip]]` for a Civitai import.
 func parseModel(s string) (map[string]any, error) {
 	parts := strings.Split(s, ":")
-	id, err := strconv.Atoi(parts[0])
+	idText, versionText, hasVersion := strings.Cut(parts[0], "/")
+	id, err := strconv.Atoi(idText)
 	if err != nil || id < 1 || len(parts) > 3 {
-		return nil, usagef("a model is id[:model strength[:clip strength]], not %q", s)
+		return nil, usagef("a model is id[/version][:model strength[:clip strength]], not %q", s)
 	}
 	out := map[string]any{"model_id": id}
+	if hasVersion {
+		version, err := strconv.Atoi(versionText)
+		if err != nil || version < 1 {
+			return nil, usagef("a model is id[/version][:model strength[:clip strength]], not %q", s)
+		}
+		out["version_id"] = version
+	}
 	for i, key := range []string{"model_strength", "model_clip"} {
 		if len(parts) > i+1 && parts[i+1] != "" {
 			n, err := strconv.ParseFloat(parts[i+1], 64)
 			if err != nil {
-				return nil, usagef("a model is id[:model strength[:clip strength]], not %q", s)
+				return nil, usagef("a model is id[/version][:model strength[:clip strength]], not %q", s)
 			}
 			out[key] = n
 		}

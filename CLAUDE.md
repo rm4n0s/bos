@@ -72,6 +72,7 @@ Use `github.com/rm4n0s/errors` for all errors. Never use `fmt.Errorf`, and never
 ## Don't
 - Don't edit generated files (`*.pb.go`, `*_gen.go`); regenerate them with `make generate`
 - Don't commit secrets or `.env` files
+- Never look for, list, open or read files outside this project folder (no home-directory databases, configs, logs or other projects). If something outside it is needed, ask the user to provide it. Dependency source in the Go module cache is the one exception
 
 ## Project notes
 Bowl of Scenes generates images (or video / 3D) in bulk: the user combines reusable prompt items from groups with a one-line command language, and the server runs every combination as a job on one or more ComfyUI servers.

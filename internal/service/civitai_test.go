@@ -24,6 +24,7 @@ type fakeCivitai struct {
 	failures   map[int]error
 	installErr error
 	downloads  []int
+	versions   []int // the version asked for with each download, 0 for the newest
 	installed  []string
 	gate       chan struct{} // when set, Download waits for it
 	entered    chan int
@@ -31,7 +32,7 @@ type fakeCivitai struct {
 
 func (f *fakeCivitai) Configured() bool { return f.configured }
 
-func (f *fakeCivitai) Download(ctx context.Context, id int, dir string) (civitai.Model, error) {
+func (f *fakeCivitai) Download(ctx context.Context, id, version int, dir string) (civitai.Model, error) {
 	if f.entered != nil {
 		f.entered <- id
 	}
@@ -45,6 +46,7 @@ func (f *fakeCivitai) Download(ctx context.Context, id int, dir string) (civitai
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.downloads = append(f.downloads, id)
+	f.versions = append(f.versions, version)
 	if err := f.failures[id]; err != nil {
 		return civitai.Model{}, err
 	}
@@ -52,6 +54,7 @@ func (f *fakeCivitai) Download(ctx context.Context, id int, dir string) (civitai
 	if !ok {
 		return civitai.Model{}, errors.New("CivitaiModelNotFound", "no such model", "model_id", id)
 	}
+	m.Requested = version
 	return m, nil
 }
 
@@ -61,7 +64,7 @@ func (f *fakeCivitai) Install(m civitai.Model, comfy, sub string) (string, error
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	name := civitai.ModelName(m.ID, sub)
+	name := civitai.ModelName(m.ID, m.Requested, sub)
 	f.installed = append(f.installed, name)
 	return name, nil
 }
@@ -355,3 +358,36 @@ func TestImportAcceptsAnyNumericCodeName(t *testing.T) {
 }
 
 func commandNameProblemOf(s string) string { return commandNameProblem(s) }
+
+func TestImportAVersion(t *testing.T) {
+	c := newCivitaiEnv(t)
+	in := c.imp(7, 7)
+	in.Models[1].VersionID = 456
+	in.Models = append(in.Models, CivitaiModel{ModelID: 99, VersionID: 5, StrengthModel: 1, StrengthClip: 1})
+	g, err := c.Civitai.ImportGroup(ctx(t), in)
+	check(t, err)
+	c.Civitai.Wait()
+
+	if len(c.fake.versions) != 3 || c.fake.versions[0] != 0 || c.fake.versions[1] != 456 {
+		t.Errorf("versions asked for = %v", c.fake.versions)
+	}
+	items, err := c.Items.ListByGroup(ctx(t), g.ID, domain.Page{})
+	check(t, err)
+	// The newest and a chosen version of one model are two items with two files.
+	if items.Total != 2 || items.Items[0].CodeName != "7" || items.Items[1].CodeName != "7_456" {
+		t.Fatalf("items = %+v", items.Items)
+	}
+	if got := items.Items[1].LoRAs[0].Name; got != "civitai/7-456.safetensors" || items.Items[0].LoRAs[0].Name != "civitai/7.safetensors" {
+		t.Errorf("LoRA names = %q, %q", items.Items[0].LoRAs[0].Name, got)
+	}
+	if msgs := strings.Join(c.messages(), "\n"); !strings.Contains(msgs, "Model 99/5:") {
+		t.Errorf("a failure names the version: %s", msgs)
+	}
+
+	in = c.imp(7)
+	in.Models[0].VersionID = -1
+	_, err = c.Civitai.ImportGroup(ctx(t), in)
+	if appErr, ok := errors.FromError(err); !ok || appErr.Tag != "InvalidRequest" {
+		t.Errorf("a negative version: %v", err)
+	}
+}

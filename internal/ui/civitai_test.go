@@ -29,7 +29,13 @@ func TestParseModels(t *testing.T) {
 	if len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
 		t.Errorf("models = %+v", got)
 	}
-	for _, bad := range []string{"abc", "0", "-3", "12, loud", "12, 1, x", "12 13"} {
+	got, err = parseModels("123/456\n789 / 12 , 0.5")
+	check(t, err)
+	if len(got) != 2 || got[0] != (service.CivitaiModel{ModelID: 123, VersionID: 456, StrengthModel: 1, StrengthClip: 1}) ||
+		got[1] != (service.CivitaiModel{ModelID: 789, VersionID: 12, StrengthModel: 0.5, StrengthClip: 1}) {
+		t.Errorf("models with a version = %+v", got)
+	}
+	for _, bad := range []string{"abc", "0", "-3", "12, loud", "12, 1, x", "12 13", "12/", "12/x", "12/0", "12/-1", "/5", "12/3/4"} {
 		if _, err := parseModels(bad); err == nil {
 			t.Errorf("%q was accepted", bad)
 		}

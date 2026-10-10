@@ -306,7 +306,7 @@ Calls `POST /api/v1/groups/import-civitai`.
 | `--description` | a description |
 | `--file` | read the JSON body from this file (- for standard input); flags override it |
 | `--lora-subfolder` | the sub-folder of models/loras |
-| `--model` | a model as id[:model strength[:clip strength]], repeatable |
+| `--model` | a model as id[/version][:model strength[:clip strength]], repeatable (no version: the newest) |
 | `--name` | the name |
 | `--tags` | group tags, separated by commas |
 
@@ -401,6 +401,7 @@ Calls `POST /api/v1/groups/{id}/items/civitai`.
 | `--lora-subfolder` | the sub-folder of models/loras |
 | `--model-strength` | strength for the model (default 1) |
 | `--model` | the Civitai model id |
+| `--version` | the version of the model (default: the newest) |
 
 ## tag
 

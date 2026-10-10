@@ -9,8 +9,8 @@
 <option value="unknown"{{if eq .Selected "unknown"}} selected{{end}}>unknown</option>{{end}}
 
 {{define "civitai_fields"}}
-<label>Models — one per line: Civitai model id, model strength, text-encoder strength (the strengths default to 1)
-  <textarea name="models" rows="4" placeholder="123456&#10;789012, 0.8, 0.8" required></textarea></label>
+<label>Models — one per line: Civitai model id, model strength, text-encoder strength (the strengths default to 1). Add <code>/</code> and a version id after the model id for a version other than the newest
+  <textarea name="models" rows="4" placeholder="123456&#10;789012, 0.8, 0.8&#10;345678/901234" required></textarea></label>
 {{if .Servers}}<label>Server
   <select data-on:change="if (el.value) { el.closest('form').elements.comfyui_path.value = el.value }">
     <option value="">— choose a server —</option>

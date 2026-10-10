@@ -12,7 +12,9 @@ import (
 )
 
 // parseModels reads the lines `id`, `id, model strength` or `id, model
-// strength, text-encoder strength`; strengths that are left out are 1.
+// strength, text-encoder strength`; strengths that are left out are 1. The id
+// may be followed by a slash and a version id (`123/456`); without one the
+// newest version is taken.
 func parseModels(text string) ([]service.CivitaiModel, error) {
 	var out []service.CivitaiModel
 	for _, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
@@ -20,11 +22,17 @@ func parseModels(text string) ([]service.CivitaiModel, error) {
 			continue
 		}
 		parts := strings.Split(line, ",")
-		id, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+		idText, versionText, hasVersion := strings.Cut(parts[0], "/")
+		id, err := strconv.Atoi(strings.TrimSpace(idText))
 		if err != nil || id < 1 {
 			return nil, errors.New("InvalidRequest", "a model line starts with the Civitai model id, a positive number: "+strings.TrimSpace(line), "line", line)
 		}
 		m := service.CivitaiModel{ModelID: id, StrengthModel: 1, StrengthClip: 1}
+		if hasVersion {
+			if m.VersionID, err = strconv.Atoi(strings.TrimSpace(versionText)); err != nil || m.VersionID < 1 {
+				return nil, errors.New("InvalidRequest", "the version after the model id is a positive number, as in 123/456: "+strings.TrimSpace(line), "line", line)
+			}
+		}
 		for i, dst := range []*float64{&m.StrengthModel, &m.StrengthClip} {
 			if len(parts) > i+1 && strings.TrimSpace(parts[i+1]) != "" {
 				n, err := strconv.ParseFloat(strings.TrimSpace(parts[i+1]), 64)

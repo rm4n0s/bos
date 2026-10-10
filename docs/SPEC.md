@@ -725,9 +725,9 @@ Static plans therefore never leave work unassigned, but they can leave a server 
 
 Requires the API token and LoRA cache directory; otherwise the operation fails with a clear message.
 
-- Download a model by id, producing `<id>.safetensors` and `<id>.json` (trigger words, tags, description, model name).
+- Download a model by id, producing `<id>.safetensors` and `<id>.json` (trigger words, tags, description, model name). The newest version is taken unless a version id is given; a chosen version is stored below `versions/<version id>` in the cache, so versions of one model do not overwrite each other, and it is installed as `<id>-<version id>.safetensors`.
 - Copy the model into the ComfyUI installation's LoRA folder, in a chosen sub-folder (the app must have filesystem access to it). The web dialogs of the import (group import and adding a LoRA to a group) show a select of the servers that have a `comfyui_path` (§3.1), by name; choosing one fills the ComfyUI folder field, which stays editable, and a single such server is chosen at once. The REST API takes the folder itself (`comfyui_path` in the body).
-- Create a group of LoRAs: one item per model with code_name = model id, name = Civitai model name, positive_prompt = trigger words separated by blank lines, and one LoRA entry with the chosen model/clip strengths. When importing several models, pause 15 s between downloads.
+- Create a group of LoRAs: one item per model with code_name = model id (`<model id>_<version id>` when a version was chosen), name = Civitai model name, positive_prompt = trigger words separated by blank lines, and one LoRA entry with the chosen model/clip strengths. When importing several models, pause 15 s between downloads.
 - Create a single LoRA item in an existing group.
 - List LoRAs available on a ComfyUI server.
 
@@ -917,10 +917,10 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 | `GET /groups` (filter `?tag=`) · `POST /groups` | list / create (fields include `tags`; thumbnail via multipart) | 200 / 201 | `GroupCodeNameTaken`, `CodeNameInvalid`, `CodeNameReserved` |
 | `GET /groups/{id}` · `PUT` · `DELETE` | get / edit / delete (removes items and files) | | `GroupNotFound` |
 | `POST /groups/import-text` | body: group fields + `text` (one item per line) | 201 | `GroupCodeNameTaken` |
-| `POST /groups/import-civitai` | body: group fields + `models:[{model_id,model_strength,model_clip}]` (a strength left out is 1), `comfyui_path` (the ComfyUI installation) and `lora_subfolder` (below `models/loras`). The group is created at once and returned; the downloads go on in the background, one import at a time, with a pause between models, and report as `import_progress`, `import_error` and `import_finished` events (§15.4) that carry `group_id` and `message` | 202 | `CivitaiNotConfigured`, `InvalidRequest` (an unusable sub-folder or ComfyUI path) |
+| `POST /groups/import-civitai` | body: group fields + `models:[{model_id,version_id,model_strength,model_clip}]` (a strength left out is 1, a `version_id` left out is the newest version), `comfyui_path` (the ComfyUI installation) and `lora_subfolder` (below `models/loras`). The group is created at once and returned; the downloads go on in the background, one import at a time, with a pause between models, and report as `import_progress`, `import_error` and `import_finished` events (§15.4) that carry `group_id` and `message` | 202 | `CivitaiNotConfigured`, `InvalidRequest` (an unusable sub-folder or ComfyUI path) |
 | `GET /groups/{id}/items` · `POST /groups/{id}/items` | list / create (multipart for images) | 200 / 201 | `ItemCodeNameTaken`, `GroupNotFound`, `UploadTooLarge`, `MaskGenerationFailed` |
 | `GET /items/{id}` · `PUT` · `DELETE` | get / edit / delete | | `ItemNotFound` |
-| `POST /groups/{id}/items/civitai` | add one Civitai LoRA as an item: `{model_id, model_strength, model_clip, comfyui_path, lora_subfolder}`; returns the group, the item arrives in the background | 202 | `CivitaiNotConfigured`, `GroupNotFound`, `InvalidRequest` |
+| `POST /groups/{id}/items/civitai` | add one Civitai LoRA as an item: `{model_id, version_id, model_strength, model_clip, comfyui_path, lora_subfolder}`; returns the group, the item arrives in the background | 202 | `CivitaiNotConfigured`, `GroupNotFound`, `InvalidRequest` |
 
 **Tags**
 
@@ -1235,13 +1235,16 @@ A token is required for every model **file** download and for the generation API
 package civitai
 
 type Models interface {
-    // Download stores <dir>/<modelID>.safetensors and <dir>/<modelID>.json.
-    Download(ctx context.Context, modelID int, dir string) (Model, error)
+    // Download stores <dir>/<modelID>.safetensors and <dir>/<modelID>.json for
+    // the newest version; with a versionID (not 0) it stores that version below
+    // <dir>/versions/<versionID> instead.
+    Download(ctx context.Context, modelID, versionID int, dir string) (Model, error)
 }
 
 type Model struct {
     ID           int
-    VersionID    int
+    VersionID    int // the version downloaded
+    Requested    int // the version asked for, 0 for the newest
     Name         string
     BaseModel    string
     TriggerWords []string
@@ -1254,7 +1257,7 @@ type Model struct {
 }
 ```
 
-The adapter calls `gocivitailib.DownloadModel` and maps its `DownloadedModel` (`Info`, `Version`, `File`, `ModelPath`, `MetadataPath`, `Size`, `Skipped`) into `Model`.
+The adapter calls `gocivitailib.DownloadModel` (with `WithVersionID` when a version is asked for) and maps its `DownloadedModel` (`Info`, `Version`, `File`, `ModelPath`, `MetadataPath`, `Size`, `Skipped`) into `Model`.
 
 ### 19.4 Requirements on the adapter
 
@@ -1264,7 +1267,7 @@ From §9:
 - Pass the configured token and domain to `NewClient` explicitly; do not rely on environment variables.
 - Pause between consecutive downloads in a batch (configurable, default 15 s, as in the original). The library's retries handle `429` within a download; the pause is the application's politeness.
 - Copying the model into a ComfyUI `models/loras/<subfolder>/` directory (§9) is application code in `internal/civitai`; it needs filesystem access to that directory. A ComfyUI folder without `models/loras`, or a sub-folder that is not a plain relative path, is the caller's mistake (`InvalidRequest`, checked before anything is downloaded); a copy that fails is `FileStoreFailure`. The copy goes to a temporary name and is renamed, so ComfyUI never sees half a model.
-- The LoRA item is built from `Model`: `code_name` = model id, `name` = model name, positive prompt = trigger words separated by blank lines, one LoRA entry `<subfolder>/<id>.safetensors` with the chosen strengths.
+- The LoRA item is built from `Model`: `code_name` = model id (`<model id>_<version id>` for a chosen version), `name` = model name, positive prompt = trigger words separated by blank lines, one LoRA entry `<subfolder>/<id>.safetensors` (`<subfolder>/<id>-<version id>.safetensors` for a chosen version) with the chosen strengths.
 - Error mapping, using `errors.Is` / `errors.As` on the library's errors and wrapping with `errors.NewErr`:
 
 | Library error | Tag | Metadata |

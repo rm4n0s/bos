@@ -10,7 +10,8 @@ import (
 )
 
 // Install copies a model into <comfyPath>/models/loras/<subfolder>/ under the
-// name <id>.safetensors (SPEC §9). The application needs file access to that
+// name <id>.safetensors, or <id>-<version>.safetensors for a version that was
+// asked for (SPEC §9). The application needs file access to that
 // directory (it runs on the same machine, or the folder is shared). The file is
 // copied to a temporary name and renamed, so ComfyUI never sees half a model.
 func (a *Adapter) Install(m Model, comfyPath, subfolder string) (string, error) {
@@ -27,7 +28,7 @@ func Install(m Model, comfyPath, subfolder string) (string, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // ComfyUI, a program of the same user, must be able to read the folder
 		return "", errors.NewErr("FileStoreFailure", err).SetMetadata("path", dir, "operation", "mkdir")
 	}
-	name := ModelName(m.ID, subfolder)
+	name := ModelName(m.ID, m.Requested, subfolder)
 	target := filepath.Join(dir, filepath.Base(name))
 	if st, err := os.Stat(target); err == nil && st.Size() == m.Size && m.Size > 0 {
 		return name, nil // already there

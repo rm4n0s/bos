@@ -97,7 +97,7 @@ func TestDownload(t *testing.T) {
 	a := site.adapter("tok")
 	dir := t.TempDir()
 
-	m, err := a.Download(t.Context(), 7, dir)
+	m, err := a.Download(t.Context(), 7, 0, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestDownload(t *testing.T) {
 	}
 
 	// Again: nothing is downloaded.
-	again, err := a.Download(t.Context(), 7, dir)
+	again, err := a.Download(t.Context(), 7, 0, dir)
 	if err != nil || !again.Skipped || site.downloads.Load() != 1 {
 		t.Errorf("second download: %+v, %v, %d downloads", again, err, site.downloads.Load())
 	}
@@ -144,7 +144,7 @@ func TestDownloadFailures(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := a.Download(t.Context(), tc.id, dir)
+			_, err := a.Download(t.Context(), tc.id, 0, dir)
 			appErr := wantTag(t, err, tc.tag)
 			if tc.id > 0 && appErr.Metadata["model_id"] != tc.id {
 				t.Errorf("metadata = %v", appErr.Metadata)
@@ -160,18 +160,18 @@ func TestDownloadFailures(t *testing.T) {
 	}
 
 	site.badHash = true
-	_, err := a.Download(t.Context(), 7, dir)
+	_, err := a.Download(t.Context(), 7, 0, dir)
 	_ = wantTag(t, err, "CivitaiDownloadFailed")
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	_, err = a.Download(ctx, 7, dir)
+	_, err = a.Download(ctx, 7, 0, dir)
 	_ = wantTag(t, err, "CivitaiDownloadFailed")
 }
 
 func TestStatusErrorsCarryTheStatus(t *testing.T) {
 	site := newSite(t)
-	_, err := site.adapter("tok").Download(t.Context(), 8, t.TempDir())
+	_, err := site.adapter("tok").Download(t.Context(), 8, 0, t.TempDir())
 	appErr := wantTag(t, err, "CivitaiDownloadFailed")
 	if appErr.Metadata["status"] != http.StatusForbidden {
 		t.Errorf("metadata = %v", appErr.Metadata)
@@ -180,7 +180,7 @@ func TestStatusErrorsCarryTheStatus(t *testing.T) {
 
 func TestRateLimitedCarriesRetryAfter(t *testing.T) {
 	site := newSite(t)
-	_, err := site.adapter("tok").Download(t.Context(), 10, t.TempDir())
+	_, err := site.adapter("tok").Download(t.Context(), 10, 0, t.TempDir())
 	appErr := wantTag(t, err, "CivitaiRateLimited")
 	if appErr.Metadata["retry_after"] != "7s" {
 		t.Errorf("metadata = %v", appErr.Metadata)
@@ -194,19 +194,19 @@ func TestNotConfigured(t *testing.T) {
 	if a.Configured() {
 		t.Error("an adapter without a token says it is configured")
 	}
-	_, err := a.Download(t.Context(), 7, t.TempDir())
+	_, err := a.Download(t.Context(), 7, 0, t.TempDir())
 	_ = wantTag(t, err, "CivitaiNotConfigured")
 	if len(site.tokens) != 0 || site.downloads.Load() != 0 {
 		t.Error("something was attempted without a token")
 	}
-	_, err = site.adapter("tok").Download(t.Context(), 7, "")
+	_, err = site.adapter("tok").Download(t.Context(), 7, 0, "")
 	_ = wantTag(t, err, "CivitaiNotConfigured")
 }
 
 func TestInstall(t *testing.T) {
 	site := newSite(t)
 	cache := t.TempDir()
-	m, err := site.adapter("tok").Download(t.Context(), 7, cache)
+	m, err := site.adapter("tok").Download(t.Context(), 7, 0, cache)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestInstall(t *testing.T) {
 
 func TestInstallRefusals(t *testing.T) {
 	site := newSite(t)
-	m, err := site.adapter("tok").Download(t.Context(), 7, t.TempDir())
+	m, err := site.adapter("tok").Download(t.Context(), 7, 0, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +272,39 @@ func TestInstallRefusals(t *testing.T) {
 }
 
 func TestModelName(t *testing.T) {
-	if ModelName(7, "") != "7.safetensors" || ModelName(7, "a/b") != "a/b/7.safetensors" {
+	if ModelName(7, 0, "") != "7.safetensors" || ModelName(7, 0, "a/b") != "a/b/7.safetensors" ||
+		ModelName(7, 71, "") != "7-71.safetensors" || ModelName(7, 71, "a/b") != "a/b/7-71.safetensors" {
 		t.Error("model names are wrong")
+	}
+}
+
+func TestDownloadAVersion(t *testing.T) {
+	site := newSite(t)
+	a := site.adapter("tok")
+	dir := t.TempDir()
+
+	m, err := a.Download(t.Context(), 7, 71, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The version has a folder of its own, so it does not overwrite the newest one.
+	if m.ID != 7 || m.VersionID != 71 || m.Requested != 71 || m.FilePath != filepath.Join(dir, "versions", "71", "7.safetensors") {
+		t.Errorf("model = %+v", m)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "7.safetensors")); !os.IsNotExist(err) {
+		t.Errorf("the newest version's place was written: %v", err)
+	}
+	newest, err := a.Download(t.Context(), 7, 0, dir)
+	if err != nil || newest.Requested != 0 || newest.Skipped || newest.FilePath != filepath.Join(dir, "7.safetensors") {
+		t.Errorf("newest = %+v, %v", newest, err)
+	}
+
+	// A version the model does not have, and one without a file.
+	for _, version := range []int{99, 70} {
+		_, err := a.Download(t.Context(), 7, version, dir)
+		appErr := wantTag(t, err, "CivitaiDownloadFailed")
+		if appErr.Metadata["model_id"] != 7 || appErr.Metadata["version_id"] != version {
+			t.Errorf("version %d: metadata = %v", version, appErr.Metadata)
+		}
 	}
 }

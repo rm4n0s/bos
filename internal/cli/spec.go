@@ -176,7 +176,7 @@ var commands = []command{
 		Body:     append(append([]field(nil), groupFields[:4]...), field{"text", "text", kText, "the text, one item for each line (or @file)"}),
 		Required: []string{"name", "code_name", "text"}},
 	{Resource: "group", Verb: "import-civitai", Summary: "Make a group and import LoRAs from Civitai into it", Method: "POST", Path: "/groups/import-civitai", Result: resultOne, DataFile: true,
-		Body:     append(append([]field(nil), groupFields[:4]...), append([]field{{"model", "models", kList, "a model as id[:model strength[:clip strength]], repeatable"}}, civitaiFields...)...),
+		Body:     append(append([]field(nil), groupFields[:4]...), append([]field{{"model", "models", kList, "a model as id[/version][:model strength[:clip strength]], repeatable (no version: the newest)"}}, civitaiFields...)...),
 		Required: []string{"name", "code_name", "models", "comfyui_path"}},
 
 	// items
@@ -188,7 +188,7 @@ var commands = []command{
 	{Resource: "item", Verb: "update", Summary: "Change an item", Method: "PUT", Path: "/items/{id}", Args: []string{"id"}, Result: resultOne, Merge: true, DataFile: true, Body: itemFields, Files: itemFiles},
 	{Resource: "item", Verb: "delete", Summary: "Delete an item with its files", Method: "DELETE", Path: "/items/{id}", Args: []string{"id"}, Result: resultNone},
 	{Resource: "item", Verb: "add-civitai", Summary: "Add one Civitai LoRA to a group as an item", Method: "POST", Path: "/groups/{id}/items/civitai", Args: []string{"group"}, Result: resultOne,
-		Body:     append([]field{{"model", "model_id", kInt, "the Civitai model id"}, {"model-strength", "model_strength", kFloat, "strength for the model (default 1)"}, {"clip-strength", "model_clip", kFloat, "strength for the text encoder (default 1)"}}, civitaiFields...),
+		Body:     append([]field{{"model", "model_id", kInt, "the Civitai model id"}, {"version", "version_id", kInt, "the version of the model (default: the newest)"}, {"model-strength", "model_strength", kFloat, "strength for the model (default 1)"}, {"clip-strength", "model_clip", kFloat, "strength for the text encoder (default 1)"}}, civitaiFields...),
 		Required: []string{"model_id", "comfyui_path"}},
 
 	// tags

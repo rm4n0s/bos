@@ -167,17 +167,17 @@ type FakeCivitai struct{}
 func (FakeCivitai) Configured() bool { return true }
 
 // Download implements civitai.Models.
-func (FakeCivitai) Download(_ context.Context, id int, _ string) (civitai.Model, error) {
+func (FakeCivitai) Download(_ context.Context, id, version int, _ string) (civitai.Model, error) {
 	switch id {
 	case 7:
-		return civitai.Model{ID: 7, Name: "Dancing Fox", TriggerWords: []string{"dancing fox", "sparkles"}}, nil
+		return civitai.Model{ID: 7, Requested: version, Name: "Dancing Fox", TriggerWords: []string{"dancing fox", "sparkles"}}, nil
 	case 8:
-		return civitai.Model{ID: 8, Name: "Sleepy Owl", Skipped: true}, nil
+		return civitai.Model{ID: 8, Requested: version, Name: "Sleepy Owl", Skipped: true}, nil
 	}
 	return civitai.Model{}, errors.New("CivitaiModelNotFound", "there is no such model on Civitai", "model_id", id)
 }
 
 // Install implements civitai.Models.
 func (FakeCivitai) Install(m civitai.Model, _, subfolder string) (string, error) {
-	return civitai.ModelName(m.ID, subfolder), nil
+	return civitai.ModelName(m.ID, m.Requested, subfolder), nil
 }

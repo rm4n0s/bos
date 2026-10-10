@@ -16,17 +16,17 @@ import (
 type stubCivitai struct{}
 
 func (stubCivitai) Configured() bool { return true }
-func (stubCivitai) Download(_ context.Context, id int, _ string) (civitai.Model, error) {
+func (stubCivitai) Download(_ context.Context, id, version int, _ string) (civitai.Model, error) {
 	switch id {
 	case 7:
-		return civitai.Model{ID: 7, Name: "Dancing Fox", TriggerWords: []string{"dancing fox"}}, nil
+		return civitai.Model{ID: 7, Requested: version, Name: "Dancing Fox", TriggerWords: []string{"dancing fox"}}, nil
 	case 8:
-		return civitai.Model{ID: 8, Name: "Sleepy Owl", Skipped: true}, nil
+		return civitai.Model{ID: 8, Requested: version, Name: "Sleepy Owl", Skipped: true}, nil
 	}
 	return civitai.Model{}, errors.New("CivitaiModelNotFound", "there is no such model", "model_id", id)
 }
 func (stubCivitai) Install(m civitai.Model, _, sub string) (string, error) {
-	return civitai.ModelName(m.ID, sub), nil
+	return civitai.ModelName(m.ID, m.Requested, sub), nil
 }
 
 func withCivitai(t *testing.T) (*testAPI, string) {
@@ -80,6 +80,15 @@ func TestCivitaiRoutes(t *testing.T) {
 		t.Errorf("accepted = %v", r.json())
 	}
 	a.api.Services.Civitai.Wait()
+
+	// A chosen version is its own item and its own file.
+	a.expect(a.do("POST", "/api/v1/groups/1/items/civitai", map[string]any{"model_id": 7, "version_id": 71, "comfyui_path": comfy, "lora_subfolder": "other"}), 202, "")
+	a.api.Services.Civitai.Wait()
+	list := a.expect(a.do("GET", "/api/v1/groups/1/items", nil), 200, "").json()["items"].([]any)
+	last := list[len(list)-1].(map[string]any)
+	if last["code_name"] != "7_71" || last["loras"].([]any)[0].(map[string]any)["name"] != "other/7-71.safetensors" {
+		t.Errorf("item of a version = %v", last)
+	}
 }
 
 func TestCivitaiRouteFailures(t *testing.T) {

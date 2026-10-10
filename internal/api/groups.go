@@ -234,15 +234,17 @@ func (a *API) deleteItem(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// civitaiModel is a model to import. Strengths that are left out are 1.
+// civitaiModel is a model to import. Strengths that are left out are 1, and a
+// version that is left out is the newest.
 type civitaiModel struct {
 	ModelID       int      `json:"model_id"`
+	VersionID     int      `json:"version_id"`
 	StrengthModel *float64 `json:"model_strength"`
 	StrengthClip  *float64 `json:"model_clip"`
 }
 
 func (m civitaiModel) service() service.CivitaiModel {
-	out := service.CivitaiModel{ModelID: m.ModelID, StrengthModel: 1, StrengthClip: 1}
+	out := service.CivitaiModel{ModelID: m.ModelID, VersionID: m.VersionID, StrengthModel: 1, StrengthClip: 1}
 	if m.StrengthModel != nil {
 		out.StrengthModel = *m.StrengthModel
 	}
