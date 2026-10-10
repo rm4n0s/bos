@@ -40,7 +40,7 @@
 
 {{define "job_row"}}<tr id="job-{{.ID}}">
   <td>{{.ID}}</td>
-  <td>{{if .ResultURL}}{{if .IsImage}}<a href="{{.ResultURL}}" target="_blank" rel="noopener"><img class="thumb" src="{{.ResultURL}}" alt="result of job {{.ID}}"></a>{{else}}<a href="{{.ResultURL}}" target="_blank" rel="noopener">open</a>{{end}}{{else}}<span class="thumb empty-thumb"></span>{{end}}</td>
+  <td>{{if .ResultURL}}{{if .IsImage}}<a href="{{.ResultURL}}" data-viewer="Job {{.ID}}" target="_blank" rel="noopener"><img class="thumb" src="{{.ResultURL}}" alt="result of job {{.ID}}"></a>{{else}}<a href="{{.ResultURL}}" target="_blank" rel="noopener">open</a>{{end}}{{else}}<span class="thumb empty-thumb"></span>{{end}}</td>
   <td><span class="badge {{statusOf .Status}}">{{.Status}}</span>{{if .Error}}<div class="error clip" title="{{.Error}}">{{.Error}}</div>{{end}}{{if .FixerCount}}<div class="muted">fixers {{.FinishedFixers}}/{{.FixerCount}}</div>{{end}}</td>
   <td>{{if .ServerHost}}{{.ServerHost}}{{else}}<span class="muted">—</span>{{end}}</td>
   <td class="clip">{{.PositivePrompt}}</td>
@@ -55,7 +55,7 @@
 {{define "job_detail"}}
 <h2>Job {{.ID}} <span class="badge {{statusOf .Status}}">{{.Status}}</span></h2>
 <input type="hidden" name="id" value="{{.ID}}">
-{{if .ResultURL}}{{if .IsImage}}<a href="{{.ResultURL}}" target="_blank" rel="noopener"><img class="result" src="{{.ResultURL}}" alt="result of job {{.ID}}"></a>{{else}}<p><a href="{{.ResultURL}}" target="_blank" rel="noopener">Open the result</a></p>{{end}}{{end}}
+{{if .ResultURL}}{{if .IsImage}}<a href="{{.ResultURL}}" data-viewer="Job {{.ID}}" target="_blank" rel="noopener"><img class="result" src="{{.ResultURL}}" alt="result of job {{.ID}}"></a>{{else}}<p><a href="{{.ResultURL}}" target="_blank" rel="noopener">Open the result</a></p>{{end}}{{end}}
 {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
 {{if .Job.Warnings}}<ul class="problems">{{range .Job.Warnings}}<li>{{.}}</li>{{end}}</ul>{{end}}
 {{if .Job.ErrorTrace}}<details><summary>Trace</summary><pre class="trace">{{.Job.ErrorTrace}}</pre></details>{{end}}

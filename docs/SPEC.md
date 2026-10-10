@@ -1017,7 +1017,7 @@ Full pages are plain `GET`s that return a complete HTML document. Everything int
 | Live stream | `GET /ui/stream/commands/{id}` · `GET /ui/stream/toasts` | Long-lived SSE connections (§16.4) |
 | Preview | `POST /ui/commands/preview` | Live feedback while typing (§16.3) |
 | Completion | `POST /ui/commands/complete?pos=N` | Code names that fit at the caret of the command text area (§16.3); `N` is the caret in UTF-16 units |
-| Static | `GET /static/…` | Embedded Datastar script, CSS |
+| Static | `GET /static/…` | Embedded Datastar script, the scripts of the interface, CSS |
 
 Read actions use `GET` (signals arrive in the `datastar` query parameter); writes use `POST`/`PUT`/`DELETE` (signals arrive as a JSON body). Route paths in the UI are separate from `/api/v1` and are not a public contract.
 
@@ -1033,7 +1033,7 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 | Groups | Table with thumbnail, tag chips (click to filter), feature-flag chips; tag input with autocomplete; dialogs for text-file import and Civitai import (progress shown through the event stream) |
 | Items | Editor sections appear only for the flags the group enables; image previews from `/files/…`; mask-region upload shows the generated keywords immediately; item `tags` input with autocomplete; renaming an item tag shows the commands that mention it |
 | Commands | The command text area sends its content, debounced, to `/ui/commands/preview` and patches a result panel: errors with the offending span highlighted, warnings, total jobs, jobs kept after `where`/`limit`/`sample`, and (for several servers) jobs per server. Add is enabled only when the preview is valid. While the user types, the text area also offers the **code names that fit at the caret**: servers (at the start and after `on`), the generator after `-$`, groups after `:`, `*`, `&&`, `||` (also in template and region bodies, in `where` and after `spread by`), the items of the group whose parenthesis the caret is in (and in `where group = …` and `group in (…)`), item tags after `#`, and fixers after `>`. Nothing is offered inside a string, in a pattern (`%`, `?`), where a free name is typed (template tags, region keywords) or where no name belongs. The list is sorted, holds at most 12 names, and is a service call (`CommandService.Complete`) that stores nothing and fails only when the store does. Tab takes the first name (or the chosen one), the arrow keys choose, Enter takes a name only after an arrow chose it, Esc closes the list. List shows progress `finished/total`, run/stop/recreate/download buttons, drag-or-button reordering |
-| Jobs | Grid or table of jobs with status, assigned server, thumbnail of the result, seed; click to open prompts for editing; error and trace shown for failed jobs |
+| Jobs | Grid or table of jobs with status, assigned server, thumbnail of the result, seed; click to open prompts for editing; a click on a result picture opens it in a viewer over the same page, with previous and next buttons (also the arrow keys and a swipe) over the pictures of the current page, and a modifier-click still opens it in a new tab; error and trace shown for failed jobs |
 | REPL | Form as in §8.6; result image replaces itself when the job finishes |
 
 ### 16.4 Live updates
@@ -1057,6 +1057,7 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 - If `auth_token` is set, the UI shows a sign-in form once, stores a signed cookie (`HttpOnly`, `SameSite=Strict`), and both the UI and the REST API honour the token.
 - **CSRF.** All state-changing `/ui/` routes require the header `Datastar-Request: true` and a same-origin `Origin`/`Sec-Fetch-Site`; others are rejected with `403`. Cookies are `SameSite=Strict`.
 - Response header `Content-Security-Policy` allows scripts only from `'self'` (plus `'unsafe-eval'`, because Datastar compiles the expressions of its attributes with the `Function` constructor; no inline script and no remote script is allowed), and nothing else from outside: `default-src 'none'`, styles, images and connections from `'self'`, `frame-ancestors 'none'`; user-supplied text (prompts, names) is always HTML-escaped by `html/template`. Datastar attribute values that interpolate user data are escaped for attribute context; user text is never placed inside an expression.
+- **No caching.** Nothing the interface sends is kept by the browser: pages, fragments, the static scripts and styles, and the files under `/files` all carry `Cache-Control: no-store`. A result keeps its name when its job runs again (and the REPL result always has the same one), and a kept style sheet next to a new script breaks the page.
 - File routes serve only from the configured directories, a relative path of plain segments (§15.2), with `Content-Type` fixed by extension and `X-Content-Type-Options: nosniff`.
 
 ## 17. Error handling (`github.com/rm4n0s/errors`)

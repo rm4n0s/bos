@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/static/app.css">
 <script type="module" src="/static/datastar.js"></script>
 <script src="/static/complete.js" defer></script>
+<script src="/static/viewer.js" defer></script>
 </head>
 <body{{if not .NoStream}} data-init="@get('/ui/stream/toasts', {retry: 'always', retryMaxCount: 1000000, openWhenHidden: true})"{{end}}>
 <header class="top">

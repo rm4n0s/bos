@@ -102,6 +102,8 @@ func (s *Server) Send(w http.ResponseWriter, r *http.Request, path, contentType 
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "sandbox")
+	// A result keeps its name when a job is run again, so no copy is kept.
+	w.Header().Set("Cache-Control", "no-store")
 	if seeker, ok := f.(io.ReadSeeker); ok {
 		http.ServeContent(w, r, filepath.Base(path), modified, seeker)
 	} else if _, err := io.Copy(w, f); err != nil && s.Logger != nil {

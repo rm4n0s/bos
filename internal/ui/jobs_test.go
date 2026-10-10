@@ -50,6 +50,12 @@ func TestJobGrid(t *testing.T) {
 		`id="job-1"`, `id="job-2"`, `id="job-3"`, "18446744073709551615", "the workflow is wrong",
 		`<img class="thumb" src="/files/results/1/alice.png"`, "/ui/stream/commands/"+itoa(cmd), "retry: 'always'")
 	mustNotContain(t, "page", page.Body, `src="/files/results/1/`+"bob")
+	// A picture opens in the viewer on the same page (the link still works in a new tab with a modifier key).
+	mustContain(t, "viewer", page.Body, `<a href="/files/results/1/alice.png" data-viewer="Job 1"`, `/static/viewer.js`)
+	mustNotContain(t, "viewer", page.Body, `data-viewer="Job 2"`)
+	if r := u.get("/static/viewer.js"); r.Status != 200 {
+		t.Errorf("viewer.js status = %d", r.Status)
+	}
 	if u.get("/commands/99/jobs").Status != 404 || u.get("/commands/x/jobs").Status != 404 {
 		t.Error("a missing command must be a 404")
 	}
@@ -68,7 +74,7 @@ func TestJobGrid(t *testing.T) {
 	if r.signals()["jobs"].(map[string]any)["open"] != true {
 		t.Errorf("signals = %v", r.signals())
 	}
-	mustContain(t, "result image", u.datastar("GET", "/ui/jobs/1/open", struct{}{}).patches(), `<img class="result" src="/files/results/1/alice.png"`)
+	mustContain(t, "result image", u.datastar("GET", "/ui/jobs/1/open", struct{}{}).patches(), `<img class="result" src="/files/results/1/alice.png"`, `data-viewer="Job 1"`)
 
 	// Editing prompts resets the job; the row and the header are redrawn.
 	r = u.submit("POST", "/ui/jobs/save", field("id", "2"), field("positive_prompt", "a better prompt"), field("negative_prompt", "ugly"))

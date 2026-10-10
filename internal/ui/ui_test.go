@@ -255,3 +255,21 @@ func TestTemplatesThatDoNotParseAreReported(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// Nothing the interface sends is kept by the browser: not the pages, not the
+// scripts and styles (a changed style sheet would meet a new script), and not
+// the pictures, whose names are reused (the REPL result always has the same
+// one).
+func TestNothingIsCached(t *testing.T) {
+	u := newTestUI(t)
+	check(t, u.env.Files.Write(u.env.Dirs.Results+"/1/alice.png", strings.NewReader("png")))
+	for _, path := range []string{"/", "/servers", "/static/app.css", "/static/datastar.js", "/static/viewer.js", "/static/complete.js", "/files/results/1/alice.png"} {
+		r := u.get(path)
+		if r.Status != 200 {
+			t.Errorf("%s: status = %d", path, r.Status)
+		}
+		if got := r.Header.Get("Cache-Control"); got != "no-store" {
+			t.Errorf("%s: Cache-Control = %q, want no-store", path, got)
+		}
+	}
+}

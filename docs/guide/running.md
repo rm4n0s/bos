@@ -35,6 +35,8 @@ The preview and *Add* agree: the same text gives the same number of jobs.
 
 The jobs of a command are listed in the order the command defines. Each shows its status, the server that ran it, a small picture of the result, the seed, the prompt and the error.
 
+**Looking at the pictures.** Click a small picture to see it large, over the same page. The `‹` and `›` buttons, or the left and right arrow keys (or a swipe on a touch screen), move to the previous and the next picture of the list; `Esc`, the `×` or a click beside the picture closes it. It goes through the pictures on the page you are looking at, so use the page numbers below the list to reach the others; pictures that arrive while it is open are in the list at once. A click with `Ctrl`, `Shift` or the middle button still opens the picture alone in a new tab.
+
 Open a job to see everything it carries: the prompts, the generator, the LoRAs, the warnings ComfyUI gave about nodes, and for a failed job the error and its trace.
 
 - **Edit the prompts** of a job and it starts over: its result is deleted and it goes back to idle. (Not while it runs.)

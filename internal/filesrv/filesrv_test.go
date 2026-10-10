@@ -52,7 +52,8 @@ func TestServe(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rec.Code != http.StatusPartialContent || rec.Body.String() != "234" || rec.Header().Get("Content-Type") != "image/png" ||
-		rec.Header().Get("X-Content-Type-Options") != "nosniff" || rec.Header().Get("Content-Security-Policy") != "sandbox" {
+		rec.Header().Get("X-Content-Type-Options") != "nosniff" || rec.Header().Get("Content-Security-Policy") != "sandbox" ||
+		rec.Header().Get("Cache-Control") != "no-store" {
 		t.Errorf("response = %d %q %v", rec.Code, rec.Body, rec.Header())
 	}
 

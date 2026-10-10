@@ -22,12 +22,13 @@ var templateFS embed.FS
 //go:embed static
 var staticFS embed.FS
 
-// staticHandler serves the embedded scripts and styles. They never change
-// while the program runs.
+// staticHandler serves the embedded scripts and styles. They are not kept by
+// the browser: a style sheet that is kept while the script next to it is new
+// breaks the page, and they are small and served from this machine.
 func staticHandler(dir fs.FS) http.Handler {
 	files := http.FileServerFS(dir)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=3600")
+		w.Header().Set("Cache-Control", "no-store")
 		files.ServeHTTP(w, r)
 	})
 }

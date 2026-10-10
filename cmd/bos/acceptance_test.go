@@ -188,6 +188,10 @@ func TestAcceptanceWholeProgram(t *testing.T) {
 	p.must(202, "POST", "/commands/1/run", nil)
 	// 25: the command is not finished while a job is not.
 	p.waitFor("the command to finish", 30*time.Second, func() bool {
+		// The status is read first: a command that is finished stays finished and
+		// so do its jobs, so the jobs read after it must all be finished. (Reading
+		// the jobs first would fail when the last one ends between the two reads.)
+		status := p.commandStatus(1)
 		jobs := p.jobs(1)
 		finished := 0
 		for _, j := range jobs {
@@ -195,10 +199,10 @@ func TestAcceptanceWholeProgram(t *testing.T) {
 				finished++
 			}
 		}
-		if finished < len(jobs) && p.commandStatus(1) == "finished" {
+		if finished < len(jobs) && status == "finished" {
 			t.Fatalf("the command is finished with %d of %d jobs", finished, len(jobs))
 		}
-		return p.commandStatus(1) == "finished"
+		return status == "finished"
 	})
 
 	// 8: every job did its generation and its fixer step.
