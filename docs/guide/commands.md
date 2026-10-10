@@ -13,6 +13,8 @@ gpu1, gpu2 -$ anime: characters * poses(~jumping) * emotions(cry) * "masterpiece
 
 Line breaks and extra spaces do not matter (`a*b`, `a * b` and `a   *   b` are the same), except inside quotes. The clauses must come in this order: `where`, then `limit` or `sample`, then `repeat`, then `with`, then `spread`, then the fixers.
 
+**Names complete as you type.** In the web page, the box under the command offers the code names that fit where the cursor is: servers at the start, the generator after `-$`, groups after the colon and after `*`, the items of a group inside its parentheses, tags after `#`, and fixers after `>`. Press `Tab` to take the first one, `↑` `↓` to choose and `Tab` or `Enter` to take it, `Esc` to close the list, or click a name. Nothing is offered inside quotes or where you make up a name yourself (the tag of a template, the keyword of a region).
+
 **Always preview first.** In the web page the preview updates as you type and *Save* stays disabled until the command is valid; in a terminal use `bosctl command preview "…"`. It tells you how many jobs the command makes and what is wrong, with the offending part marked, and changes nothing.
 
 ## The shortest command

@@ -56,9 +56,13 @@
 </div>
 <label>Description <input name="description" value="{{.Description}}"></label>
 <label>Command
-  <textarea name="code" rows="3" spellcheck="false" placeholder="gpu1 -$ anime: characters * poses" data-on:input__debounce.400ms="@post('/ui/commands/preview', {contentType: 'form'})">{{.Code}}</textarea>
+  <textarea id="command-code" name="code" rows="3" spellcheck="false" autocomplete="off" placeholder="gpu1 -$ anime: characters * poses"
+    data-on:input__debounce.400ms="@post('/ui/commands/preview', {contentType: 'form'})"
+    data-on:keyup__debounce.150ms="['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(evt.key) || @post('/ui/commands/complete?pos=' + el.selectionStart, {contentType: 'form'})"
+    data-on:click__debounce.150ms="@post('/ui/commands/complete?pos=' + el.selectionStart, {contentType: 'form'})">{{.Code}}</textarea>
 </label>
-<p class="hint">Servers, then <code>-$</code>, then the generator, a colon and the terms. Groups multiply with <code>*</code>; <code>where</code>, <code>limit</code>, <code>sample</code>, <code>repeat</code> and <code>with</code> shape the batch.</p>
+<div id="command-suggest" class="suggest" aria-live="polite"></div>
+<p class="hint">Names complete as you type: <kbd>Tab</kbd> takes the first suggestion, <kbd>↑</kbd> <kbd>↓</kbd> choose, <kbd>Esc</kbd> closes the list. Servers, then <code>-$</code>, then the generator, a colon and the terms. Groups multiply with <code>*</code>; <code>where</code>, <code>limit</code>, <code>sample</code>, <code>repeat</code> and <code>with</code> shape the batch.</p>
 {{template "command_preview" .Preview}}
 {{end}}
 
@@ -79,3 +83,5 @@
   <pre class="trace">{{range .Segments}}{{if .Mark}}<mark class="mark">{{.Text}}</mark>{{else}}{{.Text}}{{end}}{{end}}</pre>
 {{end}}
 </div>{{end}}
+
+{{define "command_suggest"}}{{if .Names}}<ul role="listbox" aria-label="Suggested names">{{range .Names}}<li><button type="button" tabindex="-1" role="option" data-start="{{$.Start}}" data-end="{{$.End}}" data-name="{{.}}">{{.}}</button></li>{{end}}</ul>{{if .More}}<p class="muted">More names fit: keep typing to narrow the list.</p>{{end}}{{end}}{{end}}

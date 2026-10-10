@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"github.com/rm4n0s/bos/internal/command"
@@ -90,6 +91,44 @@ func (u *UI) previewOf(r *http.Request, code string) (previewView, error) {
 		view.Segments = segments(code, spans)
 	}
 	return view, nil
+}
+
+// suggestions is the list under the command box. The page counts in UTF-16
+// units, as the browser does, so the span of the text each name replaces is
+// given in them.
+type suggestions struct {
+	Names      []string
+	More       bool
+	Start, End int
+}
+
+func suggestionsOf(code string, c *service.Completions) suggestions {
+	return suggestions{Names: c.Names, More: c.More, Start: utf16Offset(code, c.Start), End: utf16Offset(code, c.End)}
+}
+
+// byteOffset converts a position in UTF-16 units, as a browser counts the
+// caret, into a byte offset of s. A position past the end is the end.
+func byteOffset(s string, units int) int {
+	n := 0
+	for i, r := range s {
+		if n >= units {
+			return i
+		}
+		n += utf16.RuneLen(r)
+	}
+	return len(s)
+}
+
+// utf16Offset is the opposite: the position in UTF-16 units of a byte offset.
+func utf16Offset(s string, offset int) int {
+	n := 0
+	for i, r := range s {
+		if i >= offset {
+			break
+		}
+		n += utf16.RuneLen(r)
+	}
+	return n
 }
 
 func onlySpace(s string) bool {
@@ -188,6 +227,22 @@ func (u *UI) commandRoutes() {
 			return err
 		}
 		return s.set(map[string]any{"cmd": map[string]any{"valid": pv.Valid}})
+	}))
+	u.handle("POST /ui/commands/complete", u.actForm("", func(r *http.Request, f *form, s *stream) error {
+		code := f.raw("code")
+		cursor := len(code)
+		if raw := r.URL.Query().Get("pos"); raw != "" {
+			units, err := strconv.Atoi(raw)
+			if err != nil || units < 0 {
+				return errors.New("InvalidRequest", "a whole number is needed", "field", "pos", "value", raw)
+			}
+			cursor = byteOffset(code, units)
+		}
+		got, err := u.Services.Commands.Complete(r.Context(), code, cursor)
+		if err != nil {
+			return err
+		}
+		return s.into("command-suggest", "command_suggest", suggestionsOf(code, got))
 	}))
 	u.handle("POST /ui/projects/{id}/commands", u.actForm("commands-error", func(r *http.Request, f *form, s *stream) error {
 		project, err := pathID(r, "id")

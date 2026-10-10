@@ -214,3 +214,48 @@ func TestCommandListPagesKeepTheirPlace(t *testing.T) {
 	r = u.datastar("POST", "/ui/commands/21/up?page=2", struct{}{})
 	mustContain(t, "action on page 2", r.patches(), "Page 2 of 2")
 }
+
+func TestCommandCompletion(t *testing.T) {
+	u := newTestUI(t)
+	u.commandWorld()
+	complete := func(code string, pos int) reply {
+		return u.submit("POST", "/ui/commands/complete?pos="+itoa(int64(pos)), field("code", code))
+	}
+
+	// The names that fit, each with the span it replaces.
+	r := complete("gpu1 -$ anime: ch", 17)
+	mustContain(t, "group", r.patches(), "selector #command-suggest",
+		`data-name="characters"`, `data-start="15"`, `data-end="17"`)
+	mustNotContain(t, "group", r.patches(), `data-name="poses"`)
+
+	r = complete("gpu1 -$ anime: characters(", 26)
+	mustContain(t, "items", r.patches(), `data-name="a"`, `data-name="b"`, `data-name="c"`, `data-start="26"`, `data-end="26"`)
+
+	// The page sends the cursor in UTF-16 units and gets the span back in them,
+	// although the text has a 4-byte character before it.
+	text := `gpu1 -$ anime: "😀" * po`
+	units := len([]rune(`gpu1 -$ anime: "`)) + 2 + len(`" * po`)
+	r = complete(text, units)
+	mustContain(t, "utf-16", r.patches(), `data-name="poses"`, `data-start="`+itoa(int64(units-2))+`"`, `data-end="`+itoa(int64(units))+`"`)
+
+	// Where no name fits the list is emptied, so an old one does not stay.
+	r = complete("gpu1 -$ anime: characters limit 3", 33)
+	mustContain(t, "none", r.patches(), "selector #command-suggest")
+	mustNotContain(t, "none", r.patches(), "<button")
+
+	// No position means the end of the text.
+	r = u.submit("POST", "/ui/commands/complete", field("code", "gpu1 -$ anime: po"))
+	mustContain(t, "end of text", r.patches(), `data-name="poses"`)
+
+	// A position that is not a number is a mistake of the call.
+	r = u.submit("POST", "/ui/commands/complete?pos=x", field("code", "gpu1"))
+	mustContain(t, "bad position", r.patches(), "whole number")
+
+	// The form offers a place for the list, and the page loads its script.
+	mustContain(t, "form", u.datastar("GET", "/ui/projects/1/commands/new", struct{}{}).patches(),
+		`id="command-suggest"`, `id="command-code"`, "/ui/commands/complete")
+	mustContain(t, "script", u.get("/projects/1/commands").Body, `/static/complete.js`)
+	if r := u.get("/static/complete.js"); r.Status != 200 {
+		t.Errorf("complete.js status = %d", r.Status)
+	}
+}

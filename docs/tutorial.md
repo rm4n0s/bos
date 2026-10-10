@@ -58,7 +58,7 @@ The *tags* of an item let a command pick items by label: `jumping` is tagged `ac
 gpu1 -$ anime: characters * poses where not #acrobatic
 ```
 
-As you type, the panel under the box answers: *The command is valid*, **9** combinations, **6** after `where` (the three characters times the two poses that are not acrobatic), **6 jobs**. Try breaking it: change `poses` to `pose`. The mistake is underlined in your text and *Save command* is disabled. Put it back.
+As you type, short lists of names that fit appear under the box (try `gpu1 -$ an` and press `Tab`); take them with `Tab` or a click. The panel below answers: *The command is valid*, **9** combinations, **6** after `where` (the three characters times the two poses that are not acrobatic), **6 jobs**. Try breaking it: change `poses` to `pose`. The mistake is underlined in your text and *Save command* is disabled. Put it back.
 
 ![The command editor with its preview](img/command-preview.png)
 

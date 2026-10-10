@@ -81,3 +81,9 @@ button.chip { background: var(--line); color: var(--fg); border: none; padding: 
 .progress { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .filters { margin: 8px 0; }
 details { margin: 8px 0; }
+
+.suggest ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.suggest button { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 10px; font: inherit; font-family: ui-monospace, monospace; cursor: pointer; }
+.suggest button:hover, .suggest button.active { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
+.suggest p { margin: 4px 0 0; font-size: 0.85rem; }
+kbd { border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 0.85em; }
