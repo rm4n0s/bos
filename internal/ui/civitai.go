@@ -56,7 +56,7 @@ func (u *UI) civitaiRoutes() {
 		if err != nil {
 			return err
 		}
-		if err := s.into("group-civitai-body", "group_civitai_form", form); err != nil {
+		if err := s.open("group-civitai-body", "group_civitai_form", form); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"groups": map[string]any{"civitaiOpen": true}})
@@ -86,7 +86,7 @@ func (u *UI) civitaiRoutes() {
 		if err != nil {
 			return err
 		}
-		if err := s.into("items-civitai-body", "civitai_fields", form); err != nil {
+		if err := s.open("items-civitai-body", "civitai_fields", form); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"items": map[string]any{"civitaiOpen": true}})

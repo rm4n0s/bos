@@ -46,7 +46,7 @@ func (u *UI) projectRoutes() {
 		return s.render("projects_table", t)
 	}))
 	u.handle("GET /ui/projects/new", view(u, func(_ *http.Request, _ *struct{}, s *stream) error {
-		if err := s.into("project-form-body", "project_form", projectForm{}); err != nil {
+		if err := s.open("project-form-body", "project_form", projectForm{}); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"projects": map[string]any{"open": true}})
@@ -60,7 +60,7 @@ func (u *UI) projectRoutes() {
 		if err != nil {
 			return err
 		}
-		if err := s.into("project-form-body", "project_form", projectForm{ID: p.ID, Name: p.Name}); err != nil {
+		if err := s.open("project-form-body", "project_form", projectForm{ID: p.ID, Name: p.Name}); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"projects": map[string]any{"open": true}})

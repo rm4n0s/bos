@@ -16,7 +16,7 @@ func TestGeneratorScreen(t *testing.T) {
 
 	// The dialog for a new generator.
 	r := u.datastar("GET", "/ui/generators/new", struct{}{})
-	mustContain(t, "new", r.patches(), "selector #generator-form-body", `name="workflow"`, "Add generator")
+	mustContain(t, "new", r.patches(), `<div id="generator-form-body">`, `name="workflow"`, "Add generator")
 	if r.signals()["generators"].(map[string]any)["open"] != true {
 		t.Errorf("signals = %v", r.signals())
 	}
@@ -216,6 +216,33 @@ func (u *UI) newTestGroup(t *testing.T, g domain.Group) int64 {
 	out, err := u.Services.Groups.Create(t.Context(), g)
 	check(t, err)
 	return out.ID
+}
+
+// A morph keeps what the user typed into a field, so a dialog must replace its
+// body when it opens; otherwise "Add item" shows the item added before.
+func TestOpeningADialogReplacesItsBody(t *testing.T) {
+	u := newTestUI(t)
+	g := u.ui.newTestGroup(t, domain.Group{Name: "Plain", CodeName: "plain"})
+	tests := []struct{ name, path, body string }{
+		{"new item", "/ui/groups/" + itoa(g) + "/items/new", `<div id="item-form-body">`},
+		{"new group", "/ui/groups/new", `<div id="group-form-body">`},
+		{"new project", "/ui/projects/new", `<div id="project-form-body">`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var mode, body bool
+			for _, e := range parseEvents(u.datastar("GET", tt.path, struct{}{}).Body) {
+				if e.Type != "datastar-patch-elements" {
+					continue
+				}
+				mode = mode || strings.Contains(e.Data, "mode replace")
+				body = body || strings.Contains(e.Data, tt.body)
+			}
+			if !mode || !body {
+				t.Errorf("want the body %s replaced, not morphed (replace=%v, body=%v)", tt.body, mode, body)
+			}
+		})
+	}
 }
 
 func TestItemScreenShowsOnlyTheSectionsOfTheGroup(t *testing.T) {

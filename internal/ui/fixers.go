@@ -79,7 +79,7 @@ func (u *UI) fixerRoutes() {
 		return s.render("fixers_table", t)
 	}))
 	u.handle("GET /ui/fixers/new", view(u, func(_ *http.Request, _ *struct{}, s *stream) error {
-		if err := s.into("fixer-form-body", "fixer_form", fixerForm{}); err != nil {
+		if err := s.open("fixer-form-body", "fixer_form", fixerForm{}); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"fixers": map[string]any{"open": true}})
@@ -93,7 +93,7 @@ func (u *UI) fixerRoutes() {
 		if err != nil {
 			return err
 		}
-		if err := s.into("fixer-form-body", "fixer_form", fixerFormOf(x)); err != nil {
+		if err := s.open("fixer-form-body", "fixer_form", fixerFormOf(x)); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"fixers": map[string]any{"open": true}})

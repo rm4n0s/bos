@@ -117,7 +117,7 @@ func TestCommandScreen(t *testing.T) {
 
 	// New command dialog.
 	r := u.datastar("GET", base+"/new", struct{}{})
-	mustContain(t, "new", r.patches(), "selector #command-form-body", `name="code"`, `name="insert_at"`, "Type a command")
+	mustContain(t, "new", r.patches(), `<div id="command-form-body">`, `name="code"`, `name="insert_at"`, "Type a command")
 
 	// Add two.
 	r = u.submit("POST", base, field("id", "0"), field("name", "first"), field("description", "all of them"), field("code", "gpu1 -$ anime: characters"))

@@ -223,7 +223,7 @@ func (u *UI) itemRoutes() {
 		if err != nil {
 			return err
 		}
-		if err := s.into("item-form-body", "item_form", u.itemFormOf(g, nil)); err != nil {
+		if err := s.open("item-form-body", "item_form", u.itemFormOf(g, nil)); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"items": map[string]any{"open": true}})
@@ -241,7 +241,7 @@ func (u *UI) itemRoutes() {
 		if err != nil {
 			return err
 		}
-		if err := s.into("item-form-body", "item_form", u.itemFormOf(g, it)); err != nil {
+		if err := s.open("item-form-body", "item_form", u.itemFormOf(g, it)); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"items": map[string]any{"open": true}})

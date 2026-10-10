@@ -194,7 +194,7 @@ func (u *UI) commandRoutes() {
 		return u.renderCommands(r, s, id)
 	}))
 	u.handle("GET /ui/projects/{id}/commands/new", view(u, func(_ *http.Request, _ *struct{}, s *stream) error {
-		if err := s.into("command-form-body", "command_form", commandForm{Preview: previewView{Empty: true}}); err != nil {
+		if err := s.open("command-form-body", "command_form", commandForm{Preview: previewView{Empty: true}}); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"commands": map[string]any{"open": true}, "cmd": map[string]any{"valid": false}})
@@ -213,7 +213,7 @@ func (u *UI) commandRoutes() {
 			return err
 		}
 		form := commandForm{ID: c.ID, Name: c.Name, Description: c.Description, Code: c.CommandCode, Preview: pv}
-		if err := s.into("command-form-body", "command_form", form); err != nil {
+		if err := s.open("command-form-body", "command_form", form); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"commands": map[string]any{"open": true}, "cmd": map[string]any{"valid": pv.Valid}})

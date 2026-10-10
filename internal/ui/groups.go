@@ -100,13 +100,13 @@ func (u *UI) groupRoutes() {
 		return s.render("groups_table", t)
 	}))
 	u.handle("GET /ui/groups/new", view(u, func(_ *http.Request, _ *struct{}, s *stream) error {
-		if err := s.into("group-form-body", "group_form", groupForm{}); err != nil {
+		if err := s.open("group-form-body", "group_form", groupForm{}); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"groups": map[string]any{"open": true}})
 	}))
 	u.handle("GET /ui/groups/import/new", view(u, func(_ *http.Request, _ *struct{}, s *stream) error {
-		if err := s.into("group-import-body", "group_import_form", groupForm{}); err != nil {
+		if err := s.open("group-import-body", "group_import_form", groupForm{}); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"groups": map[string]any{"importOpen": true}})
@@ -120,7 +120,7 @@ func (u *UI) groupRoutes() {
 		if err != nil {
 			return err
 		}
-		if err := s.into("group-form-body", "group_form", u.groupFormOf(g)); err != nil {
+		if err := s.open("group-form-body", "group_form", u.groupFormOf(g)); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"groups": map[string]any{"open": true}})

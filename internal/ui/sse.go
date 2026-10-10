@@ -43,6 +43,19 @@ func (s *stream) into(id, name string, data any) error {
 	return s.render(name, data, datastar.WithSelectorID(id), datastar.WithModeInner())
 }
 
+// open renders a dialog's form as the content of the element with the given
+// id, replacing it instead of morphing it. A morph keeps what the user typed
+// into the fields (an input's value outlives its attribute), so a dialog
+// opened a second time would show the previous entries instead of the ones
+// sent here.
+func (s *stream) open(id, name string, data any) error {
+	html, err := s.u.fragment(name, data)
+	if err != nil {
+		return err
+	}
+	return s.PatchElements(`<div id="`+id+`">`+html+`</div>`, datastar.WithModeReplace())
+}
+
 // set patches signals; a nil value removes one.
 func (s *stream) set(signals map[string]any) error { return s.MarshalAndPatchSignals(signals) }
 

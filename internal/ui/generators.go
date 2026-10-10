@@ -98,7 +98,7 @@ func (u *UI) generatorRoutes() {
 		return s.render("generators_table", t)
 	}))
 	u.handle("GET /ui/generators/new", view(u, func(_ *http.Request, _ *struct{}, s *stream) error {
-		if err := s.into("generator-form-body", "generator_form", generatorForm{OutputType: "image"}); err != nil {
+		if err := s.open("generator-form-body", "generator_form", generatorForm{OutputType: "image"}); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"generators": map[string]any{"open": true}})
@@ -112,7 +112,7 @@ func (u *UI) generatorRoutes() {
 		if err != nil {
 			return err
 		}
-		if err := s.into("generator-form-body", "generator_form", generatorFormOf(g)); err != nil {
+		if err := s.open("generator-form-body", "generator_form", generatorFormOf(g)); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"generators": map[string]any{"open": true}})

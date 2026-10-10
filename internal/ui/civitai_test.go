@@ -39,7 +39,7 @@ func TestParseModels(t *testing.T) {
 func TestCivitaiImportFromTheGroupsPage(t *testing.T) {
 	u, comfy := withCivitai(t)
 	mustContain(t, "page", u.get("/groups").Body, "Import from Civitai", `name="comfyui_path"`, `name="models"`)
-	mustContain(t, "dialog", u.datastar("GET", "/ui/groups/civitai/new", struct{}{}).patches(), "selector #group-civitai-body", "Import LoRAs from Civitai")
+	mustContain(t, "dialog", u.datastar("GET", "/ui/groups/civitai/new", struct{}{}).patches(), `<div id="group-civitai-body">`, "Import LoRAs from Civitai")
 
 	s := u.live("/ui/stream/toasts", nil)
 	defer s.stop()
@@ -144,7 +144,7 @@ func TestCivitaiDialogsOfferTheServersWithAFolder(t *testing.T) {
 	// The pages carry the same select, so the dialogs are right before they are opened.
 	mustContain(t, "groups page", u.get("/groups").Body, `<option value="/srv/alpha"`)
 	mustContain(t, "items page", u.get("/groups/"+itoa(gid)+"/items").Body, `<option value="/srv/alpha"`, `id="items-civitai-body"`)
-	mustContain(t, "items dialog", u.datastar("GET", items, struct{}{}).patches(), "selector #items-civitai-body")
+	mustContain(t, "items dialog", u.datastar("GET", items, struct{}{}).patches(), `<div id="items-civitai-body">`)
 
 	// One server with a folder is chosen and fills the field.
 	u2, _ := withCivitai(t)
