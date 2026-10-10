@@ -55,7 +55,14 @@ type fakeComfy struct {
 	queueErr func(g workflow.Graph) error
 	waitErr  func(promptID string) error
 	filename string // the name of the file a prompt produces; default out.png
-	warnings []comfy.NodeWarning
+	// comfyRoot, when set, makes the fake behave like an installation on disk: a
+	// prompt writes output/<prompt id>.png below it, and Fetch fails when that
+	// file is not there.
+	comfyRoot string
+	// outputIsDir makes that "file" a folder that is not empty, which cannot be
+	// removed like a file.
+	outputIsDir bool
+	warnings    []comfy.NodeWarning
 
 	next     int
 	prompts  map[string]workflow.Graph
@@ -111,7 +118,7 @@ func (f *fakeComfy) Wait(ctx context.Context, id string) (comfy.Result, error) {
 	f.active++
 	f.maxSeen = max(f.maxSeen, f.active)
 	gate, latency, waitErr := f.gate, f.latency, f.waitErr
-	filename := f.filename
+	filename, root, asDir := f.filename, f.comfyRoot, f.outputIsDir
 	g := f.prompts[id]
 	f.mu.Unlock()
 	defer func() {
@@ -155,6 +162,22 @@ func (f *fakeComfy) Wait(ctx context.Context, id string) (comfy.Result, error) {
 	if filename == "" {
 		filename = "out.png"
 	}
+	if root != "" {
+		filename = id + ".png"
+		if err := os.MkdirAll(filepath.Join(root, "output"), 0o755); err != nil {
+			return comfy.Result{}, errors.NewErr("FileStoreFailure", err)
+		}
+		made := filepath.Join(root, "output", filename)
+		if asDir {
+			made = filepath.Join(made, "inside.txt")
+			if err := os.MkdirAll(filepath.Dir(made), 0o755); err != nil {
+				return comfy.Result{}, errors.NewErr("FileStoreFailure", err)
+			}
+		}
+		if err := os.WriteFile(made, []byte("made by "+id), 0o600); err != nil {
+			return comfy.Result{}, errors.NewErr("FileStoreFailure", err)
+		}
+	}
 	res := comfy.Result{PromptID: id, Outputs: map[string][]comfy.OutputFile{}}
 	if g == nil { // a prompt of an earlier run: ComfyUI still has it in its history
 		res.Outputs["9"] = []comfy.OutputFile{{NodeID: "9", Key: "images", Filename: filename, Type: "output"}}
@@ -169,6 +192,14 @@ func (f *fakeComfy) Wait(ctx context.Context, id string) (comfy.Result, error) {
 }
 
 func (f *fakeComfy) Fetch(_ context.Context, o comfy.OutputFile) (io.ReadCloser, error) {
+	f.mu.Lock()
+	root := f.comfyRoot
+	f.mu.Unlock()
+	if root != "" {
+		if _, err := os.Stat(filepath.Join(root, "output", o.Subfolder, o.Filename)); err != nil {
+			return nil, errors.NewErr("ComfyUICallFailed", err)
+		}
+	}
 	return io.NopCloser(strings.NewReader("image from " + f.name + " via " + o.NodeID)), nil
 }
 
@@ -290,8 +321,16 @@ func newRig(t *testing.T, opts ...rigOption) *rig {
 // server registers a server and the fake that answers for it.
 func (r *rig) server(code string, concurrent int) (*domain.Server, *fakeComfy) {
 	r.t.Helper()
+	return r.serverAt(code, concurrent, "")
+}
+
+// serverAt registers a server that has a ComfyUI folder. With a folder the fake
+// works on disk below it (see comfyRoot).
+func (r *rig) serverAt(code string, concurrent int, comfyPath string) (*domain.Server, *fakeComfy) {
+	r.t.Helper()
 	f := newFakeComfy(code)
-	srv, err := r.svc.Servers.Create(ctx(r.t), domain.Server{Name: code, Host: "http://" + code + ":8188", CodeName: code, MaxConcurrentJobs: concurrent})
+	f.comfyRoot = comfyPath
+	srv, err := r.svc.Servers.Create(ctx(r.t), domain.Server{Name: code, Host: "http://" + code + ":8188", CodeName: code, MaxConcurrentJobs: concurrent, ComfyUIPath: comfyPath})
 	check(r.t, err)
 	r.mu.Lock()
 	r.fakes[srv.Host] = f

@@ -18,6 +18,7 @@ A setting can also come from an environment variable named `BOS_` plus the setti
 | `civitai_token` | none | Your Civitai API key; needed to import LoRAs. Never shown again after it is saved |
 | `civitai_domain` | `civitai.com` | Change it only if your account lives on another Civitai domain |
 | `civitai_pause_seconds` | 15 | Wait between two downloads of one import |
+| `delete_comfy_outputs` | `true` | After a result is saved here, delete it from the `output` folder of its ComfyUI (`true` or `false`). It works only for servers that have a *ComfyUI folder* ([Servers](catalogue.md#servers)), and this program must be able to write to that folder. A file that cannot be deleted is only logged |
 | `listen_addr` | `127.0.0.1:8080` | Where the server listens, `host:port` |
 | `auth_token` | none | If set, the web page asks for it and the API needs it as a bearer token. Never shown again after it is saved |
 | `cors_allow_list` | none | Origins that may call the API from a browser on another site, separated by commas |

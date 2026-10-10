@@ -71,6 +71,7 @@ func TestResolveDefaults(t *testing.T) {
 		"CivitaiPauseSeconds": DefaultCivitaiPause,
 		"LogLevel":            DefaultLogLevel,
 		"MaxJobAttempts":      DefaultMaxJobAttempts,
+		"DeleteComfyOutputs":  true,
 		"ListenAddr":          DefaultListenAddr,
 		"UploadLimit":         int64(DefaultUploadLimitBytes),
 		"EventLogSize":        DefaultEventLogSize,
@@ -143,6 +144,47 @@ func TestEnvironmentOverridesTheStoredValues(t *testing.T) {
 	}
 }
 
+// Deleting the results from ComfyUI is on, unless the setting says false.
+func TestDeleteComfyOutputs(t *testing.T) {
+	tests := []struct {
+		name   string
+		stored string // "-" for not stored
+		env    string
+		want   bool
+	}{
+		{name: "not stored", stored: "-", want: true},
+		{name: "stored empty", stored: "", want: true},
+		{name: "stored true", stored: "true", want: true},
+		{name: "stored false", stored: "false", want: false},
+		{name: "stored in another spelling", stored: "0", want: false},
+		{name: "the environment wins", stored: "true", env: "false", want: false},
+		{name: "the environment turns it on", stored: "false", env: "true", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stored := dirs()
+			if tt.stored != "-" {
+				stored["delete_comfy_outputs"] = tt.stored
+			}
+			cfg, _, err := Resolve(stored, "/srv/bos/bos.db", envFrom(map[string]string{"BOS_DELETE_COMFY_OUTPUTS": tt.env}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.DeleteComfyOutputs != tt.want {
+				t.Errorf("DeleteComfyOutputs = %v, want %v", cfg.DeleteComfyOutputs, tt.want)
+			}
+			// What the settings page shows goes back to the same value.
+			back, _, err := Resolve(cfg.Values(), "/srv/bos/bos.db", envFrom(nil))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if back.DeleteComfyOutputs != tt.want {
+				t.Errorf("after a round trip: %v, want %v (values %q)", back.DeleteComfyOutputs, tt.want, cfg.Values()["delete_comfy_outputs"])
+			}
+		})
+	}
+}
+
 func TestResolveFailures(t *testing.T) {
 	with := func(extra map[string]string) map[string]string {
 		m := dirs()
@@ -170,6 +212,12 @@ func TestResolveFailures(t *testing.T) {
 			env:      map[string]string{"BOS_GRACE_SECONDS": "soon"},
 			route:    "Resolve.ConfigInvalid",
 			problems: []string{"BOS_GRACE_SECONDS must be an integer"},
+		},
+		{
+			name:     "a stored value that is not true or false",
+			stored:   with(map[string]string{"delete_comfy_outputs": "maybe"}),
+			route:    "Resolve.ConfigInvalid",
+			problems: []string{"delete_comfy_outputs must be true or false"},
 		},
 		{
 			name:     "bad values",

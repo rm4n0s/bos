@@ -52,15 +52,18 @@ type Config struct {
 	CivitaiToken    string `json:"civitai_token"`
 	CivitaiDomain   string `json:"civitai_domain"`
 	// CivitaiPauseSeconds is the pause between two downloads of one import.
-	CivitaiPauseSeconds int      `json:"civitai_pause_seconds"`
-	GraceSeconds        int      `json:"grace_seconds"`
-	MaxJobAttempts      int      `json:"max_job_attempts"`
-	PreviewSoftMax      int      `json:"preview_soft_limit"`
-	ListenAddr          string   `json:"listen_addr"`
-	AuthToken           string   `json:"auth_token"`
-	UploadLimit         int64    `json:"upload_limit_bytes"`
-	CORSAllowList       []string `json:"cors_allow_list"`
-	EventLogSize        int      `json:"event_log_size"`
+	CivitaiPauseSeconds int `json:"civitai_pause_seconds"`
+	GraceSeconds        int `json:"grace_seconds"`
+	MaxJobAttempts      int `json:"max_job_attempts"`
+	// DeleteComfyOutputs removes a result from the output folder of its ComfyUI
+	// once this program has saved it (SPEC §8.2). On unless set to false.
+	DeleteComfyOutputs bool     `json:"delete_comfy_outputs"`
+	PreviewSoftMax     int      `json:"preview_soft_limit"`
+	ListenAddr         string   `json:"listen_addr"`
+	AuthToken          string   `json:"auth_token"`
+	UploadLimit        int64    `json:"upload_limit_bytes"`
+	CORSAllowList      []string `json:"cors_allow_list"`
+	EventLogSize       int      `json:"event_log_size"`
 	// LogLevel is debug, info, warn or error; at debug every request is logged.
 	LogLevel string `json:"log_level"`
 }
@@ -138,7 +141,7 @@ func MissingDefaults(stored map[string]string, dbPath string) map[string]string 
 // the environment overrode, by name, so that the settings page can say so.
 // Stored names it does not know are ignored; every problem is reported at once.
 func Resolve(stored map[string]string, dbPath string, getenv func(string) string) (*Config, []string, error) {
-	cfg := &Config{}
+	cfg := &Config{DeleteComfyOutputs: true}
 	var problems []string
 	// The folders that were never set are the ones next to the database.
 	defaults := DefaultDirs(dbPath)
@@ -190,6 +193,13 @@ func (c *Config) applyValues(lookup, label func(name string) string) []string {
 		switch f.Kind() {
 		case reflect.String:
 			f.SetString(raw)
+		case reflect.Bool:
+			b, err := strconv.ParseBool(strings.TrimSpace(raw))
+			if err != nil {
+				problems = append(problems, label(name)+" must be true or false")
+				continue
+			}
+			f.SetBool(b)
 		case reflect.Int, reflect.Int64:
 			n, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
 			if err != nil {
@@ -227,6 +237,8 @@ func (c *Config) Values() map[string]string {
 		switch f.Kind() {
 		case reflect.String:
 			out[name] = f.String()
+		case reflect.Bool:
+			out[name] = strconv.FormatBool(f.Bool())
 		case reflect.Int, reflect.Int64:
 			out[name] = strconv.FormatInt(f.Int(), 10)
 		case reflect.Slice:

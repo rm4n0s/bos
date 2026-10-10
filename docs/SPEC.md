@@ -55,6 +55,7 @@ The program is started with the path of one **database file** (`-db`, default `d
 | `upload_limit_bytes` | 64 MiB | Maximum size of one uploaded file (§15.1) |
 | `grace_seconds` | 30 | Seconds a server may be unavailable before unpinned jobs are re-assigned elsewhere (§8.7) |
 | `max_job_attempts` | 3 | How many times a job is retried after its server became unreachable (§8.7) |
+| `delete_comfy_outputs` | `true` | Remove a result from the `output` folder of its ComfyUI once this program has saved it (§8.2). `true` or `false`; an empty value is the default, on. Only servers that have a `comfyui_path` (§3.1) are touched |
 | `preview_soft_limit` | 0 (none) | Job count above which the preview warns (§6.11) |
 | `log_level` | `info` | `debug`, `info`, `warn` or `error` |
 | `event_log_size` | 100 (at least 100) | Number of events retained (§8.5, §15.4) |
@@ -84,7 +85,7 @@ Every entity carries creation and last-update timestamps. Identifiers are unique
 | code_name | unique, ≤100 chars; referenced from commands |
 | is_local | boolean — true when ComfyUI can read the application's files directly (shared filesystem); otherwise input files are uploaded to it (§8.7) |
 | max_concurrent_jobs | integer ≥ 1, default 1 — jobs this server may run at once |
-| comfyui_path | optional, one line, at most 500 characters, kept without the spaces around it — the folder of the ComfyUI installation **as this program sees it**. The Civitai LoRA imports (§19) offer the servers that have one and copy the models below it. It is not checked to exist (it may be a share that is only mounted at import time); an invalid one is `ServerComfyPathInvalid` |
+| comfyui_path | optional, one line, at most 500 characters, kept without the spaces around it — the folder of the ComfyUI installation **as this program sees it**. The Civitai LoRA imports (§19) offer the servers that have one and copy the models below it, and with `delete_comfy_outputs` (§2) the results are removed from its `output` folder once downloaded (§8.2). It is not checked to exist (it may be a share that is only mounted at import time); an invalid one is `ServerComfyPathInvalid` |
 
 Derived: **status** `online` / `offline`, reflecting current reachability.
 
@@ -669,6 +670,8 @@ Starting from the generator's workflow, apply in this order:
 7. **Region** injection: starting at the sampler's positive input, follow `ControlNetApplyAdvanced` / `ControlNetApply` back to the base text-encode node. For each region add a text encode, then either `LoadImage → ImageToMask(red) → ConditioningSetMask` (mask) or `ConditioningSetArea` (coordinates), and chain with `ConditioningCombine`. A region must have a mask xor coordinates. Requires a `KSampler`.
 
 Then: submit to the job's server (after making its input files available there, §8.7), record the prompt id, status → `processing`, notify `processing`; wait for completion (success event, or queue drained); fetch output images; save to the job's result path; `is_generated = true`.
+
+**Removing the result from ComfyUI.** ComfyUI has no call that deletes a file, so when the setting `delete_comfy_outputs` is on (the default) and the server has a `comfyui_path` (§3.1), the file the job just saved is removed from `<comfyui_path>/output/<subfolder>/<filename>` after the copy is written, for the generation and for every fixer step (§8.3); the program must be able to write to that folder. Only files of type `output` are removed, never `temp` or `input` files, and the path cannot leave `<comfyui_path>/output` (not through `..` and not through a link). A file that is already gone is not an error. A file that cannot be removed is logged as a warning with the tag `FileStoreFailure` (operation `remove`) and does **not** fail the job, which has its copy. A server without a `comfyui_path` is left alone, whatever the setting says; ComfyUI's history keeps its entry for the prompt.
 
 - Fixers remaining → status `queued`, re-enqueue.
 - Otherwise → `finished`; if all of the command's jobs are now `finished`, the command also becomes `finished`.

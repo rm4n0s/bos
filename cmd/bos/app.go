@@ -70,6 +70,7 @@ func wire(ctx context.Context, cfg *config.Config, db *store.DB, logger *slog.Lo
 			return c, nil
 		},
 		NewSeed:       service.RandomSeed,
+		DeleteOutputs: cfg.DeleteComfyOutputs,
 		Grace:         time.Duration(cfg.GraceSeconds) * time.Second,
 		MaxAttempts:   cfg.MaxJobAttempts,
 		ProbeInterval: tune.probeInterval,

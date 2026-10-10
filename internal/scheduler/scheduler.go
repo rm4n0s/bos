@@ -43,6 +43,10 @@ type Deps struct {
 	Now       func() time.Time
 	// NewSeed returns a random 64-bit number for generators with a random seed.
 	NewSeed func() uint64
+	// DeleteOutputs removes a result from the output folder of its ComfyUI once
+	// it is saved here (SPEC §8.2). It needs the server's comfyui_path; a server
+	// without one is left alone.
+	DeleteOutputs bool
 
 	// Grace is how long a server may be unavailable before unpinned jobs that
 	// prefer it go elsewhere (SPEC §8.7); default 30 s.

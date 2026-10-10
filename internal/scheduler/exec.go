@@ -31,7 +31,7 @@ func (s *Scheduler) execute(ctx context.Context, r *runner, client comfy.Client,
 	var err error
 	switch {
 	case resume:
-		err = s.resumeGeneration(ctx, client, job)
+		err = s.resumeGeneration(ctx, r, client, job)
 	case generation:
 		err = s.generate(ctx, r, client, job)
 	default:
@@ -87,11 +87,11 @@ func (s *Scheduler) generate(ctx context.Context, r *runner, client comfy.Client
 	if err != nil {
 		return err
 	}
-	return s.collect(ctx, client, job, res, out.ID)
+	return s.collect(ctx, r, client, job, res, out.ID)
 }
 
 // resumeGeneration waits for a prompt that an earlier run submitted.
-func (s *Scheduler) resumeGeneration(ctx context.Context, client comfy.Client, job *domain.Job) error {
+func (s *Scheduler) resumeGeneration(ctx context.Context, r *runner, client comfy.Client, job *domain.Job) error {
 	gen, err := s.DB.Repos().Generators.GetByCode(ctx, job.GeneratorCodeName)
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (s *Scheduler) resumeGeneration(ctx context.Context, client comfy.Client, j
 	if err != nil {
 		return err
 	}
-	return s.collect(ctx, client, job, res, out.ID)
+	return s.collect(ctx, r, client, job, res, out.ID)
 }
 
 // inject applies the IP-Adapters, LoRAs, ControlNets and regions of a job, in
@@ -263,8 +263,8 @@ func promptGroup(name string, src workflow.PromptSource) slog.Attr {
 
 // collect saves the first file the output node produced as the job's result.
 // The planned name keeps its stem; its extension follows the file the server
-// made.
-func (s *Scheduler) collect(ctx context.Context, client comfy.Client, job *domain.Job, res comfy.Result, nodeID string) error {
+// made. Once the copy is safe, the server's own file is removed (SPEC §8.2).
+func (s *Scheduler) collect(ctx context.Context, r *runner, client comfy.Client, job *domain.Job, res comfy.Result, nodeID string) error {
 	files, err := res.Pick(nodeID)
 	if err != nil {
 		return err
@@ -287,7 +287,23 @@ func (s *Scheduler) collect(ctx context.Context, client comfy.Client, job *domai
 		}
 	}
 	job.ResultPath = path
+	s.removeFromComfy(r, job, files[0])
 	return nil
+}
+
+// removeFromComfy deletes a result from the output folder of the server that
+// made it, when the setting is on and the server has a comfyui_path. The job has
+// its copy already, so a file that cannot be removed is a warning, never a
+// failure of the job.
+func (s *Scheduler) removeFromComfy(r *runner, job *domain.Job, f comfy.OutputFile) {
+	root := r.comfyPath()
+	if !s.DeleteOutputs || root == "" {
+		return
+	}
+	if err := comfy.RemoveOutput(root, f); err != nil {
+		logError(s.Logger, "could not remove a result from the ComfyUI output folder", err,
+			"job", job.ID, "command", job.CommandID, "server", r.code(), "file", f.Filename)
+	}
 }
 
 // withExtension gives path the extension of name, if name has one.
@@ -343,7 +359,7 @@ func (s *Scheduler) fix(ctx context.Context, r *runner, client comfy.Client, job
 	if err != nil {
 		return err
 	}
-	return s.collect(ctx, client, job, res, out.ID)
+	return s.collect(ctx, r, client, job, res, out.ID)
 }
 
 // ---- outcome ----

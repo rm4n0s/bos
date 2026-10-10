@@ -546,7 +546,7 @@ Not an error but often asked:
 
 **Why.** A file or a folder could not be read, written or removed.
 
-**What to do.** Check permissions and free space of the configured directories, and of the ComfyUI `models/loras` folder for a Civitai import.
+**What to do.** Check permissions and free space of the configured directories, and of the ComfyUI `models/loras` folder for a Civitai import. When the log says `could not remove a result from the ComfyUI output folder`, the job is fine (it has its copy) but the file stayed in the `output` folder of ComfyUI: check that this program may write there, or turn `delete_comfy_outputs` off in Settings.
 
 
 ### `FileOutsideStorage`

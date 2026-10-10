@@ -14,7 +14,7 @@ A server is one ComfyUI installation.
 | Address | `http://host:port` of ComfyUI, for example `http://192.168.1.20:8188` |
 | Code name | Used in commands: `gpu1 -$ …` |
 | Jobs at once | How many jobs it runs at the same time (default 1). A card that runs one SDXL job at a time should stay at 1 |
-| ComfyUI folder | Optional. Where ComfyUI is installed, as this program sees it (for example `/home/me/ComfyUI`, or the folder where its disk is mounted). When you [import LoRAs from Civitai](civitai.md) you pick a server with a folder from a list and the folder fills itself in |
+| ComfyUI folder | Optional. Where ComfyUI is installed, as this program sees it (for example `/home/me/ComfyUI`, or the folder where its disk is mounted). When you [import LoRAs from Civitai](civitai.md) you pick a server with a folder from a list and the folder fills itself in. It is also how the program deletes a result from ComfyUI once it has its own copy (the setting `delete_comfy_outputs`, on by default, [Settings](configuration.md)): the file is removed from `output` below this folder. A server without a folder keeps its files |
 | Same machine | Tick it when ComfyUI can read this program's files directly. (Input images are always uploaded to ComfyUI today, so the tick only records the fact.) |
 
 The list shows whether each server is **online**. The program probes every server about once a second and tells you when one goes away or comes back (a message in the web page, an event for other clients). *Test* in the web page asks one server right now.

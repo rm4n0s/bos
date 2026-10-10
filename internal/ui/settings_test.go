@@ -108,3 +108,30 @@ func TestRestartFromTheSettingsPage(t *testing.T) {
 	mustNotContain(t, "no restart", u2.get("/settings").Body, "/ui/settings/restart")
 	mustContain(t, "refused", u2.datastar("POST", "/ui/settings/restart", struct{}{}).patches(), `class="toast error"`)
 }
+
+// Results are deleted from ComfyUI unless the setting says false.
+func TestDeletingResultsFromComfyUIIsOnByDefault(t *testing.T) {
+	u := newTestUI(t)
+	on := `<option value="true" selected>true</option>`
+	off := `<option value="false" selected>false</option>`
+	mustContain(t, "default", u.get("/settings").Body, `name="delete_comfy_outputs"`, on)
+	mustNotContain(t, "default", u.get("/settings").Body, off)
+
+	u.submit("POST", "/ui/settings", field("delete_comfy_outputs", "false"))
+	got, err := u.env.Services.Settings.Get(t.Context())
+	check(t, err)
+	if got.Values["delete_comfy_outputs"] != "false" {
+		t.Errorf("delete_comfy_outputs = %q", got.Values["delete_comfy_outputs"])
+	}
+	mustContain(t, "turned off", u.get("/settings").Body, off)
+
+	// An empty value is the default again: on.
+	u.submit("POST", "/ui/settings", field("delete_comfy_outputs", ""))
+	got, _ = u.env.Services.Settings.Get(t.Context())
+	if got.Values["delete_comfy_outputs"] != "true" {
+		t.Errorf("after clearing: %q", got.Values["delete_comfy_outputs"])
+	}
+
+	r := u.submit("POST", "/ui/settings", field("delete_comfy_outputs", "maybe"))
+	mustContain(t, "refused", r.patches(), "selector #settings-error", "delete_comfy_outputs must be true or false")
+}
