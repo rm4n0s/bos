@@ -7,8 +7,7 @@ In this tutorial you start the program, tell it about your ComfyUI, teach it a f
 ## 0. Start the program
 
 ```sh
-cp config.example.json config.json
-./bin/bos -config config.json
+./bin/bos
 ```
 
 Leave it running. Open <http://127.0.0.1:8080>. You should see the home page with a short checklist and zeros everywhere.

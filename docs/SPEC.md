@@ -33,41 +33,44 @@ The user does not write each prompt by hand. They:
 - No multi-user support, authentication or authorisation.
 - No cancellation of a job that ComfyUI is already executing.
 
-## 2. Configuration
+## 2. Settings
 
-A single configuration source supplies:
+The program is started with the path of one **database file** (`-db`, default `data/bos.db`) and, optionally, a log level (`-log-level`). Everything else is a *setting*, and the settings live **in that database**, in a table of names and text values. They are edited in the web interface (§16.3); there is no configuration file.
 
-| Setting | Required | Meaning |
+| Setting | Default | Meaning |
 |---|---|---|
-| Database location | yes | Where persistent data lives (an in-memory option is useful for tests) |
-| Results directory | yes | Generated outputs |
-| ControlNet references directory | yes | Uploaded ControlNet images |
-| IP-Adapter references directory | yes | Uploaded IP-Adapter images |
-| Region masks directory | yes | Region reference images and their generated masks |
-| Thumbnails directory | yes | Group and item thumbnails |
-| Downloads directory | yes | Per-command export archives |
-| Civitai LoRA cache directory | no | Local cache for downloaded LoRAs |
-| Civitai API token | no | Required for any Civitai download |
-| Civitai domain | no | Default `civitai.com` (the site API is `https://<domain>`, the generation API `https://orchestration.<domain>`; §19) |
-| Civitai pause | no | Seconds to wait between two downloads of one import (§19.4). Default 15 |
-| Server grace period | no | Seconds a server may be unavailable before unpinned jobs are re-assigned elsewhere (§8.7). Default 30 |
-| Max job attempts | no | How many times a job is retried after its server became unreachable (§8.7). Default 3 |
-| Preview soft limit | no | Job count above which the preview warns (§6.11) |
-| Listen address | no | Default `127.0.0.1:8080` (§16.6) |
-| Auth token | no | Shared bearer token for the API and UI (§15.1, §16.6) |
-| Upload size limit | no | Maximum size of one uploaded file (§15.1) |
-| CORS allow-list | no | Origins allowed to call the API cross-origin; default none |
-| Event log size | no | Number of events retained (§8.5, §15.4); default 100 |
+| `results_dir` | `results` next to the database | Generated outputs |
+| `controlnet_dir` | `controlnet` next to the database | Uploaded ControlNet images |
+| `ipadapter_dir` | `ipadapter` next to the database | Uploaded IP-Adapter images |
+| `regions_dir` | `regions` next to the database | Region reference images and their generated masks |
+| `thumbnails_dir` | `thumbnails` next to the database | Group and item thumbnails |
+| `downloads_dir` | `downloads` next to the database | Per-command export archives |
+| `civitai_cache_dir` | `civitai` next to the database | Local cache for downloaded LoRAs |
+| `civitai_token` | none | Civitai API token; required for any Civitai download. A credential: never shown again |
+| `civitai_domain` | `civitai.com` | The site API is `https://<domain>`, the generation API `https://orchestration.<domain>` (§19) |
+| `civitai_pause_seconds` | 15 | Seconds to wait between two downloads of one import (§19.4) |
+| `listen_addr` | `127.0.0.1:8080` | (§16.6) |
+| `auth_token` | none | Shared bearer token for the API and UI (§15.1, §16.6). A credential: never shown again |
+| `cors_allow_list` | none | Origins allowed to call the API cross-origin, separated by commas |
+| `upload_limit_bytes` | 64 MiB | Maximum size of one uploaded file (§15.1) |
+| `grace_seconds` | 30 | Seconds a server may be unavailable before unpinned jobs are re-assigned elsewhere (§8.7) |
+| `max_job_attempts` | 3 | How many times a job is retried after its server became unreachable (§8.7) |
+| `preview_soft_limit` | 0 (none) | Job count above which the preview warns (§6.11) |
+| `log_level` | `info` | `debug`, `info`, `warn` or `error` |
+| `event_log_size` | 100 (at least 100) | Number of events retained (§8.5, §15.4) |
 
-If the configuration file named on the command line does not exist, it is created first: every storage location below a `data` directory next to the file (the database as `data/bos.db`, then `data/results`, `data/controlnet`, …), as absolute paths, and the default listen address. An existing file is never changed. If it cannot be written, startup is aborted with `ConfigNotWritable`.
+**Storage.** One row for each setting that is set (name, text value). A setting that is not stored has its default, and storing an empty value removes the row. The Go struct of the settings (`internal/config`) is the one list of names, defaults and rules; unknown stored names are ignored.
 
-Directories are created at startup if missing. All stored files must be retrievable (read-only) by the user interface, e.g. to display thumbnails and results.
+**A new database.** If the database file does not exist, it is created together with its folder and schema (§10), and the folder settings above are **stored** with their defaults: folders next to the database file, as absolute paths. A database that has no folder settings yet (made before the settings were stored in it) gets them on its next start. A folder setting that is empty or removed means the default folder next to the database, never "none".
+
+**The environment.** A variable `BOS_<SETTING>` (the name in capitals) overrides that setting for the run, and is not stored. The settings page says which settings are overridden. The database path is never a setting.
+
+**Changing settings.** The service checks the settings as they would be (every problem together, `ConfigInvalid`, 422) and stores nothing if any is wrong. A credential given empty is left as it is; removing one is asked for by name. A change takes effect when the program restarts: the settings page offers a restart that stops the program as a termination signal does (acceptance 28) and starts it again in the same process, which reads the database anew.
 
 ### Startup behaviour
 
-1. Create the configuration file if it is missing; load configuration; create directories.
-2. Open the data store, creating the schema if it does not exist.
-3. Start the background workers described in §8.
+1. Open the database file, creating it, its folder and its schema (§10) if they do not exist; store the default folder settings that are missing; resolve the settings (stored, then the environment, then defaults) and create the folders.
+2. Start the background workers described in §8.
 
 ## 3. Domain model
 
@@ -845,7 +848,7 @@ internal/files             file storage under the configured directories, upload
 | # | Decision | Outcome |
 |---|---|---|
 | D1 | Database access | `gorm.io/gorm` with the official `gorm.io/driver/sqlite` (SQLite through `github.com/mattn/go-sqlite3`, so **cgo and a C compiler are required** to build and run). No SQL is written by hand: queries use gorm's builder, and records in `internal/store` map to the domain types |
-| D2 | Configuration file | JSON (standard library), with environment-variable overrides |
+| D2 | Settings | Stored in the database (a table of names and text values), edited in the web interface; `BOS_<SETTING>` environment variables override them for one run; the command line gives only the database path and the log level |
 | D3 | HTML templating | `html/template` |
 | D4 | Datastar server SDK | `github.com/starfederation/datastar-go` (`NewSSE`, `PatchElements`, `MarshalAndPatchSignals`, `ReadSignals`) |
 | D5 | Person segmentation (the original's YOLO model) | **Removed.** Regions come from colour masks and coordinates only (§7.3) |
@@ -1017,6 +1020,7 @@ Full pages are plain `GET`s that return a complete HTML document. Everything int
 | Upload | `POST /ui/groups/{id}/items` | The form uses Datastar's `contentType: 'form'`, which sends `multipart/form-data` |
 | Live stream | `GET /ui/stream/commands/{id}` · `GET /ui/stream/toasts` | Long-lived SSE connections (§16.4) |
 | Preview | `POST /ui/commands/preview` | Live feedback while typing (§16.3) |
+| Settings | `GET /settings` · `POST /ui/settings` · `POST /ui/settings/restart` | The settings page, saving it, and restarting the program (§2) |
 | Completion | `POST /ui/commands/complete?pos=N` | Code names that fit at the caret of the command text area (§16.3); `N` is the caret in UTF-16 units |
 | Static | `GET /static/…` | Embedded Datastar script, the scripts of the interface, CSS |
 
@@ -1035,6 +1039,7 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 | Items | Editor sections appear only for the flags the group enables; image previews from `/files/…`; mask-region upload shows the generated keywords immediately; item `tags` input with autocomplete; renaming an item tag shows the commands that mention it |
 | Commands | The command text area sends its content, debounced, to `/ui/commands/preview` and patches a result panel: errors with the offending span highlighted, warnings, total jobs, jobs kept after `where`/`limit`/`sample`, and (for several servers) jobs per server. Add is enabled only when the preview is valid. While the user types, the text area also offers the **code names that fit at the caret**: servers (at the start and after `on`), the generator after `-$`, groups after `:`, `*`, `&&`, `||` (also in template and region bodies, in `where` and after `spread by`), the items of the group whose parenthesis the caret is in (and in `where group = …` and `group in (…)`), item tags after `#`, and fixers after `>`. Nothing is offered inside a string, in a pattern (`%`, `?`), where a free name is typed (template tags, region keywords) or where no name belongs. The list is sorted, holds at most 12 names, and is a service call (`CommandService.Complete`) that stores nothing and fails only when the store does. Tab takes the first name (or the chosen one), the arrow keys choose, Enter takes a name only after an arrow chose it, Esc closes the list. List shows progress `finished/total`, run/stop/recreate/download buttons, drag-or-button reordering |
 | Jobs | Grid or table of jobs with status, assigned server, thumbnail of the result, seed; click to open prompts for editing; a click on a result picture opens it in a viewer over the same page, with previous and next buttons (also the arrow keys and a swipe) over the pictures of the current page, and a modifier-click still opens it in a new tab; error and trace shown for failed jobs |
+| Settings | Every setting of §2 in sections (folders, Civitai, server, jobs, log), with its default as the hint; an empty field is the default; a credential is a password field that says whether a value is set and has a *remove it* box; a note names the `BOS_…` variable that overrides a setting. *Save* checks all of them together and shows every problem; *Restart now* restarts the program and the page reloads when it is back |
 | REPL | Form as in §8.6; result image replaces itself when the job finishes |
 
 ### 16.4 Live updates
@@ -1083,6 +1088,7 @@ These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 | Request | `InvalidRequest` (malformed body, unknown field, bad id), `UploadTooLarge` | 400, 413 |
 | Not found | `ServerNotFound`, `GeneratorNotFound`, `FixerNotFound`, `GroupNotFound`, `ItemNotFound`, `ProjectNotFound`, `CommandNotFound`, `JobNotFound`, `FileNotFound` | 404 |
 | Naming | `CodeNameInvalid`, `CodeNameReserved`, `TagInvalid` | 422 |
+| Settings | `ConfigInvalid` (metadata `problems`) | 422 (at startup: abort) |
 | Servers | `ServerComfyPathInvalid` | 422 |
 | Generators | `GeneratorTitleRequired` (metadata `candidates`) | 422 |
 | Tags | `TagNotFound` | 404 |
@@ -1092,7 +1098,7 @@ These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 | Workflow | `WorkflowInvalid`, `WorkflowTitleDuplicated`, `WorkflowTitleNotFound`, `OutputNodeNotFound`, `NoSamplerInWorkflow`, `InjectorFailed`, `RegionInvalid`, `MaskGenerationFailed` | 422 (on create/analyze) or recorded on the job |
 | ComfyUI | `ServerUnreachable`, `ComfyUIRejected` (node errors), `ComfyUIExecutionFailed` (traceback in metadata), `ComfyUIUploadFailed`, `ComfyUIResultMissing` | 502 / 503, or recorded on the job |
 | Civitai | `CivitaiNotConfigured`, `CivitaiModelNotFound`, `CivitaiRateLimited`, `CivitaiDownloadFailed`, `CivitaiMetadataInvalid` | 409, 404, 503, 502, 502 |
-| Infrastructure | `StoreFailure`, `MigrationFailed`, `FileStoreFailure`, `ConfigInvalid`, `ConfigNotReadable`, `ConfigNotWritable` | 500 (startup: abort) |
+| Infrastructure | `StoreFailure`, `MigrationFailed`, `FileStoreFailure` | 500 (startup: abort) |
 
 Errors that happen **inside a job** are not HTTP responses; the scheduler stores the tag, message and the `ToJson()` trace on the job (`error`, `traceback`) and emits an `error` event.
 

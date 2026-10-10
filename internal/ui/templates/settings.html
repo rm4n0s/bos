@@ -1,0 +1,37 @@
+{{define "content"}}<section>
+  <div class="bar"><h1>Settings</h1></div>
+  <p class="hint">Kept in the database <code>{{.Data.DBPath}}</code>. A field left empty uses its default. A change takes effect when the program restarts.</p>
+  {{template "settings_restart" .Data}}
+  <form class="stack" data-on:submit__prevent="@post('/ui/settings', {contentType: 'form'})">
+    <div id="settings-form-body">{{template "settings_fields" .Data}}</div>
+    <p class="error" id="settings-error"></p>
+    <div class="buttons start"><button type="submit">Save</button></div>
+  </form>
+</section>{{end}}
+
+{{define "settings_restart"}}<div id="settings-restart" class="restart">
+{{if .Saved}}<p class="ok">Saved. Restart the program to apply it.</p>{{end}}
+{{if .CanRestart}}<button type="button" class="secondary" data-on:click="@post('/ui/settings/restart'); setTimeout(async () => { for (let i = 0; i < 60; i++) { try { if ((await fetch('/healthz', {cache: 'no-store'})).ok) { location.reload(); return } } catch (e) {} await new Promise(r => setTimeout(r, 500)) } }, 2000)">Restart now</button>
+<span class="muted">The jobs that are running are picked up again after it.</span>{{end}}
+</div>{{end}}
+
+{{define "settings_fields"}}{{range .Sections}}
+<fieldset>
+  <legend>{{.Title}}</legend>
+  {{if .Intro}}<p class="hint">{{.Intro}}</p>{{end}}
+  {{range .Fields}}{{template "settings_field" .}}{{end}}
+</fieldset>
+{{end}}{{end}}
+
+{{define "settings_field"}}<div class="setting">
+{{if eq .Kind "secret"}}<label>{{.Label}}
+    <input type="password" name="{{.Key}}" autocomplete="new-password" placeholder="{{if .Set}}a value is set — leave empty to keep it{{else}}no value{{end}}"></label>
+  {{if .Set}}<label class="check"><input type="checkbox" name="clear_{{.Key}}"> remove it</label>{{end}}
+{{else if eq .Kind "select"}}<label>{{.Label}}
+    <select name="{{.Key}}">{{$v := .Value}}{{range .Options}}<option value="{{.}}"{{if eq . $v}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+{{else}}<label>{{.Label}}
+    <input name="{{.Key}}" value="{{.Value}}" placeholder="{{.Placeholder}}" spellcheck="false"></label>
+{{end}}
+  <span class="muted">{{.Help}}</span>
+  {{if .Override}}<span class="warn">The environment variable {{.Override}} sets this for this run; what you save here applies when it is not set.</span>{{end}}
+</div>{{end}}

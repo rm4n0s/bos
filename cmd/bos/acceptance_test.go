@@ -32,7 +32,7 @@ func startProgram(t *testing.T, env func(string) string) *program {
 	ctx, cancel := context.WithCancel(t.Context())
 	p := &program{t: t, cancel: cancel, done: make(chan error, 1)}
 	ready := make(chan net.Addr, 1)
-	go func() { p.done <- serve(ctx, "", env, testLogger(t), func(a net.Addr) { ready <- a }, quick) }()
+	go func() { p.done <- serve(ctx, dbOf(env), env, testLogger(t), func(a net.Addr) { ready <- a }, quick) }()
 	select {
 	case a := <-ready:
 		p.base = "http://" + a.String()

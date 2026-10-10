@@ -104,3 +104,10 @@ kbd { border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-si
 body.viewer-open { overflow: hidden; }
 a[data-viewer] { cursor: zoom-in; }
 @media (max-width: 600px) { .viewer { padding: 48px 8px; } .viewer-nav { width: 44px; height: 44px; } }
+
+fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 16px 12px; margin: 0 0 var(--gap); background: var(--panel); }
+legend { font-weight: 600; padding: 0 6px; }
+.setting { display: grid; gap: 2px; margin: 10px 0; }
+.setting .muted { font-size: 0.85rem; }
+.setting .warn { font-size: 0.85rem; color: var(--warn); }
+.restart { margin-bottom: var(--gap); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }

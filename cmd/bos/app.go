@@ -43,29 +43,17 @@ type appTuning struct {
 // withLogLevel lets the configuration set the level of the logger main built.
 func withLogLevel(v *slog.LevelVar) appOption { return func(t *appTuning) { t.logLevel = v } }
 
-// newApp opens the store and creates or updates its schema (SPEC §2, startup
-// step 2), then builds the services and the scheduler over it. Call run to
-// start the scheduler and close when done.
-func newApp(ctx context.Context, cfg *config.Config, logger *slog.Logger, opts ...appOption) (*app, error) {
-	db, err := store.Open(ctx, cfg.Database)
-	if err != nil {
-		return nil, err
-	}
-	a, err := wire(ctx, cfg, db, logger, opts)
-	if err != nil {
-		_ = db.Close() // the failure to wire is the error to report
-		return nil, err
-	}
-	return a, nil
+// newApp builds the services and the scheduler over an open, migrated store
+// (SPEC §2, startup step 2). Call run to start the scheduler and close when
+// done, which closes the store too.
+func newApp(ctx context.Context, cfg *config.Config, db *store.DB, logger *slog.Logger, overridden []string, opts ...appOption) (*app, error) {
+	return wire(ctx, cfg, db, logger, overridden, opts)
 }
 
-func wire(ctx context.Context, cfg *config.Config, db *store.DB, logger *slog.Logger, opts []appOption) (*app, error) {
+func wire(ctx context.Context, cfg *config.Config, db *store.DB, logger *slog.Logger, overridden []string, opts []appOption) (*app, error) {
 	var tune appTuning
 	for _, o := range opts {
 		o(&tune)
-	}
-	if err := db.Migrate(ctx); err != nil {
-		return nil, err
 	}
 	fs, err := files.NewStore(cfg.Directories())
 	if err != nil {
@@ -92,6 +80,7 @@ func wire(ctx context.Context, cfg *config.Config, db *store.DB, logger *slog.Lo
 		Limits:  service.Limits{PreviewSoftLimit: cfg.PreviewSoftMax},
 		Civitai: civitai.New(civitai.Options{Token: cfg.CivitaiToken, Domain: cfg.CivitaiDomain, Logger: logger}),
 		Events:  log, Pause: time.Duration(cfg.CivitaiPauseSeconds) * time.Second, Background: ctx,
+		DBPath: cfg.Database, Overridden: overridden,
 	})
 	return &app{cfg: cfg, db: db, files: fs, events: log, services: svc, sched: sched}, nil
 }

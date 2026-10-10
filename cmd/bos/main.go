@@ -6,11 +6,13 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/rm4n0s/bos/internal/config"
+	"github.com/rm4n0s/errors"
 )
 
 func main() {
@@ -22,8 +24,8 @@ func main() {
 
 func runMain(args []string) error {
 	fs := flag.NewFlagSet("bos", flag.ContinueOnError)
-	configPath := fs.String("config", "", "path to the JSON configuration file; it is created if it does not exist")
-	logLevel := fs.String("log-level", "", "debug, info, warn or error; overrides log_level of the file and BOS_LOG_LEVEL. At debug every request and every workflow sent to ComfyUI is logged to the console")
+	dbPath := fs.String("db", "data/bos.db", "path of the database file; it is created, with default settings next to it, if it does not exist. The settings are edited in the web page")
+	logLevel := fs.String("log-level", "", "debug, info, warn or error; overrides the log_level setting and BOS_LOG_LEVEL. At debug every request and every workflow sent to ComfyUI is logged to the console")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -34,11 +36,23 @@ func runMain(args []string) error {
 	defer stop()
 
 	getenv := overrideEnv(os.Getenv, config.EnvPrefix+"LOG_LEVEL", *logLevel)
-	if err := serve(ctx, *configPath, getenv, logger, nil, withLogLevel(level)); err != nil {
+	if err := serveAndRestart(ctx, *dbPath, getenv, logger, nil, withLogLevel(level)); err != nil {
 		logError(logger, err)
 		return err
 	}
 	return nil
+}
+
+// serveAndRestart runs serve, and runs it again, reading the settings anew,
+// each time the settings page asks for a restart.
+func serveAndRestart(ctx context.Context, dbPath string, getenv func(string) string, logger *slog.Logger, ready func(net.Addr), opts ...appOption) error {
+	for {
+		err := serve(ctx, dbPath, getenv, logger, ready, opts...)
+		if !errors.Is(err, errRestart) {
+			return err
+		}
+		logger.Info("restarting")
+	}
 }
 
 // overrideEnv returns getenv with one variable replaced, so a command-line flag

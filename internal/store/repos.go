@@ -21,6 +21,7 @@ type Repos struct {
 	Projects   *ProjectRepo
 	Commands   *CommandRepo
 	Jobs       *JobRepo
+	Settings   *SettingsRepo
 
 	b base
 }
@@ -57,6 +58,7 @@ func newRepos(b base) *Repos {
 		Projects:   &ProjectRepo{b},
 		Commands:   &CommandRepo{b},
 		Jobs:       &JobRepo{b},
+		Settings:   &SettingsRepo{b},
 		b:          b,
 	}
 }

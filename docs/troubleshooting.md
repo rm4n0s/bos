@@ -33,7 +33,7 @@ Not an error but often asked:
 
 **Why.** A file, or the JSON body (over 8 MiB), is bigger than allowed.
 
-**What to do.** Make the file smaller, or raise `upload_limit_bytes` in the configuration.
+**What to do.** Make the file smaller, or raise *Largest upload* in Settings (`upload_limit_bytes`).
 
 
 ## Not found
@@ -492,9 +492,9 @@ Not an error but often asked:
 
 ### `CivitaiNotConfigured`
 
-**Why.** Civitai needs an API key and a cache folder, and one is missing.
+**Why.** Civitai needs an API key (and a cache folder, which has a default), and the key is missing.
 
-**What to do.** Set `civitai_token` and `civitai_cache_dir` in the configuration and restart.
+**What to do.** Open Settings, paste your Civitai API key into *Civitai → API key*, save and press *Restart now*.
 
 
 ### `CivitaiModelNotFound`
@@ -553,28 +553,14 @@ Not an error but often asked:
 
 **Why.** A stored path points outside the configured directories. The program refuses to touch it.
 
-**What to do.** This should not happen; it means the database was edited by hand or moved from another installation. Check the directories in `config.json`.
+**What to do.** This should not happen; it means the database was edited by hand or moved from another installation. Check the folders in Settings.
 
 
 ### `ConfigInvalid`
 
-**Why.** The configuration has a mistake: a missing required setting, an unknown key, a wrong value.
+**Why.** A setting has a mistake: a value that is not a number, an address that is not `host:port`, a log level that is not one of the four, or the like. It is refused when you save it in the settings page, and also when the program starts with an environment variable (`BOS_…`) that is wrong.
 
-**What to do.** The message lists **every** problem; fix them all and start again.
-
-
-### `ConfigNotReadable`
-
-**Why.** The configuration file cannot be read.
-
-**What to do.** Check the path after `-config` and the file's permissions.
-
-
-### `ConfigNotWritable`
-
-**Why.** The file after `-config` does not exist and the program could not create it (or its folder).
-
-**What to do.** Check that the folder can be written by you, or create the file yourself (see [the configuration](guide/configuration.md)).
+**What to do.** The message lists **every** problem; fix them all. In the settings page nothing is saved until all are right. For an environment variable, correct it or unset it and start again.
 
 
 ### `ListenFailed`

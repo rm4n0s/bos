@@ -103,7 +103,7 @@ func (a *Adapter) Download(ctx context.Context, modelID int, dir string) (Model,
 }
 
 func notConfigured() error {
-	return errors.New("CivitaiNotConfigured", "Civitai needs an API token and a cache directory in the configuration (civitai_token, civitai_cache_dir)")
+	return errors.New("CivitaiNotConfigured", "Civitai needs an API token (civitai_token, set in Settings → Civitai) and a cache folder (civitai_cache_dir)")
 }
 
 // mapError turns the library's errors into the tags of SPEC §19.4.

@@ -37,6 +37,9 @@ type Deps struct {
 	// Coalesce is how long a burst of events is gathered before a live stream
 	// draws it; the default is 250 ms.
 	Coalesce time.Duration
+	// Restart stops the program and starts it again, so that new settings take
+	// effect; the settings page offers it. Without it the page does not.
+	Restart func()
 }
 
 // UI is the web interface.
@@ -109,6 +112,7 @@ func (u *UI) registerAll() {
 	u.commandRoutes()
 	u.jobRoutes()
 	u.replRoutes()
+	u.settingsRoutes()
 	u.streamRoutes()
 	u.fileRoutes()
 }

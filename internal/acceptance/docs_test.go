@@ -4,7 +4,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -107,15 +106,13 @@ func TestDocumentationLinksResolve(t *testing.T) {
 }
 
 // TestConfigurationGuideListsEverySetting keeps docs/guide/configuration.md in
-// step with the configuration file's fields.
+// step with the settings of the program.
 func TestConfigurationGuideListsEverySetting(t *testing.T) {
 	b, err := os.ReadFile(filepath.Join("..", "..", "docs", "guide", "configuration.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	typ := reflect.TypeFor[config.Config]()
-	for i := range typ.NumField() {
-		name := strings.Split(typ.Field(i).Tag.Get("json"), ",")[0]
+	for _, name := range config.Keys() {
 		if !strings.Contains(string(b), "| `"+name+"` |") {
 			t.Errorf("the configuration guide has no row for %s", name)
 		}

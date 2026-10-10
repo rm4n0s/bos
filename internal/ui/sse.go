@@ -120,6 +120,11 @@ func describe(err error) (message string, userFault bool) {
 		return "", false
 	}
 	message = appErr.Message
+	if problems, ok := appErr.Metadata["problems"].([]string); ok {
+		for _, p := range problems {
+			message += "; " + p
+		}
+	}
 	if list, ok := appErr.Metadata["errors"]; ok {
 		if b, err := json.Marshal(list); err == nil {
 			var problems []struct {

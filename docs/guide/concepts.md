@@ -52,7 +52,7 @@ If a server becomes unreachable in the middle of a job, the job goes back to the
 
 ## What is kept where
 
-Everything you create is stored in one SQLite database. Uploaded and generated files live in the directories named in the configuration (results, thumbnails, reference images, masks, downloads). A job's result is written under `results/<command id>/`.
+Everything you create is stored in one SQLite database. Uploaded and generated files live in the folders named in the Settings page (results, thumbnails, reference images, masks, downloads). A job's result is written under `results/<command id>/`.
 
 ## The three ways in
 

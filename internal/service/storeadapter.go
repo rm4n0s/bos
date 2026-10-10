@@ -28,3 +28,4 @@ func (r repos) Tags() TagStore             { return r.r.Tags }
 func (r repos) Projects() ProjectStore     { return r.r.Projects }
 func (r repos) Commands() CommandStore     { return r.r.Commands }
 func (r repos) Jobs() JobStore             { return r.r.Jobs }
+func (r repos) Settings() SettingsStore    { return r.r.Settings }

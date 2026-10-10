@@ -42,6 +42,7 @@ type Repos interface {
 	Projects() ProjectStore
 	Commands() CommandStore
 	Jobs() JobStore
+	Settings() SettingsStore
 }
 
 // ServerStore keeps servers.
@@ -144,6 +145,14 @@ type JobStore interface {
 	ReplaceRepl(ctx context.Context, j *domain.Job) ([]string, error)
 }
 
+// SettingsStore keeps the settings of the application (SPEC §2): the ones that
+// are not at their default, by name, as text. Save writes the ones it is given;
+// an empty value removes a setting.
+type SettingsStore interface {
+	All(ctx context.Context) (map[string]string, error)
+	Save(ctx context.Context, values map[string]string) error
+}
+
 // Files is the file storage the services use: they remove the files of what
 // they delete, and read the reference image of a region mask.
 type Files interface {
@@ -219,6 +228,11 @@ type Deps struct {
 	Background context.Context
 	// NewSeed returns a random 64-bit number; the default reads crypto/rand.
 	NewSeed func() uint64
+	// DBPath is the path of the database file, where the default folders of the
+	// settings are; Overridden are the settings that the environment sets for
+	// this run, which the settings page says it does.
+	DBPath     string
+	Overridden []string
 }
 
 // Services are all the use cases, built once in main and shared.
@@ -234,6 +248,7 @@ type Services struct {
 	Jobs       *JobService
 	Repl       *ReplService
 	Civitai    *CivitaiService
+	Settings   *SettingsService
 }
 
 // New builds the services over deps.
@@ -258,6 +273,7 @@ func New(deps Deps) *Services {
 		Jobs:       &JobService{base: b},
 		Repl:       &ReplService{base: b},
 		Civitai:    &CivitaiService{base: b, groups: groups, items: items, sem: make(chan struct{}, 1)},
+		Settings:   &SettingsService{base: b},
 	}
 }
 

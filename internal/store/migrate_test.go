@@ -31,7 +31,7 @@ func TestRecordsMatchMigratedSchema(t *testing.T) {
 	db := newDB(t)
 	records := []any{
 		&serverRecord{}, &generatorRecord{}, &fixerRecord{}, &groupRecord{}, &groupTagRecord{}, &itemRecord{},
-		&itemTagRecord{}, &projectRecord{}, &commandRecord{}, &jobRecord{},
+		&itemTagRecord{}, &projectRecord{}, &commandRecord{}, &jobRecord{}, &settingRecord{},
 	}
 	m := db.gorm.Migrator()
 	for _, rec := range records {

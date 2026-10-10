@@ -1,6 +1,6 @@
 // Package cli is bosctl: a command-line client of the REST API (SPEC §15.6). It
 // is a client like any other: it does not open the database, import the
-// services or read the server's configuration file.
+// services or read the server's database or settings.
 package cli
 
 import (

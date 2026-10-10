@@ -5,11 +5,14 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/rm4n0s/bos/internal/api"
 	"github.com/rm4n0s/bos/internal/config"
 	"github.com/rm4n0s/bos/internal/files"
+	"github.com/rm4n0s/bos/internal/store"
 	"github.com/rm4n0s/bos/internal/ui"
 	"github.com/rm4n0s/errors"
 )
@@ -18,18 +21,27 @@ import (
 // a termination signal.
 const shutdownTimeout = 10 * time.Second
 
-// serve follows the startup order of SPEC §2: create the configuration file if
-// it is missing, load it and create the directories, open the store, then serve until ctx is cancelled.
-// ready, if not nil, is called with the address once the listener is open.
-func serve(ctx context.Context, configPath string, getenv func(string) string, logger *slog.Logger, ready func(net.Addr), opts ...appOption) (err error) {
-	created, err := config.EnsureFile(configPath)
-	if err != nil {
-		return err
-	}
-	if created {
-		logger.Info("created the configuration file", "path", configPath)
-	}
-	cfg, err := config.Load(configPath, getenv)
+// errRestart is what serve returns when the settings page asked for a restart:
+// the program stops serving as it does for a termination signal, and main
+// starts it again, so that the settings it reads are the new ones.
+//
+// It is not a failure, so it is not an application error with a tag.
+var errRestart error = restartRequest{}
+
+type restartRequest struct{}
+
+func (restartRequest) Error() string { return "the program was asked to restart" }
+
+// serve follows the startup order of SPEC §2: open the database (creating it,
+// and its schema, if it does not exist), read the settings stored in it, create
+// the folders they name, then serve until ctx is cancelled or the settings page
+// asks for a restart (errRestart). ready, if not nil, is called with the
+// address once the listener is open.
+func serve(ctx context.Context, dbPath string, getenv func(string) string, logger *slog.Logger, ready func(net.Addr), opts ...appOption) (err error) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+
+	db, cfg, overridden, err := openDatabase(ctx, dbPath, getenv, logger)
 	if err != nil {
 		return err
 	}
@@ -47,8 +59,9 @@ func serve(ctx context.Context, configPath string, getenv func(string) string, l
 		return err
 	}
 
-	a, err := newApp(ctx, cfg, logger, opts...)
+	a, err := newApp(ctx, cfg, db, logger, overridden, opts...)
 	if err != nil {
+		_ = db.Close() // the failure to wire is the error to report
 		return err
 	}
 	defer func() {
@@ -74,7 +87,9 @@ func serve(ctx context.Context, configPath string, getenv func(string) string, l
 		ready(lis.Addr())
 	}
 	rest := api.New(a.apiDeps(logger))
-	web, err := ui.New(a.uiDeps(logger))
+	webDeps := a.uiDeps(logger)
+	webDeps.Restart = func() { cancel(errRestart) }
+	web, err := ui.New(webDeps)
 	if err != nil {
 		return err
 	}
@@ -90,7 +105,61 @@ func serve(ctx context.Context, configPath string, getenv func(string) string, l
 	// The live streams never end by themselves; stop them when the shutdown starts.
 	srv.RegisterOnShutdown(rest.Stop)
 	srv.RegisterOnShutdown(web.Stop)
-	return runServer(ctx, srv, lis, shutdownTimeout, logger)
+	if err := runServer(ctx, srv, lis, shutdownTimeout, logger); err != nil {
+		return err
+	}
+	if errors.Is(context.Cause(ctx), errRestart) {
+		return errRestart
+	}
+	return nil
+}
+
+// openDatabase opens the database file, creating it, its folder and its schema
+// when they do not exist, gives a new database (or one from before the settings
+// were stored in it) the default folders next to it, and resolves the
+// configuration of the run from what is stored and the environment.
+func openDatabase(ctx context.Context, dbPath string, getenv func(string) string, logger *slog.Logger) (*store.DB, *config.Config, []string, error) {
+	isNew := false
+	if dbPath != store.InMemory {
+		if _, statErr := os.Stat(dbPath); statErr != nil {
+			isNew = os.IsNotExist(statErr)
+			if err := os.MkdirAll(filepath.Dir(dbPath), 0o750); err != nil {
+				return nil, nil, nil, errors.NewErr("FileStoreFailure", err).SetMetadata("path", dbPath, "operation", "mkdir")
+			}
+		}
+	}
+	db, err := store.Open(ctx, dbPath)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	fail := func(err error) (*store.DB, *config.Config, []string, error) {
+		_ = db.Close() // the failure is the error to report
+		return nil, nil, nil, err
+	}
+	if err := db.Migrate(ctx); err != nil {
+		return fail(err)
+	}
+	settings := db.Repos().Settings
+	stored, err := settings.All(ctx)
+	if err != nil {
+		return fail(err)
+	}
+	if missing := config.MissingDefaults(stored, dbPath); len(missing) > 0 {
+		if err := settings.Save(ctx, missing); err != nil {
+			return fail(err)
+		}
+		for key, value := range missing {
+			stored[key] = value
+		}
+	}
+	if isNew {
+		logger.Info("created the database", "path", dbPath, "results_dir", stored["results_dir"])
+	}
+	cfg, overridden, err := config.Resolve(stored, dbPath, getenv)
+	if err != nil {
+		return fail(err)
+	}
+	return db, cfg, overridden, nil
 }
 
 // runServer serves on lis until ctx is cancelled, then waits up to

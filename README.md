@@ -29,14 +29,14 @@ You work in a web page, from a terminal (`bosctl`) or through a REST API. All th
 
 ```sh
 go build -o bin/ ./cmd/bos ./cmd/bosctl
-./bin/bos -config config.json
+./bin/bos
 ```
 
+Open <http://127.0.0.1:8080>. The first build compiles SQLite and takes a minute; later builds are quick.
+
+The program keeps everything in one database, `data/bos.db` (use `-db path/to/bos.db` for another). If it does not exist it is created, and the folders for results, uploads and downloads are made next to it. **The settings are in the database too**: change them in the **Settings** page of the web interface (a Civitai key, the address to listen on, the folders, …) and press *Restart now*. There is no configuration file. See [Settings](docs/guide/configuration.md).
+
 The log goes to the console. Add `-log-level debug` to see every request and every workflow sent to ComfyUI.
-
-If `config.json` does not exist, the program creates it, with the database and all folders in a `data` folder next to it. To start from the commented example instead, `cp config.example.json config.json` first.
-
-Open <http://127.0.0.1:8080>. The first build compiles SQLite and takes a minute; later builds are quick. The data (database, results, uploads) goes where `config.json` says.
 
 Then follow the [tutorial](docs/tutorial.md): from an empty program to a finished batch, in the web page and with `bosctl`.
 
@@ -56,7 +56,7 @@ Then follow the [tutorial](docs/tutorial.md): from an empty program to a finishe
 
 ## Safety
 
-By default the server listens only on `127.0.0.1`. If you let other machines reach it, set `auth_token` in the configuration: the web page then asks for the token once, and the API wants it as a bearer token. Server addresses are whatever you enter, so the program will connect to them; do not run it where untrusted people can add servers. See [the configuration](docs/guide/configuration.md).
+By default the server listens only on `127.0.0.1`. If you let other machines reach it, set the access token in **Settings**: the web page then asks for the token once, and the API wants it as a bearer token. Server addresses are whatever you enter, so the program will connect to them; do not run it where untrusted people can add servers. See [the configuration](docs/guide/configuration.md).
 
 ## For developers
 

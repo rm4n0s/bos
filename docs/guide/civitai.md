@@ -4,16 +4,7 @@ The program can download LoRAs from [Civitai](https://civitai.com) and turn them
 
 ## Set it up
 
-You need a Civitai **API key** (your account settings) and a place to keep downloads. In `config.json`:
-
-```json
-{
-  "civitai_token": "your key",
-  "civitai_cache_dir": "data/civitai"
-}
-```
-
-(and `civitai_domain` if your account lives on another domain). Without both, an import is refused with `CivitaiNotConfigured` and nothing is attempted.
+You need a Civitai **API key** (in your Civitai account settings). Open **Settings** in the web page, paste it into *Civitai → API key*, press *Save* and then *Restart now*. That is all: the folder where downloads are kept is already set (`civitai` next to the database). Without the key, an import is refused with `CivitaiNotConfigured` and nothing is attempted. (If your Civitai account lives on another domain, set *Domain* there too.)
 
 The program also needs to **copy** each LoRA into the `models/loras` folder of your ComfyUI installation, so the installation must be on this machine or on a shared disk the program can write to.
 

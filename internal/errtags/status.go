@@ -64,8 +64,7 @@ var statuses = map[string]int{
 
 	"StoreFailure": http.StatusInternalServerError, "MigrationFailed": http.StatusInternalServerError,
 	"FileStoreFailure": http.StatusInternalServerError, "FileOutsideStorage": http.StatusInternalServerError,
-	"TemplateInvalid": http.StatusInternalServerError, "ConfigInvalid": http.StatusInternalServerError, "ConfigNotReadable": http.StatusInternalServerError,
-	"ConfigNotWritable": http.StatusInternalServerError,
-	"ListenFailed":      http.StatusInternalServerError, "ServeFailed": http.StatusInternalServerError,
+	"TemplateInvalid": http.StatusInternalServerError, "ConfigInvalid": http.StatusUnprocessableEntity,
+	"ListenFailed": http.StatusInternalServerError, "ServeFailed": http.StatusInternalServerError,
 	"ShutdownFailed": http.StatusInternalServerError,
 }

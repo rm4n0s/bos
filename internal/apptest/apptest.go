@@ -69,7 +69,8 @@ func New(t *testing.T, opts ...func(*service.Deps)) *Env {
 	log := events.NewLog(100, nil)
 	deps := service.Deps{
 		Store: service.NewStore(db), Files: fs, Fleet: fleet, Dispatcher: wakes, Logger: logger, Events: log,
-		Dirs: service.Dirs{Results: dirs.Results, Regions: dirs.Regions, Downloads: dirs.Downloads},
+		Dirs:   service.Dirs{Results: dirs.Results, Regions: dirs.Regions, Downloads: dirs.Downloads},
+		DBPath: filepath.Join(root, "bos.db"),
 	}
 	for _, o := range opts {
 		o(&deps)

@@ -54,7 +54,7 @@ func (s *CivitaiService) Wait() { s.wg.Wait() }
 
 func (s *CivitaiService) check(in *CivitaiImport) error {
 	if s.Civitai == nil || !s.Civitai.Configured() || s.Dirs.CivitaiCache == "" {
-		return errors.New("CivitaiNotConfigured", "Civitai needs an API token and a cache directory in the configuration (civitai_token, civitai_cache_dir)")
+		return errors.New("CivitaiNotConfigured", "Civitai needs an API token (civitai_token, set in Settings → Civitai) and a cache folder (civitai_cache_dir)")
 	}
 	if len(in.Models) == 0 {
 		return errors.New("InvalidRequest", "at least one model is needed", "field", "models")

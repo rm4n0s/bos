@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/bos/internal/store"
 	"github.com/rm4n0s/errors"
 )
 
@@ -20,6 +21,11 @@ func testLogger(t *testing.T) *slog.Logger {
 	t.Helper()
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
+
+// dbOf is the database file a test environment names. BOS_DATABASE is not a
+// setting of the program (the database is given with -db): the tests carry the
+// path in their environment so that one value serves serve and its settings.
+func dbOf(env func(string) string) string { return env("BOS_DATABASE") }
 
 func testEnv(t *testing.T, extra map[string]string) func(string) string {
 	t.Helper()
@@ -64,7 +70,7 @@ func TestServeHealthAndGracefulShutdown(t *testing.T) {
 	addrCh := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- serve(ctx, "", env, testLogger(t), func(a net.Addr) { addrCh <- a })
+		done <- serve(ctx, dbOf(env), env, testLogger(t), func(a net.Addr) { addrCh <- a })
 	}()
 
 	var addr net.Addr
@@ -102,62 +108,94 @@ func routeOf(t *testing.T, err error) *errors.Error {
 	return appErr
 }
 
-func TestServeConfigFailure(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.Mkdir(filepath.Join(dir, "config.json"), 0o750); err != nil {
-		t.Fatal(err)
-	}
-	// A directory where the file should be: it exists, so it is not created, and it cannot be read.
-	err := serve(t.Context(), filepath.Join(dir, "config.json"), testEnv(t, nil), testLogger(t), nil)
-	if appErr := routeOf(t, err); !appErr.HasRoute("serve->Load.ConfigNotReadable") {
-		t.Errorf("unexpected failure path: %s", appErr.Route())
-	}
-}
-
-func TestServeConfigNotWritable(t *testing.T) {
+func TestServeDatabaseFolderFailure(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "file")
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := serve(t.Context(), filepath.Join(file, "config.json"), testEnv(t, nil), testLogger(t), nil)
-	if appErr := routeOf(t, err); !appErr.HasRoute("serve->EnsureFile.ConfigNotWritable") {
+	// The folder of the database cannot be made: its parent is a file.
+	err := serve(t.Context(), filepath.Join(file, "sub", "bos.db"), testEnv(t, nil), testLogger(t), nil)
+	if appErr := routeOf(t, err); !appErr.HasRoute("serve->openDatabase.FileStoreFailure") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 }
 
-func TestServeCreatesMissingConfig(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "conf", "bos.json")
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	ready := make(chan net.Addr, 1)
-	done := make(chan error, 1)
-	// No BOS_* paths: everything must come from the file that serve creates.
-	go func() {
-		done <- serve(ctx, path, func(k string) string {
-			if k == "BOS_LISTEN_ADDR" {
-				return "127.0.0.1:0"
-			}
-			return ""
-		}, testLogger(t), func(a net.Addr) { ready <- a })
-	}()
-	select {
-	case <-ready:
-	case err := <-done:
-		t.Fatalf("serve returned early: %v", err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("server did not start")
+// A database that does not exist is created with its folder, its schema and
+// default settings: every folder next to it.
+func TestServeCreatesTheDatabaseWithDefaultSettings(t *testing.T) {
+	root := t.TempDir()
+	dbPath := filepath.Join(root, "new", "bos.db")
+	listenOnly := func(k string) string { // no BOS_* folders: everything comes from the database
+		if k == "BOS_LISTEN_ADDR" {
+			return "127.0.0.1:0"
+		}
+		return ""
 	}
-	cancel()
-	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
-	for _, p := range []string{path, filepath.Join(dir, "conf", "data", "bos.db"), filepath.Join(dir, "conf", "data", "results")} {
-		if _, err := os.Stat(p); err != nil {
-			t.Errorf("expected %s to exist: %v", p, err)
+	run := func() {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		ready := make(chan net.Addr, 1)
+		done := make(chan error, 1)
+		go func() { done <- serve(ctx, dbPath, listenOnly, testLogger(t), func(a net.Addr) { ready <- a }) }()
+		select {
+		case <-ready:
+		case err := <-done:
+			t.Fatalf("serve returned early: %v", err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("server did not start")
+		}
+		cancel()
+		if err := <-done; err != nil {
+			t.Fatal(err)
 		}
 	}
+	run()
+	for _, name := range []string{"results", "controlnet", "ipadapter", "regions", "thumbnails", "downloads", "civitai"} {
+		if info, err := os.Stat(filepath.Join(root, "new", name)); err != nil || !info.IsDir() {
+			t.Errorf("expected the folder %s next to the database: %v", name, err)
+		}
+	}
+	settings := storedSettings(t, dbPath)
+	if settings["results_dir"] != filepath.Join(root, "new", "results") || settings["civitai_cache_dir"] != filepath.Join(root, "new", "civitai") {
+		t.Errorf("stored settings = %v", settings)
+	}
+
+	// The next start reads the settings from the database: a folder changed
+	// there is the one that is made.
+	other := filepath.Join(root, "elsewhere")
+	db, err := store.Open(t.Context(), dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Repos().Settings.Save(t.Context(), map[string]string{"results_dir": other}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	run()
+	if info, err := os.Stat(other); err != nil || !info.IsDir() {
+		t.Errorf("the folder stored in the database was not made: %v", err)
+	}
+}
+
+// storedSettings reads the settings of a database file that is not in use.
+func storedSettings(t *testing.T, dbPath string) map[string]string {
+	t.Helper()
+	db, err := store.Open(t.Context(), dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	got, err := db.Repos().Settings.All(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
 }
 
 func TestServeDirectoryFailure(t *testing.T) {
@@ -165,17 +203,18 @@ func TestServeDirectoryFailure(t *testing.T) {
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	err := serve(t.Context(), "", testEnv(t, map[string]string{"BOS_RESULTS_DIR": filepath.Join(file, "r")}), testLogger(t), nil)
+	env := testEnv(t, map[string]string{"BOS_RESULTS_DIR": filepath.Join(file, "r")})
+	err := serve(t.Context(), dbOf(env), env, testLogger(t), nil)
 	if appErr := routeOf(t, err); !appErr.HasRoute("serve->EnsureDirs.FileStoreFailure") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
 }
 
 func TestServeStoreFailure(t *testing.T) {
-	missing := filepath.Join(t.TempDir(), "no", "such", "dir", "bos.db")
-	err := serve(t.Context(), "", testEnv(t, map[string]string{"BOS_DATABASE": missing}), testLogger(t), nil)
-	if appErr := routeOf(t, err); !appErr.HasRoute("serve->newApp->Open.StoreFailure") {
-		t.Errorf("unexpected failure path: %s", appErr.Route())
+	// A folder where the database file should be: it exists, so it is opened, and it is not a database.
+	err := serve(t.Context(), t.TempDir(), testEnv(t, nil), testLogger(t), nil)
+	if appErr := routeOf(t, err); !appErr.HasRoute("serve->openDatabase") || appErr.Tag != "StoreFailure" {
+		t.Errorf("unexpected failure path: %s (tag %s)", appErr.Route(), appErr.Tag)
 	}
 }
 
@@ -190,7 +229,7 @@ func TestServeListenFailure(t *testing.T) {
 		}
 	}()
 	env := testEnv(t, map[string]string{"BOS_LISTEN_ADDR": busy.Addr().String()})
-	err = serve(t.Context(), "", env, testLogger(t), nil)
+	err = serve(t.Context(), dbOf(env), env, testLogger(t), nil)
 	if appErr := routeOf(t, err); !appErr.HasRoute("serve.ListenFailed") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
 	}
@@ -261,7 +300,7 @@ func TestServeServesTheAPI(t *testing.T) {
 	env := testEnv(t, map[string]string{"BOS_AUTH_TOKEN": "s3cret"})
 	addrCh := make(chan net.Addr, 1)
 	done := make(chan error, 1)
-	go func() { done <- serve(ctx, "", env, testLogger(t), func(a net.Addr) { addrCh <- a }) }()
+	go func() { done <- serve(ctx, dbOf(env), env, testLogger(t), func(a net.Addr) { addrCh <- a }) }()
 	var base string
 	select {
 	case a := <-addrCh:
@@ -373,7 +412,8 @@ func TestLogLevelFromTheConfiguration(t *testing.T) {
 			addr := make(chan net.Addr, 1)
 			done := make(chan error, 1)
 			go func() {
-				done <- serve(ctx, "", testEnv(t, map[string]string{"BOS_LOG_LEVEL": level}), logger, func(a net.Addr) { addr <- a }, withLogLevel(lv))
+				env := testEnv(t, map[string]string{"BOS_LOG_LEVEL": level})
+				done <- serve(ctx, dbOf(env), env, logger, func(a net.Addr) { addr <- a }, withLogLevel(lv))
 			}()
 			select {
 			case a := <-addr:
@@ -419,7 +459,7 @@ func TestLogLevelFlagBeatsTheConfiguration(t *testing.T) {
 	// The environment (and so the file) says warn; the flag says debug.
 	env := overrideEnv(testEnv(t, map[string]string{"BOS_LOG_LEVEL": "warn"}), "BOS_LOG_LEVEL", "debug")
 	go func() {
-		done <- serve(ctx, "", env, testLogger(t), func(a net.Addr) { ready <- a }, withLogLevel(level))
+		done <- serve(ctx, dbOf(env), env, testLogger(t), func(a net.Addr) { ready <- a }, withLogLevel(level))
 	}()
 	select {
 	case <-ready:
@@ -438,9 +478,88 @@ func TestLogLevelFlagBeatsTheConfiguration(t *testing.T) {
 }
 
 func TestLogLevelFlagMustBeALevel(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "c.json")
-	err := runMain([]string{"-config", path, "-log-level", "loud"})
-	if appErr := routeOf(t, err); !appErr.HasRoute("serve->Load->Config.Validate.ConfigInvalid") {
+	path := filepath.Join(t.TempDir(), "bos.db")
+	err := runMain([]string{"-db", path, "-log-level", "loud"})
+	if appErr := routeOf(t, err); !appErr.HasRoute("serve->openDatabase->Resolve->Config.Validate.ConfigInvalid") {
 		t.Errorf("unexpected failure path: %s", appErr.Route())
+	}
+}
+
+// The settings page saves into the database and its restart button makes the
+// program read the database again: a folder changed in the page is made by the
+// next run, in the same process.
+func TestSettingsPageRestartsTheProgram(t *testing.T) {
+	root := t.TempDir()
+	dbPath := filepath.Join(root, "bos.db")
+	listenOnly := func(k string) string {
+		if k == "BOS_LISTEN_ADDR" {
+			return "127.0.0.1:0"
+		}
+		return ""
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	starts := make(chan net.Addr, 4)
+	done := make(chan error, 1)
+	go func() {
+		done <- serveAndRestart(ctx, dbPath, listenOnly, testLogger(t), func(a net.Addr) { starts <- a }, quick)
+	}()
+	wait := func() string {
+		select {
+		case a := <-starts:
+			return "http://" + a.String()
+		case err := <-done:
+			t.Fatalf("the program ended: %v", err)
+		case <-time.After(10 * time.Second):
+			t.Fatal("the program did not start")
+		}
+		return ""
+	}
+	post := func(base, path, contentType, body string) int {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+path, strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Datastar-Request", "true")
+		req.Header.Set("Content-Type", contentType)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = io.Copy(io.Discard, res.Body)
+		if err := res.Body.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return res.StatusCode
+	}
+
+	first := wait()
+	newFolder := filepath.Join(root, "moved-results")
+	if _, err := os.Stat(newFolder); err == nil {
+		t.Fatal("the folder is there before it is asked for")
+	}
+	if status := post(first, "/ui/settings", "application/x-www-form-urlencoded", "results_dir="+newFolder); status != 200 {
+		t.Fatalf("save: status %d", status)
+	}
+	if got := storedSettings(t, dbPath)["results_dir"]; got != newFolder {
+		t.Fatalf("stored results_dir = %q", got)
+	}
+	// Saved, but not applied until the restart.
+	if _, err := os.Stat(newFolder); err == nil {
+		t.Error("the folder was made before the restart")
+	}
+	if status := post(first, "/ui/settings/restart", "application/json", "{}"); status != 200 {
+		t.Fatalf("restart: status %d", status)
+	}
+	second := wait()
+	if info, err := os.Stat(newFolder); err != nil || !info.IsDir() {
+		t.Errorf("the restarted program did not use the saved setting: %v", err)
+	}
+	if status := get(t, second+"/healthz"); status != 200 {
+		t.Errorf("healthz after the restart = %d", status)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
