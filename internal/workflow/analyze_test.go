@@ -151,3 +151,76 @@ func TestAnalyzeWithoutOutputNode(t *testing.T) {
 		t.Errorf("metadata = %v", appErr.Metadata)
 	}
 }
+
+func TestAnalyzeSuggestsThePromptNodes(t *testing.T) {
+	tests := []struct {
+		file, positive, negative string
+	}{
+		{"creators/illustrious_xl.json", "Positive", "Negative"},
+		{"creators/anima_aio.json", "Positive Prompt", "Negative Prompt"},
+		{"creators/anima_v3_preview.json", "Positive Prompt", "Negative Prompt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.file, func(t *testing.T) {
+			a, err := Analyze(example(t, tt.file))
+			check(t, err)
+			if a.PositiveTitle != tt.positive || a.NegativeTitle != tt.negative {
+				t.Errorf("suggested %q / %q, want %q / %q", a.PositiveTitle, a.NegativeTitle, tt.positive, tt.negative)
+			}
+		})
+	}
+}
+
+func TestSuggestedPromptTitlesStartWithTheWord(t *testing.T) {
+	// "POSITIVE hires" starts with the word in any case; "Not positive" and
+	// "Prompt" do not; a text encoder wins over a node of another kind.
+	g, err := Parse([]byte(`{
+	  "1":{"class_type":"PrimitiveString","_meta":{"title":"positive text"},"inputs":{"value":""}},
+	  "2":{"class_type":"CLIPTextEncode","_meta":{"title":"Not positive"},"inputs":{"text":""}},
+	  "3":{"class_type":"CLIPTextEncode","_meta":{"title":"POSITIVE hires"},"inputs":{"text":""}},
+	  "4":{"class_type":"CLIPTextEncode","_meta":{"title":"Prompt"},"inputs":{"text":""}},
+	  "5":{"class_type":"CLIPTextEncode","_meta":{"title":"Negative"},"inputs":{"text":""}},
+	  "6":{"class_type":"SaveImage","_meta":{"title":"Save Image"},"inputs":{"images":["3",0]}}}`))
+	check(t, err)
+	a, err := Analyze(g)
+	check(t, err)
+	if a.PositiveTitle != "POSITIVE hires" || a.NegativeTitle != "Negative" {
+		t.Errorf("suggested %q / %q", a.PositiveTitle, a.NegativeTitle)
+	}
+
+	g, err = Parse([]byte(`{
+	  "1":{"class_type":"CLIPTextEncode","_meta":{"title":"Prompt"},"inputs":{"text":""}},
+	  "2":{"class_type":"SaveImage","_meta":{"title":"Save Image"},"inputs":{"images":["1",0]}}}`))
+	check(t, err)
+	if a, err = Analyze(g); err != nil || a.PositiveTitle != "" || a.NegativeTitle != "" {
+		t.Errorf("no node starts with the words: %+v, %v", a, err)
+	}
+}
+
+// A node without a `_meta.title` is named by its class, which is what the
+// client library matches too. The Qwen text node holds both prompts, so it is
+// the positive node and no negative one is suggested.
+func TestAnalyzeAQwenWorkflow(t *testing.T) {
+	a, err := Analyze(qwen(t))
+	check(t, err)
+	if !reflect.DeepEqual(a.PromptTitles, []string{"TextEncodeQwenImage21"}) {
+		t.Errorf("prompt titles = %v", a.PromptTitles)
+	}
+	if a.PositiveTitle != "TextEncodeQwenImage21" || a.NegativeTitle != "" {
+		t.Errorf("suggested %q / %q", a.PositiveTitle, a.NegativeTitle)
+	}
+	check(t, CheckTitles(qwen(t), a.PositiveTitle))
+}
+
+func TestEffectivePromptsOfAQwenWorkflow(t *testing.T) {
+	g := qwen(t)
+	check(t, SetPrompts(g, "TextEncodeQwenImage21", "a red fox", "", "blurry"))
+	p := EffectivePrompts(g)
+	if len(p) != 1 || p[0].Positive.Node != "4" || p[0].Negative.Node != "4" {
+		t.Fatalf("prompts = %+v", p)
+	}
+	want := map[string]string{"prompt": "a red fox", "negative_prompt": "blurry"}
+	if !reflect.DeepEqual(p[0].Positive.Texts, want) {
+		t.Errorf("texts = %v, want %v", p[0].Positive.Texts, want)
+	}
+}

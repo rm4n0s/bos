@@ -69,7 +69,7 @@ func serve(ctx context.Context, configPath string, getenv func(string) string, l
 	if err != nil {
 		return errors.NewErr("ListenFailed", err).SetMetadata("listen_addr", cfg.ListenAddr)
 	}
-	logger.Info("listening", "addr", lis.Addr().String())
+	logger.Info("listening", "addr", lis.Addr().String(), "log_level", cfg.LogLevel)
 	if ready != nil {
 		ready(lis.Addr())
 	}

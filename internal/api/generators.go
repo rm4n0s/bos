@@ -45,8 +45,11 @@ type analysisBody struct {
 	OutputNodeClassType string                  `json:"output_node_class_type"`
 	OutputNodeTitle     string                  `json:"output_node_title"`
 	PromptTitles        []string                `json:"prompt_titles"`
-	LoadImageTitles     []string                `json:"load_image_titles"`
-	SaveImageTitles     []string                `json:"save_image_titles"`
+	// The nodes the generator would use by default: the first titled "positive…" and "negative…".
+	PositivePromptTitle string   `json:"positive_prompt_title"`
+	NegativePromptTitle string   `json:"negative_prompt_title"`
+	LoadImageTitles     []string `json:"load_image_titles"`
+	SaveImageTitles     []string `json:"save_image_titles"`
 }
 
 func analysisOf(an *workflow.Analysis) analysisBody {
@@ -59,7 +62,7 @@ func analysisOf(an *workflow.Analysis) analysisBody {
 	return analysisBody{
 		OutputType: an.OutputType, OutputAttributes: an.Attributes,
 		OutputNodeClassType: an.OutputNodeClassType, OutputNodeTitle: an.OutputNodeTitle,
-		PromptTitles: nonNil(an.PromptTitles), LoadImageTitles: nonNil(an.LoadImageTitles), SaveImageTitles: nonNil(an.SaveImageTitles),
+		PromptTitles: nonNil(an.PromptTitles), PositivePromptTitle: an.PositiveTitle, NegativePromptTitle: an.NegativeTitle, LoadImageTitles: nonNil(an.LoadImageTitles), SaveImageTitles: nonNil(an.SaveImageTitles),
 	}
 }
 
@@ -67,12 +70,12 @@ func (a *API) generatorRoutes() {
 	wf := []string{"WorkflowInvalid", "WorkflowTitleDuplicated", "WorkflowTitleNotFound", "OutputNodeNotFound", "NoSamplerInWorkflow"}
 	a.add(route{Method: "GET", Path: "/generators", Paged: true, Summary: "List generators", Run: a.listGenerators})
 	a.add(route{Method: "POST", Path: "/generators", Summary: "Create a generator", Success: http.StatusCreated, Body: "json",
-		Errors: append([]string{"GeneratorCodeNameTaken", "CodeNameInvalid"}, wf...), Run: a.createGenerator})
+		Errors: append([]string{"GeneratorCodeNameTaken", "CodeNameInvalid", "GeneratorTitleRequired"}, wf...), Run: a.createGenerator})
 	a.add(route{Method: "POST", Path: "/generators/analyze", Summary: "Infer the output of a workflow; persists nothing", Body: "json",
 		Errors: []string{"WorkflowInvalid", "OutputNodeNotFound"}, Run: a.analyzeWorkflow})
 	a.add(route{Method: "GET", Path: "/generators/{id}", Summary: "Get a generator", Errors: []string{"GeneratorNotFound"}, Run: a.getGenerator})
 	a.add(route{Method: "PUT", Path: "/generators/{id}", Summary: "Replace the editable fields of a generator", Body: "json",
-		Errors: append([]string{"GeneratorNotFound", "GeneratorCodeNameTaken"}, wf...), Run: a.updateGenerator})
+		Errors: append([]string{"GeneratorNotFound", "GeneratorCodeNameTaken", "GeneratorTitleRequired"}, wf...), Run: a.updateGenerator})
 	a.add(route{Method: "DELETE", Path: "/generators/{id}", Summary: "Delete a generator", Success: http.StatusNoContent,
 		Errors: []string{"GeneratorNotFound"}, Response: "none", Run: a.deleteGenerator})
 }

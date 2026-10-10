@@ -49,7 +49,13 @@ func TestEveryRoute(t *testing.T) {
 		if an["output_type"] != "image" || an["output_node_class_type"] == "" {
 			t.Errorf("analysis = %v", an)
 		}
+		if an["positive_prompt_title"] != "Positive" || an["negative_prompt_title"] != "Negative" {
+			t.Errorf("the analysis suggests %v / %v", an["positive_prompt_title"], an["negative_prompt_title"])
+		}
 		r := ok(a.do("POST", "/api/v1/generators", map[string]any{"name": "Anime", "code_name": "anime", "workflow": wf}), 201)
+		if r.json()["positive_prompt_title"] != "Positive" || r.json()["negative_prompt_title"] != "Negative" {
+			t.Errorf("a generator created without titles got %v / %v", r.json()["positive_prompt_title"], r.json()["negative_prompt_title"])
+		}
 		wfBack, isObject := r.json()["workflow"].(map[string]any)
 		if !isObject || len(wfBack) == 0 {
 			t.Errorf("the workflow must come back as a JSON object, got %T", r.json()["workflow"])

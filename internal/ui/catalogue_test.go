@@ -21,6 +21,18 @@ func TestGeneratorScreen(t *testing.T) {
 		t.Errorf("signals = %v", r.signals())
 	}
 
+	// The workflow is analysed by itself when it is pasted, edited or loaded
+	// from a file: there is no button to press.
+	form := r.patches()
+	mustContain(t, "automatic analysis", form,
+		`data-on:change="@post('/ui/generators/analyze', {contentType: 'form'})"`,
+		`data-on:paste__debounce.400ms="@post('/ui/generators/analyze', {contentType: 'form'})"`,
+		`dispatchEvent(new Event('change'`)
+	mustNotContain(t, "automatic analysis", form, "Analyze workflow")
+	// Datastar does not send an invalid form, and the analysis is sent before
+	// the name is typed: the browser must not demand fields. The service does.
+	mustNotContain(t, "automatic analysis", form, " required")
+
 	// Analyze fills the fields from the workflow and offers its titles.
 	r = u.submit("POST", "/ui/generators/analyze", field("id", "0"), field("name", "Anime"), field("code_name", "anime"), field("workflow", wf), field("output_type", "image"))
 	p := r.patches()
@@ -28,6 +40,17 @@ func TestGeneratorScreen(t *testing.T) {
 	mustNotContain(t, "analyze", p, `value="anime"></label>
 </div>
 <label>Workflow`, "toast error")
+
+	// The prompt nodes that start with Positive and Negative are filled in.
+	mustContain(t, "analyze", p, `name="positive_prompt_title" list="prompt-titles" value="Positive"`, `name="negative_prompt_title" list="prompt-titles" value="Negative"`)
+	// What was typed there stays.
+	r = u.submit("POST", "/ui/generators/analyze", field("workflow", wf), field("positive_prompt_title", "Negative"))
+	mustContain(t, "analyze keeps a typed title", r.patches(), `name="positive_prompt_title" list="prompt-titles" value="Negative"`)
+
+	// A generator needs a positive prompt node: with no node starting with the word, it is refused in the dialog.
+	renamed := strings.ReplaceAll(wf, `"Positive"`, `"Wanted text"`)
+	r = u.submit("POST", "/ui/generators", field("id", "0"), field("name", "Anime"), field("code_name", "anime"), field("workflow", renamed))
+	mustContain(t, "no positive node", r.patches(), "selector #generators-error", "positive prompt node")
 
 	// A workflow that is not one is an error in the dialog.
 	r = u.submit("POST", "/ui/generators/analyze", field("workflow", "not json"))
@@ -72,6 +95,13 @@ func TestGeneratorScreen(t *testing.T) {
 func TestFixerScreen(t *testing.T) {
 	u := newTestUI(t)
 	wf := example(t, "fixers", "simple_upscale.json")
+	form := u.datastar("GET", "/ui/fixers/new", struct{}{}).patches()
+	mustContain(t, "automatic analysis", form,
+		`data-on:change="@post('/ui/fixers/analyze', {contentType: 'form'})"`,
+		`data-on:paste__debounce.400ms="@post('/ui/fixers/analyze', {contentType: 'form'})"`,
+		`dispatchEvent(new Event('change'`)
+	mustNotContain(t, "automatic analysis", form, "Analyze workflow")
+	mustNotContain(t, "automatic analysis", form, " required")
 	r := u.submit("POST", "/ui/fixers/analyze", field("workflow", wf))
 	mustContain(t, "analyze", r.patches(), "<datalist id=\"load-titles\">", "Load Image", "Save Image", "image-input")
 	r = u.submit("POST", "/ui/fixers", field("id", "0"), field("name", "Upscale"), field("code_name", "upscale"), field("workflow", wf),

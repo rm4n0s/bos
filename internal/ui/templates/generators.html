@@ -43,17 +43,18 @@
 <h2>{{if .ID}}Edit generator{{else}}Add generator{{end}}</h2>
 <input type="hidden" name="id" value="{{.ID}}">
 <div class="row">
-  <label>Name <input name="name" maxlength="100" value="{{.Name}}" required></label>
-  <label>Code name <input name="code_name" maxlength="100" value="{{.CodeName}}" placeholder="anime" required></label>
+  <label>Name <input name="name" maxlength="100" value="{{.Name}}"></label>
+  <label>Code name <input name="code_name" maxlength="100" value="{{.CodeName}}" placeholder="anime"></label>
 </div>
 <label>Workflow (ComfyUI, API format)
-  <textarea name="workflow" rows="8" spellcheck="false" placeholder='{"3": {"class_type": "KSampler", ...}}'>{{.Workflow}}</textarea>
+  <textarea name="workflow" rows="8" spellcheck="false" placeholder='{"3": {"class_type": "KSampler", ...}}'
+    data-on:change="@post('/ui/generators/analyze', {contentType: 'form'})"
+    data-on:paste__debounce.400ms="@post('/ui/generators/analyze', {contentType: 'form'})">{{.Workflow}}</textarea>
 </label>
 <label>…or load it from a file
-  <input type="file" accept=".json,application/json" data-on:change="const f = el.files[0]; if (f) { f.text().then(t => { el.closest('form').elements.workflow.value = t }) }">
+  <input type="file" accept=".json,application/json" data-on:change="const f = el.files[0]; if (f) { f.text().then(t => { const w = el.closest('form').elements.workflow; w.value = t; w.dispatchEvent(new Event('change')) }) }">
 </label>
-<div class="buttons start"><button type="button" class="secondary" data-on:click="@post('/ui/generators/analyze', {contentType: 'form'})">Analyze workflow</button>
-  <span class="muted">Fills the fields below from the workflow and offers its node titles.</span></div>
+<p class="hint">Paste the workflow or load a file: the fields below are filled in from it by themselves.</p>
 {{if .Analysed}}<p class="ok">Found: {{.OutputType}} output at “{{.NodeTitle}}” ({{.NodeClass}}).</p>{{end}}
 <div class="row">
   <label>Positive prompt node <input name="positive_prompt_title" list="prompt-titles" value="{{.PositiveTitle}}"></label>

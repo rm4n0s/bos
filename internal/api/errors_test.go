@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,6 +33,7 @@ func seeded(t *testing.T) *testAPI {
 // asserts its status and the envelope (acceptance 26).
 func TestErrorEnvelope(t *testing.T) {
 	a := seeded(t)
+	noPositive := json.RawMessage(strings.ReplaceAll(string(example(t, "creators", "illustrious_xl.json")), `"Positive"`, `"Wanted text"`))
 	badWorkflow := map[string]any{"name": "Bad", "code_name": "bad", "workflow": map[string]any{"1": map[string]any{"class_type": "KSampler"}}}
 
 	tests := []struct {
@@ -81,6 +83,7 @@ func TestErrorEnvelope(t *testing.T) {
 
 		{"workflow invalid", "POST", "/api/v1/generators/analyze", map[string]any{"workflow": "not a graph"}, 422, "WorkflowInvalid"},
 		{"generator workflow without an output", "POST", "/api/v1/generators", badWorkflow, 422, "OutputNodeNotFound"},
+		{"generator without a positive prompt node", "POST", "/api/v1/generators", map[string]any{"name": "x", "code_name": "nopos", "workflow": noPositive}, 422, "GeneratorTitleRequired"},
 		{"fixer without titles", "POST", "/api/v1/fixers", map[string]any{"name": "x", "code_name": "x", "workflow": example(t, "fixers", "simple_upscale.json")}, 422, "FixerTitleRequired"},
 
 		{"lex error", "POST", "/api/v1/projects/1/commands", map[string]any{"name": "x", "code": "gpu1 -$ anime: characters @"}, 422, "CommandLexError"},

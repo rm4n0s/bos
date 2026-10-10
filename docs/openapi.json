@@ -1057,7 +1057,7 @@
                 }
               }
             },
-            "description": "Error tags: CodeNameInvalid, NoSamplerInWorkflow, OutputNodeNotFound, WorkflowInvalid, WorkflowTitleDuplicated, WorkflowTitleNotFound"
+            "description": "Error tags: CodeNameInvalid, GeneratorTitleRequired, NoSamplerInWorkflow, OutputNodeNotFound, WorkflowInvalid, WorkflowTitleDuplicated, WorkflowTitleNotFound"
           }
         },
         "summary": "Create a generator"
@@ -1271,7 +1271,7 @@
                 }
               }
             },
-            "description": "Error tags: NoSamplerInWorkflow, OutputNodeNotFound, WorkflowInvalid, WorkflowTitleDuplicated, WorkflowTitleNotFound"
+            "description": "Error tags: GeneratorTitleRequired, NoSamplerInWorkflow, OutputNodeNotFound, WorkflowInvalid, WorkflowTitleDuplicated, WorkflowTitleNotFound"
           }
         },
         "summary": "Replace the editable fields of a generator"

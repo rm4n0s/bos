@@ -1,6 +1,11 @@
 package workflow
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 // Acceptance test 32.
 func TestCheckTitlesRejectsDuplicates(t *testing.T) {
@@ -70,5 +75,98 @@ func TestSetInputForFixer(t *testing.T) {
 	check(t, SetInput(g, "Load Image", "image", "bos/abc123.png"))
 	if got := string(node(t, g, "8").Inputs["image"]); got != `"bos/abc123.png"` {
 		t.Errorf("image = %s", got)
+	}
+}
+
+// qwen reads the Qwen Image 2.1 test workflow, whose one text node holds both
+// prompts, in the inputs `prompt` and `negative_prompt`.
+func qwen(t *testing.T) Graph {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "qwen_image_21.json"))
+	check(t, err)
+	return mustParse(t, string(data))
+}
+
+func inputText(t *testing.T, g Graph, node, input string) (string, bool) {
+	t.Helper()
+	n, err := g.Node(node)
+	check(t, err)
+	raw, ok := n.Inputs[input]
+	if !ok {
+		return "", false
+	}
+	var s string
+	check(t, json.Unmarshal(raw, &s))
+	return s, true
+}
+
+// A node that has a `prompt` input and a `negative_prompt` input receives the
+// positive prompt in the first and the negative one in the second, whether the
+// negative title is left out or names the same node. It must not be given a
+// `text` input that ComfyUI would ignore.
+func TestSetPromptsInAQwenNode(t *testing.T) {
+	for _, negativeTitle := range []string{"", "TextEncodeQwenImage21"} {
+		t.Run("negative title "+negativeTitle, func(t *testing.T) {
+			g := qwen(t)
+			check(t, SetPrompts(g, "TextEncodeQwenImage21", "a red fox", negativeTitle, "blurry"))
+			if got, _ := inputText(t, g, "4", "prompt"); got != "a red fox" {
+				t.Errorf("prompt = %q", got)
+			}
+			if got, _ := inputText(t, g, "4", "negative_prompt"); got != "blurry" {
+				t.Errorf("negative_prompt = %q", got)
+			}
+			if _, has := inputText(t, g, "4", "text"); has {
+				t.Error("a text input was added to a node that has none")
+			}
+			n, _ := g.Node("4")
+			if string(n.Inputs["resolution"]) != "1024" || string(n.Inputs["clip"]) != `["2",0]` {
+				t.Errorf("other inputs changed: %s %s", n.Inputs["resolution"], n.Inputs["clip"])
+			}
+		})
+	}
+}
+
+func TestSetPromptsStillUsesTextWhereTheNodeHasIt(t *testing.T) {
+	g := example(t, "creators/illustrious_xl.json")
+	check(t, SetPrompts(g, "Positive", "a red fox", "Negative", "blurry"))
+	if got, _ := inputText(t, g, "6", "text"); got != "a red fox" {
+		t.Errorf("text = %q", got)
+	}
+	if got, _ := inputText(t, g, "7", "text"); got != "blurry" {
+		t.Errorf("negative text = %q", got)
+	}
+}
+
+// A node with no input for the text cannot take it; saying so beats a prompt
+// that silently goes nowhere.
+func TestSetPromptsRefusesANodeWithoutATextInput(t *testing.T) {
+	g := mustParse(t, `{
+	  "1":{"class_type":"CLIPTextEncode","_meta":{"title":"Positive"},"inputs":{"clip":["9",0]}},
+	  "2":{"class_type":"PrimitiveString","_meta":{"title":"Negative"},"inputs":{"value":""}}}`)
+	appErr := wantTagMeta(t, SetPrompts(g, "Positive", "x", "", ""), "SetPrompts->noPromptInput", "InjectorFailed")
+	if appErr.Metadata["node"] != "1" {
+		t.Errorf("metadata = %v", appErr.Metadata)
+	}
+	wantTag(t, SetPrompts(g, "", "", "Negative", "x"), "SetPrompts->noPromptInput", "InjectorFailed")
+}
+
+func TestPromptsGoWithThePositiveNode(t *testing.T) {
+	if !NegativeGoesWithPositive(qwen(t), "TextEncodeQwenImage21") {
+		t.Error("the Qwen node takes the negative prompt too")
+	}
+	g := example(t, "creators/illustrious_xl.json")
+	if NegativeGoesWithPositive(g, "Positive") || NegativeGoesWithPositive(g, "Nowhere") {
+		t.Error("a CLIPTextEncode takes one prompt, and a missing node none")
+	}
+}
+
+// Region prompts copy the base text encoder, which only works for one with a
+// `text` input. Another kind is refused rather than given a text it ignores.
+func TestRegionsRefuseATextNodeWithoutATextInput(t *testing.T) {
+	g := qwen(t)
+	err := InjectRegions(g, []Region{{Keyword: "left", Prompt: "a fox", Rect: &Rect{Width: 512, Height: 512}}})
+	appErr := wantTagMeta(t, err, "InjectRegions", "InjectorFailed")
+	if appErr.Metadata["node"] != "4" {
+		t.Errorf("metadata = %v", appErr.Metadata)
 	}
 }

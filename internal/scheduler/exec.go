@@ -3,7 +3,10 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -63,6 +66,7 @@ func (s *Scheduler) generate(ctx context.Context, r *runner, client comfy.Client
 	if err := workflow.SetPrompts(g, gen.PositivePromptTitle, job.PositivePrompt, gen.NegativePromptTitle, job.NegativePrompt); err != nil {
 		return err
 	}
+	s.warnUnsentPrompts(g, gen, job)
 	if err := workflow.ApplyAttributes(g, job.OutputAttributes); err != nil {
 		return err
 	}
@@ -180,6 +184,7 @@ func (s *Scheduler) upload(ctx context.Context, client comfy.Client, path string
 // submit queues the workflow, records the prompt id and the warnings on the job
 // and announces the stage (SPEC §8.2).
 func (s *Scheduler) submit(ctx context.Context, r *runner, client comfy.Client, g workflow.Graph, job *domain.Job) error {
+	s.logQueued(ctx, r, g, job)
 	id, warnings, err := client.QueuePrompt(ctx, g)
 	if err != nil {
 		return err
@@ -193,6 +198,67 @@ func (s *Scheduler) submit(ctx context.Context, r *runner, client comfy.Client, 
 	}
 	s.emit(events.Processing, job, r.code())
 	return nil
+}
+
+// warnUnsentPrompts says so in the log when a job has a prompt that no node of
+// the workflow can receive, because the generator names no prompt node for it:
+// ComfyUI then runs the text the workflow file has, for every job alike.
+func (s *Scheduler) warnUnsentPrompts(g workflow.Graph, gen *domain.Generator, job *domain.Job) {
+	var missing []string
+	if strings.TrimSpace(job.PositivePrompt) != "" && strings.TrimSpace(gen.PositivePromptTitle) == "" {
+		missing = append(missing, "positive")
+	}
+	if strings.TrimSpace(job.NegativePrompt) != "" && strings.TrimSpace(gen.NegativePromptTitle) == "" &&
+		!workflow.NegativeGoesWithPositive(g, gen.PositivePromptTitle) {
+		missing = append(missing, "negative")
+	}
+	if len(missing) == 0 {
+		return
+	}
+	s.Logger.Warn("the generator has no prompt node for the job's prompt, so it is not sent to ComfyUI: set the prompt node titles of the generator",
+		"job", job.ID, "command", job.CommandID, "generator", gen.CodeName, "missing", strings.Join(missing, " and "))
+}
+
+// logQueued records what is about to be sent to ComfyUI: for each sampler, the
+// node its positive and negative conditioning ends in and the text that node
+// holds, read back from the finished workflow rather than from the job. When a
+// server draws the same picture for different jobs, this tells whether the
+// prompts reached the workflow. The whole workflow is logged at debug level.
+func (s *Scheduler) logQueued(ctx context.Context, r *runner, g workflow.Graph, job *domain.Job) {
+	step := "generation"
+	if job.IsGenerated {
+		step = "fixer " + strconv.Itoa(job.FinishedFixers+1)
+	}
+	base := []any{"job", job.ID, "command", job.CommandID, "server", r.code(), "step", step}
+	if job.Seed != nil {
+		base = append(base, "seed", *job.Seed)
+	}
+	samplers := workflow.EffectivePrompts(g)
+	if len(samplers) == 0 {
+		s.Logger.Info("sending a prompt to ComfyUI", append(base, "sampler", "none found")...)
+	}
+	for _, p := range samplers {
+		attrs := append(slices.Clone(base), "sampler", p.Sampler,
+			promptGroup("positive", p.Positive), promptGroup("negative", p.Negative))
+		s.Logger.Info("sending a prompt to ComfyUI", attrs...)
+	}
+	if s.Logger.Enabled(ctx, slog.LevelDebug) {
+		if raw, err := json.Marshal(g); err == nil {
+			s.Logger.Debug("workflow sent to ComfyUI", append(base, "workflow", string(raw))...)
+		}
+	}
+}
+
+// promptGroup describes the node a prompt comes from as one log attribute.
+func promptGroup(name string, src workflow.PromptSource) slog.Attr {
+	attrs := []any{"node", src.Node, "class", src.Class, "title", src.Title}
+	for _, input := range slices.Sorted(maps.Keys(src.Texts)) {
+		attrs = append(attrs, input, src.Texts[input])
+	}
+	if len(src.Linked) > 0 {
+		attrs = append(attrs, "linked_inputs", strings.Join(src.Linked, ","))
+	}
+	return slog.Group(name, attrs...)
 }
 
 // collect saves the first file the output node produced as the job's result.

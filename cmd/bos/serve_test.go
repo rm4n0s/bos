@@ -397,3 +397,50 @@ func TestLogLevelFromTheConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestOverrideEnv(t *testing.T) {
+	base := func(k string) string { return map[string]string{"BOS_LOG_LEVEL": "info", "BOS_DATABASE": "d"}[k] }
+
+	if got := overrideEnv(base, "BOS_LOG_LEVEL", ""); got("BOS_LOG_LEVEL") != "info" {
+		t.Error("an empty value must leave the environment alone")
+	}
+	got := overrideEnv(base, "BOS_LOG_LEVEL", "debug")
+	if got("BOS_LOG_LEVEL") != "debug" || got("BOS_DATABASE") != "d" {
+		t.Errorf("override = %q, database = %q", got("BOS_LOG_LEVEL"), got("BOS_DATABASE"))
+	}
+}
+
+func TestLogLevelFlagBeatsTheConfiguration(t *testing.T) {
+	level := &slog.LevelVar{}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ready := make(chan net.Addr, 1)
+	done := make(chan error, 1)
+	// The environment (and so the file) says warn; the flag says debug.
+	env := overrideEnv(testEnv(t, map[string]string{"BOS_LOG_LEVEL": "warn"}), "BOS_LOG_LEVEL", "debug")
+	go func() {
+		done <- serve(ctx, "", env, testLogger(t), func(a net.Addr) { ready <- a }, withLogLevel(level))
+	}()
+	select {
+	case <-ready:
+	case err := <-done:
+		t.Fatalf("serve returned early: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not start")
+	}
+	if level.Level() != slog.LevelDebug {
+		t.Errorf("level = %v, want debug", level.Level())
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLogLevelFlagMustBeALevel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.json")
+	err := runMain([]string{"-config", path, "-log-level", "loud"})
+	if appErr := routeOf(t, err); !appErr.HasRoute("serve->Load->Config.Validate.ConfigInvalid") {
+		t.Errorf("unexpected failure path: %s", appErr.Route())
+	}
+}

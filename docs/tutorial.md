@@ -30,11 +30,11 @@ Press *Save*. The table shows the server with a green **online** badge within a 
 
 ### 2. Add a generator
 
-*Generators → Add generator*. Fill in **Name** `Anime` and **Code name** `anime`. Open `examples/workflows/creators/illustrious_xl.json` and either paste its content into the workflow box or choose it with *…or load it from a file*. Press **Analyze workflow**: the dialog says *Found: image output at “Save Image”*, and offers the node titles `Positive` and `Negative`. Fill **Positive prompt node** with `Positive` and **Negative prompt node** with `Negative`. Press *Save*.
+*Generators → Add generator*. Fill in **Name** `Anime` and **Code name** `anime`. Open `examples/workflows/creators/illustrious_xl.json` and either paste its content into the workflow box or choose it with *…or load it from a file*. The dialog analyses the workflow by itself and says *Found: image output at “Save Image”*, and fills **Positive prompt node** with `Positive` and **Negative prompt node** with `Negative`: the nodes whose titles start with those words. (A generator needs a positive prompt node; with another workflow, type the title of its node there.) Press *Save*.
 
 ### 3. Add a fixer
 
-*Fixers → Add fixer*. **Name** `Upscale`, **Code name** `upscale`, load `examples/workflows/fixers/simple_upscale.json`, press *Analyze workflow*; set **Image-input node** to `Load Image` and **Image-output node** to `Save Image`. Save.
+*Fixers → Add fixer*. **Name** `Upscale`, **Code name** `upscale`, load `examples/workflows/fixers/simple_upscale.json`; the dialog analyses it by itself and fills **Image-input node** with `Load Image` and **Image-output node** with `Save Image` (when the workflow has only one candidate for each; otherwise choose from the list). Save.
 
 ### 4. Add groups of items
 

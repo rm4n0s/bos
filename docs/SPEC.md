@@ -91,7 +91,7 @@ A ComfyUI workflow that produces the primary output.
 |---|---|
 | name, code_name (unique) | |
 | workflow | ComfyUI API-format workflow |
-| positive_prompt_title, negative_prompt_title | `_meta.title` of the text-encode nodes that receive prompts (optional) |
+| positive_prompt_title, negative_prompt_title | `_meta.title` of the text-encode nodes that receive the prompts. The **positive** one is **required**: when it is left empty, the first node whose title starts with `positive` (any case, a text encoder before any other node) is used, and when there is none the generator is refused with `GeneratorTitleRequired`. The **negative** one is optional (a workflow may have no negative prompt, or its positive node may take both, §8.2): when it is left empty, the first node whose title starts with `negative` is used, if there is one. When no title starts with `positive`, a text-encode node with a `negative_prompt` input is suggested as the positive one |
 | output_type | `image`, `video`, `3d`, `unknown` |
 | output_attributes | per output type, optional (below) |
 | output_node_class_type, output_node_title | the node that produces the result |
@@ -656,7 +656,7 @@ The following run concurrently for the life of the application:
 
 Starting from the generator's workflow, apply in this order:
 
-1. Write positive and negative prompt text into the nodes with the configured titles.
+1. Write positive and negative prompt text into the nodes with the configured titles: into the node's `text` input, or into `prompt` when it has no `text` (as the Qwen Image text encoders do). A node that also has a `negative_prompt` input takes the negative prompt itself: the negative title may be left empty or name the same node. A node with no such input is an `InjectorFailed` error, never a silent no-op. A node without a `_meta.title` is addressed by its class name.
 2. For image generators, apply the effective output attributes (generator → item → command `with`; §6.8) to every sampler (`KSampler`, `KSamplerAdvanced`: steps, cfg, sampler_name, scheduler, denoise, seed) and to the empty-latent nodes (width, height); only non-null values. No sampler present → error.
 3. Seed: apply the job's effective seed (§6.8). If `has_random_seed` and no seed override exists, generate a random 64-bit seed per job, set it on every `KSampler` and record it on the job.
 4. **IP-Adapter** injection: for each adapter add a CLIP-vision loader, image loader, IP-Adapter model loader and an advanced IP-Adapter node, chained.
@@ -901,9 +901,9 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 
 | Method and path | Operation | Success | Notable errors |
 |---|---|---|---|
-| `GET /generators` · `POST /generators` | list / create | 200 / 201 | `GeneratorCodeNameTaken`, `WorkflowInvalid`, `WorkflowTitleDuplicated` |
+| `GET /generators` · `POST /generators` | list / create | 200 / 201 | `GeneratorCodeNameTaken`, `GeneratorTitleRequired`, `WorkflowInvalid`, `WorkflowTitleDuplicated` |
 | `GET /generators/{id}` · `PUT` · `DELETE` | get / edit / delete | 200 / 200 / 204 | `GeneratorNotFound` |
-| `POST /generators/analyze` | body `{workflow}` → inferred `output_type`, `output_attributes`, output node, candidate prompt-node titles; persists nothing | 200 | `WorkflowInvalid`, `OutputNodeNotFound` |
+| `POST /generators/analyze` | body `{workflow}` → inferred `output_type`, `output_attributes`, output node, candidate prompt-node titles and the suggested `positive_prompt_title` / `negative_prompt_title` (the nodes whose titles start with `positive` / `negative`); persists nothing | 200 | `WorkflowInvalid`, `OutputNodeNotFound` |
 | `GET/POST /fixers`, `GET/PUT/DELETE /fixers/{id}` | CRUD | | `FixerNotFound`, `FixerCodeNameTaken` |
 
 **Groups and items**
@@ -1028,7 +1028,7 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 | Screen | Behaviour |
 |---|---|
 | Servers | Table with a status badge updated live; add/edit dialog; "test connection" button |
-| Generators | Paste or upload workflow JSON → **Analyze** (calls the `analyze` service) fills output type, attributes, output node and offers the discovered node titles as dropdowns for the prompt-node fields; duplicate titles are flagged |
+| Generators | Paste or upload workflow JSON → the dialog calls the `analyze` service by itself (when the box loses focus after an edit, after a paste, and when a file is chosen; there is no button) and fills output type, attributes, output node and the prompt-node fields (the nodes titled `positive…` and `negative…`, without overwriting what was typed) and offers the discovered node titles as dropdowns for them; duplicate titles are flagged |
 | Fixers | Same, with image-input and image-output node pickers |
 | Groups | Table with thumbnail, tag chips (click to filter), feature-flag chips; tag input with autocomplete; dialogs for text-file import and Civitai import (progress shown through the event stream) |
 | Items | Editor sections appear only for the flags the group enables; image previews from `/files/…`; mask-region upload shows the generated keywords immediately; item `tags` input with autocomplete; renaming an item tag shows the commands that mention it |
@@ -1049,6 +1049,7 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 - Unexpected failures (`500`) patch a generic toast; the detailed error goes to the log.
 - Destructive actions (delete group, project, command) ask for confirmation in-page before sending the request.
 - Empty states say what to do next ("No servers yet — add one").
+- The generator and fixer dialogs carry no HTML `required` attributes: Datastar does not send a form the browser holds invalid, and the workflow analysis of §16.3 is sent before the name is typed. The services validate every field (`NameInvalid`, `FixerTitleRequired`, `GeneratorTitleRequired`, …) and the answer lands in the form's error container.
 
 ### 16.6 Security
 
@@ -1080,6 +1081,7 @@ These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 | Request | `InvalidRequest` (malformed body, unknown field, bad id), `UploadTooLarge` | 400, 413 |
 | Not found | `ServerNotFound`, `GeneratorNotFound`, `FixerNotFound`, `GroupNotFound`, `ItemNotFound`, `ProjectNotFound`, `CommandNotFound`, `JobNotFound`, `FileNotFound` | 404 |
 | Naming | `CodeNameInvalid`, `CodeNameReserved`, `TagInvalid` | 422 |
+| Generators | `GeneratorTitleRequired` (metadata `candidates`) | 422 |
 | Tags | `TagNotFound` | 404 |
 | Uniqueness | `ServerCodeNameTaken`, `GeneratorCodeNameTaken`, `FixerCodeNameTaken`, `GroupCodeNameTaken`, `ItemCodeNameTaken` | 409 |
 | Command language | `CommandLexError`, `CommandSyntaxError`, `CommandRestrictionViolated` (metadata `rule`), `CommandValidationFailed` (metadata `errors`), `CommandSelectionEmpty`, `CommandWhereEmpty` | 422 |

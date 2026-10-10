@@ -62,6 +62,10 @@ type Analysis struct {
 	// PromptTitles are the titles of the text-encode nodes, the candidates for
 	// the prompt-node fields.
 	PromptTitles []string
+	// PositiveTitle and NegativeTitle are the suggested prompt nodes: the first
+	// node whose title starts with "positive" or "negative" (in any case), a
+	// text encoder before a node of another kind. Empty when there is none.
+	PositiveTitle, NegativeTitle string
 	// LoadImageTitles and SaveImageTitles are the candidates for a fixer's
 	// image-input and image-output nodes.
 	LoadImageTitles []string
@@ -141,14 +145,45 @@ func Analyze(g Graph) (*Analysis, error) {
 	for _, n := range nodes {
 		switch {
 		case strings.Contains(n.ClassType, "TextEncode"):
-			a.PromptTitles = append(a.PromptTitles, n.Title)
+			a.PromptTitles = append(a.PromptTitles, n.Label())
 		case n.ClassType == "LoadImage":
 			a.LoadImageTitles = append(a.LoadImageTitles, n.Title)
 		case slices.ContainsFunc(outputNodes, func(o outputNode) bool { return o.class == n.ClassType && o.typ == domain.OutputImage }):
 			a.SaveImageTitles = append(a.SaveImageTitles, n.Title)
 		}
 	}
+	a.PositiveTitle = promptTitleStartingWith(nodes, "positive")
+	a.NegativeTitle = promptTitleStartingWith(nodes, "negative")
+	if a.PositiveTitle == "" {
+		// A text node that holds both prompts (a `negative_prompt` input) needs
+		// no name to be recognised, and takes the negative prompt itself.
+		for _, n := range nodes {
+			if strings.Contains(n.ClassType, "TextEncode") && hasNegativeInput(n) {
+				a.PositiveTitle = n.Label()
+				break
+			}
+		}
+	}
 	return a, nil
+}
+
+// promptTitleStartingWith picks the node that takes a prompt by the word its
+// title starts with. The title is returned as the node has it, because that is
+// how nodes are looked up.
+func promptTitleStartingWith(nodes []Node, word string) string {
+	var other string
+	for _, n := range nodes {
+		if !strings.HasPrefix(strings.ToLower(n.Title), word) {
+			continue
+		}
+		if strings.Contains(n.ClassType, "TextEncode") {
+			return n.Title
+		}
+		if other == "" {
+			other = n.Title
+		}
+	}
+	return other
 }
 
 func outputNodeClasses() []string {

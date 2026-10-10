@@ -202,11 +202,18 @@ Not an error but often asked:
 **What to do.** Write it as `http://192.168.1.20:8188`.
 
 
+### `GeneratorTitleRequired`
+
+**Why.** A generator was saved without the title of its positive prompt node, and none of the nodes of the workflow has a title that starts with “positive”. Without that node the program would have nowhere to put the prompt of a job, and ComfyUI would run the text already in the workflow for every job.
+
+**What to do.** In ComfyUI rename the node that takes the positive prompt to `Positive` (double-click its title) and save the workflow again, or type the title of that node in *Positive prompt node*. The dialog lists the candidates once the workflow is in the box; the message lists them too.
+
+
 ### `FixerTitleRequired`
 
 **Why.** A fixer has no title for its image-input or image-output node.
 
-**What to do.** Press *Analyze* and choose the titles, or type them.
+**What to do.** Choose the titles from the list the dialog offers once the workflow is in the box, or type them.
 
 
 ### `ItemControlNetInvalid`
@@ -376,7 +383,7 @@ Not an error but often asked:
 
 **Why.** No node has the title you gave.
 
-**What to do.** Check spelling and capital letters; press *Analyze* to see the titles the workflow has.
+**What to do.** Check spelling and capital letters; the dialog offers the titles the workflow has.
 
 
 ### `OutputNodeNotFound`
@@ -397,7 +404,7 @@ Not an error but often asked:
 
 **Why.** The program could not add something (a LoRA, a ControlNet, an IP-Adapter, a region) to the workflow for a job.
 
-**What to do.** The job's error says which and why: usually a node the workflow does not have, or custom nodes missing on the server. The job fails; fix the workflow or the item.
+**What to do.** The job's error says which and why: usually a node the workflow does not have, a text node that has no input for the prompt (it needs `text`, or `prompt`; a region prompt needs `text`), or custom nodes missing on the server. The job fails; fix the workflow or the item.
 
 
 ### `RegionInvalid`

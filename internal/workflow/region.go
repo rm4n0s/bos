@@ -87,6 +87,10 @@ func InjectRegions(g Graph, regions []Region) error {
 	if !ok {
 		return injectorFailed("region", "the base text encoder has no linked clip input", "node", base.ID)
 	}
+	if _, ok := base.Inputs[inputPositiveText]; !ok {
+		return injectorFailed("region", "the base text encoder has no text input, so a region prompt cannot be made like it",
+			"node", base.ID, "class_type", base.ClassType)
+	}
 	baseOut := Link{base.ID, 0} // a text encoder has a single output
 
 	e := newEditor(g)

@@ -1,7 +1,13 @@
 package scheduler
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -233,5 +239,198 @@ func TestRandomSeedGeneratorsGetAFreshSeedPerJob(t *testing.T) {
 		if got := strings.TrimSpace(string(n)); got != itoa(*job.Seed) {
 			t.Errorf("prompt %d: sampler seed %s, job seed %d", i, got, *job.Seed)
 		}
+	}
+}
+
+// syncBuffer is a log destination that the scheduler's goroutines can share.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func TestLogsWhatIsSentToComfyUI(t *testing.T) {
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	r := newRig(t, func(d *Deps) { d.Logger = logger })
+	r.server("gpu1", 1)
+	w := r.world(false)
+	cmd := r.command(w, "gpu1 -$ anime: chars > upscale")
+	r.start()
+	r.run(cmd)
+	r.waitStatus(cmd, domain.StatusFinished)
+
+	type group struct {
+		Node, Class, Title, Text string
+	}
+	type entry struct {
+		Msg      string
+		Job      int64
+		Command  int64
+		Server   string
+		Step     string
+		Sampler  string
+		Positive group
+		Negative group
+		Workflow string
+	}
+	sent := map[int64]entry{}
+	var debugLines, fixerLines int
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		var e entry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("log line %q: %v", line, err)
+		}
+		switch e.Msg {
+		case "sending a prompt to ComfyUI":
+			if e.Step == "generation" {
+				sent[e.Job] = e
+			} else {
+				fixerLines++
+			}
+		case "workflow sent to ComfyUI":
+			debugLines++
+			if !strings.Contains(e.Workflow, `"class_type"`) {
+				t.Errorf("the debug line has no workflow: %.80s", line)
+			}
+		}
+	}
+	jobs := r.jobs(cmd)
+	if len(sent) != len(jobs) {
+		t.Fatalf("%d generation lines for %d jobs", len(sent), len(jobs))
+	}
+	for _, j := range jobs {
+		e := sent[j.ID]
+		if e.Positive.Text != j.PositivePrompt || e.Negative.Text != j.NegativePrompt {
+			t.Errorf("job %d: logged %q / %q, want %q / %q", j.ID, e.Positive.Text, e.Negative.Text, j.PositivePrompt, j.NegativePrompt)
+		}
+		if e.Positive.Class != "CLIPTextEncode" || e.Positive.Title != "Positive" || e.Server != "gpu1" || e.Command != cmd.ID || e.Sampler == "" {
+			t.Errorf("job %d: entry = %+v", j.ID, e)
+		}
+	}
+	if fixerLines != len(jobs) || debugLines != 2*len(jobs) {
+		t.Errorf("%d fixer lines and %d workflow lines for %d jobs", fixerLines, debugLines, len(jobs))
+	}
+}
+
+// At the default level the workflow itself is not logged.
+func TestDoesNotLogTheWorkflowAtInfoLevel(t *testing.T) {
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	r := newRig(t, func(d *Deps) { d.Logger = logger })
+	r.server("gpu1", 1)
+	w := r.world(false)
+	cmd := r.command(w, "gpu1 -$ anime: chars")
+	r.start()
+	r.run(cmd)
+	r.waitStatus(cmd, domain.StatusFinished)
+	out := logs.String()
+	if !strings.Contains(out, "sending a prompt to ComfyUI") || strings.Contains(out, "workflow sent to ComfyUI") {
+		t.Errorf("log = %s", out)
+	}
+}
+
+// A generator without a prompt node cannot receive the prompt of a job. The
+// job runs with the text the workflow file has, so the log must say so.
+func TestWarnsWhenTheGeneratorHasNoPromptNode(t *testing.T) {
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	r := newRig(t, func(d *Deps) { d.Logger = logger })
+	r.server("gpu1", 1)
+	w := r.world(false)
+	// The service now gives every generator its prompt nodes, so one without
+	// them (stored by an earlier version) is written to the store directly.
+	plain, err := r.svc.Generators.Create(ctx(t), domain.Generator{Name: "plain", CodeName: "plain", Workflow: w.generator.Workflow})
+	check(t, err)
+	plain.PositivePromptTitle, plain.NegativePromptTitle = "", ""
+	check(t, r.db.Repos().Generators.Update(ctx(t), plain))
+	withNodes := r.command(w, "gpu1 -$ anime: chars limit 1")
+	without := r.command(w, "gpu1 -$ plain: chars limit 1")
+	r.start()
+	r.run(withNodes)
+	r.waitStatus(withNodes, domain.StatusFinished)
+	r.run(without)
+	r.waitStatus(without, domain.StatusFinished)
+
+	type entry struct {
+		Msg       string
+		Level     string
+		Job       int64
+		Generator string
+		Missing   string
+	}
+	var warnings []entry
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		var e entry
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatalf("log line %q: %v", line, err)
+		}
+		if e.Level == "WARN" && strings.Contains(e.Msg, "no prompt node") {
+			warnings = append(warnings, e)
+		}
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("%d warnings, want 1 (only the generator without nodes): %+v", len(warnings), warnings)
+	}
+	got := warnings[0]
+	if got.Generator != "plain" || got.Missing != "positive and negative" || got.Job != r.jobs(without)[0].ID {
+		t.Errorf("warning = %+v", got)
+	}
+}
+
+// The Qwen Image 2.1 text node holds both prompts, in `prompt` and
+// `negative_prompt`. The generator is made from the workflow alone, and every
+// job's prompts reach that node, with no `text` input added to it.
+func TestQwenImageJobsCarryTheirPrompts(t *testing.T) {
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	r := newRig(t, func(d *Deps) { d.Logger = logger })
+	_, gpu1 := r.server("gpu1", 1)
+	w := r.world(false)
+	qwen, err := os.ReadFile(filepath.Join("..", "workflow", "testdata", "qwen_image_21.json"))
+	check(t, err)
+	gen, err := r.svc.Generators.Create(ctx(t), domain.Generator{Name: "qwen", CodeName: "qwen", Workflow: qwen})
+	check(t, err)
+	if gen.PositivePromptTitle != "TextEncodeQwenImage21" || gen.NegativePromptTitle != "" {
+		t.Fatalf("titles = %q / %q", gen.PositivePromptTitle, gen.NegativePromptTitle)
+	}
+	cmd := r.command(w, "gpu1 -$ qwen: chars")
+	r.start()
+	r.run(cmd)
+	r.waitStatus(cmd, domain.StatusFinished)
+
+	jobs := r.jobs(cmd)
+	graphs := gpu1.graphs()
+	if len(jobs) != 3 || len(graphs) != 3 {
+		t.Fatalf("%d jobs, %d prompts", len(jobs), len(graphs))
+	}
+	for i, j := range jobs {
+		var n struct {
+			Inputs map[string]json.RawMessage `json:"inputs"`
+		}
+		check(t, json.Unmarshal(graphs[i]["4"], &n))
+		var pos, neg string
+		check(t, json.Unmarshal(n.Inputs["prompt"], &pos))
+		check(t, json.Unmarshal(n.Inputs["negative_prompt"], &neg))
+		if pos != j.PositivePrompt || neg != j.NegativePrompt {
+			t.Errorf("job %d: ComfyUI got %q / %q, want %q / %q", j.ID, pos, neg, j.PositivePrompt, j.NegativePrompt)
+		}
+		if _, has := n.Inputs["text"]; has {
+			t.Errorf("job %d: a text input was added", j.ID)
+		}
+	}
+	if strings.Contains(logs.String(), "no prompt node") {
+		t.Errorf("a warning about a missing prompt node for a node that takes both prompts:\n%s", logs.String())
 	}
 }

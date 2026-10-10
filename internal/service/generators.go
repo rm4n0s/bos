@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 
 	"github.com/rm4n0s/bos/internal/domain"
 	"github.com/rm4n0s/bos/internal/workflow"
@@ -39,10 +40,25 @@ func (s *GeneratorService) complete(v *domain.Generator) error {
 	if v.OutputType != "" && !v.OutputType.Valid() {
 		return errors.New("OutputTypeInvalid", "the output type must be image, video, 3d or unknown", "output_type", string(v.OutputType))
 	}
-	if v.OutputType == "" || v.OutputNodeTitle == "" || v.OutputNodeClassType == "" || v.OutputAttributes == nil {
+	needTitles := strings.TrimSpace(v.PositivePromptTitle) == "" || strings.TrimSpace(v.NegativePromptTitle) == ""
+	if needTitles || v.OutputType == "" || v.OutputNodeTitle == "" || v.OutputNodeClassType == "" || v.OutputAttributes == nil {
 		a, err := workflow.Analyze(g)
 		if err != nil {
 			return err
+		}
+		// The prompt nodes are the ones titled "positive…" and "negative…"
+		// unless the generator names others. A generator without a positive
+		// one could not receive the prompts of its jobs.
+		if strings.TrimSpace(v.PositivePromptTitle) == "" {
+			v.PositivePromptTitle = a.PositiveTitle
+		}
+		if strings.TrimSpace(v.NegativePromptTitle) == "" {
+			v.NegativePromptTitle = a.NegativeTitle
+		}
+		if strings.TrimSpace(v.PositivePromptTitle) == "" {
+			return errors.New("GeneratorTitleRequired",
+				"a generator needs a positive prompt node: give the title of the node that takes the positive prompt (none of the nodes has a title that starts with “positive”)",
+				"field", "positive_prompt_title", "candidates", a.PromptTitles)
 		}
 		if v.OutputType == "" {
 			v.OutputType = a.OutputType

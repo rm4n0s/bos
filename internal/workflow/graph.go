@@ -81,6 +81,15 @@ type nodeJSON struct {
 	Inputs map[string]json.RawMessage `json:"inputs"`
 }
 
+// Label is the name a node can be found by: its title, or its class when it
+// has no title. The client library matches both (SPEC §18.5).
+func (n Node) Label() string {
+	if n.Title != "" {
+		return n.Title
+	}
+	return n.ClassType
+}
+
 // Node decodes the node with the given id.
 func (g Graph) Node(id string) (Node, error) {
 	raw, ok := g[id]

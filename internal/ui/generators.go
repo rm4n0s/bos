@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/rm4n0s/bos/internal/domain"
 	"github.com/rm4n0s/errors"
@@ -136,6 +137,13 @@ func (u *UI) generatorRoutes() {
 			}
 		}
 		shown.PromptTitles = an.PromptTitles
+		// The nodes titled "positive…" and "negative…" are the defaults; a title the user typed stays.
+		if strings.TrimSpace(shown.PositiveTitle) == "" {
+			shown.PositiveTitle = an.PositiveTitle
+		}
+		if strings.TrimSpace(shown.NegativeTitle) == "" {
+			shown.NegativeTitle = an.NegativeTitle
+		}
 		shown.Analysed = true
 		return s.into("generator-form-body", "generator_form", shown)
 	}))

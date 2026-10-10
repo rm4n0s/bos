@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 
@@ -123,4 +124,76 @@ func TestGeneratorFailures(t *testing.T) {
 	wantRoute(t, e.Generators.Delete(ctx(t), 999), "GeneratorService.Delete", "GeneratorNotFound")
 	_, err = e.Generators.Analyze([]byte("[]"))
 	wantRoute(t, err, "GeneratorService.Analyze", "WorkflowInvalid")
+}
+
+func TestGeneratorPromptNodesDefaultToPositiveAndNegative(t *testing.T) {
+	e := newEnv(t)
+	tests := []struct{ file, positive, negative string }{
+		{"illustrious_xl.json", "Positive", "Negative"},
+		{"anima_aio.json", "Positive Prompt", "Negative Prompt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.file, func(t *testing.T) {
+			w := example(t, "creators", tt.file)
+			g, err := e.Generators.Create(ctx(t), domain.Generator{Name: "g", CodeName: "g" + tt.file[:3], Workflow: w})
+			check(t, err)
+			if g.PositivePromptTitle != tt.positive || g.NegativePromptTitle != tt.negative {
+				t.Errorf("created with %q / %q, want %q / %q", g.PositivePromptTitle, g.NegativePromptTitle, tt.positive, tt.negative)
+			}
+			// An update that leaves them empty gets the defaults too.
+			got, err := e.Generators.Update(ctx(t), g.ID, domain.Generator{Name: "g2", CodeName: g.CodeName, Workflow: w})
+			check(t, err)
+			if got.PositivePromptTitle != tt.positive || got.NegativePromptTitle != tt.negative {
+				t.Errorf("updated with %q / %q", got.PositivePromptTitle, got.NegativePromptTitle)
+			}
+		})
+	}
+
+	// What the user chose stays.
+	w := example(t, "creators", "illustrious_xl.json")
+	g, err := e.Generators.Create(ctx(t), domain.Generator{Name: "g", CodeName: "chosen", Workflow: w, PositivePromptTitle: "Negative", NegativePromptTitle: "Positive"})
+	check(t, err)
+	if g.PositivePromptTitle != "Negative" || g.NegativePromptTitle != "Positive" {
+		t.Errorf("chosen titles were replaced: %q / %q", g.PositivePromptTitle, g.NegativePromptTitle)
+	}
+}
+
+func TestGeneratorNeedsAPositivePromptNode(t *testing.T) {
+	e := newEnv(t)
+	w := example(t, "creators", "illustrious_xl.json")
+	noPositive := bytes.ReplaceAll(w, []byte(`"Positive"`), []byte(`"Wanted text"`))
+	noNegative := bytes.ReplaceAll(w, []byte(`"Negative"`), []byte(`"Unwanted text"`))
+	if bytes.Equal(w, noPositive) || bytes.Equal(w, noNegative) {
+		t.Fatal("the example no longer has nodes titled Positive and Negative")
+	}
+
+	// No node starts with "positive" and none was named: refused, and the
+	// message says which nodes could be used.
+	_, err := e.Generators.Create(ctx(t), domain.Generator{Name: "g", CodeName: "g", Workflow: noPositive})
+	appErr := wantRouteErr(t, err, "GeneratorService.Create", "GeneratorTitleRequired")
+	if !reflect.DeepEqual(appErr.Metadata["candidates"], []string{"Wanted text", "Negative"}) {
+		t.Errorf("metadata = %v", appErr.Metadata)
+	}
+	_, err = e.Generators.Update(ctx(t), 1, domain.Generator{Name: "g", CodeName: "g", Workflow: noPositive})
+	wantRoute(t, err, "GeneratorService.Update", "GeneratorTitleRequired")
+	// A blank title is as good as none.
+	_, err = e.Generators.Create(ctx(t), domain.Generator{Name: "g", CodeName: "g", Workflow: noPositive, PositivePromptTitle: "  "})
+	wantRoute(t, err, "GeneratorService.Create", "GeneratorTitleRequired")
+	if page, _ := e.Generators.List(ctx(t), domain.Page{}); page.Total != 0 {
+		t.Errorf("%d generators, a refused create stored something", page.Total)
+	}
+
+	// Naming the node by hand is enough.
+	g, err := e.Generators.Create(ctx(t), domain.Generator{Name: "g", CodeName: "g", Workflow: noPositive, PositivePromptTitle: "Wanted text"})
+	check(t, err)
+	if g.PositivePromptTitle != "Wanted text" || g.NegativePromptTitle != "Negative" {
+		t.Errorf("created with %q / %q", g.PositivePromptTitle, g.NegativePromptTitle)
+	}
+
+	// The negative node stays optional: a workflow may have none.
+	g, err = e.Generators.Create(ctx(t), domain.Generator{Name: "g", CodeName: "g2", Workflow: noNegative})
+	check(t, err)
+	if g.PositivePromptTitle != "Positive" || g.NegativePromptTitle != "" {
+		t.Errorf("created with %q / %q", g.PositivePromptTitle, g.NegativePromptTitle)
+	}
 }

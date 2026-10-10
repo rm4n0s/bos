@@ -66,6 +66,7 @@ func All() []Tag {
 		{Name: "ServerMaxJobsInvalid", Group: Validation},
 		{Name: "ServerHostInvalid", Group: Validation},
 		{Name: "FixerTitleRequired", Group: Validation},
+		{Name: "GeneratorTitleRequired", Group: Validation},
 		{Name: "ItemControlNetInvalid", Group: Validation},
 		{Name: "ItemRegionInvalid", Group: Validation},
 
