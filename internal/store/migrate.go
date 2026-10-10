@@ -22,6 +22,7 @@ type migration struct {
 func migrations() []migration {
 	return []migration{
 		{version: 1, name: "initial schema", up: migrateV1},
+		{version: 2, name: "server comfyui path", up: migrateV2},
 	}
 }
 

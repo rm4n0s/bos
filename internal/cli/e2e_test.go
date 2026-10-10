@@ -85,8 +85,10 @@ func TestCLIAgainstTheRealAPI(t *testing.T) {
 	if s := r.must("server", "create", "--name", "GPU", "--host", "http://gpu1:8188", "--code-name", "gpu1"); s["code_name"] != "gpu1" || s["online"] != true {
 		t.Errorf("server = %v", s)
 	}
+	r.must("server", "update", "1", "--comfyui-path", "/home/me/ComfyUI")
 	r.must("server", "update", "1", "--max-jobs", "3")
-	if s := r.must("server", "show", "1"); s["max_concurrent_jobs"] != float64(3) || s["name"] != "GPU" {
+	// An update changes only the flags given: the folder set before stays.
+	if s := r.must("server", "show", "1"); s["max_concurrent_jobs"] != float64(3) || s["name"] != "GPU" || s["comfyui_path"] != "/home/me/ComfyUI" {
 		t.Errorf("updated server = %v", s)
 	}
 	if loras := r.must("server", "loras", "1")["loras"].([]any); len(loras) != 2 {

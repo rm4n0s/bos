@@ -23,7 +23,7 @@ The program also needs to **copy** each LoRA into the `models/loras` folder of y
 
 - a name and a code name for the new group;
 - the Civitai model ids, one per line, each with optional strengths for the model and the text encoder (default 1);
-- the **ComfyUI folder** (the installation, for example `/home/me/ComfyUI`) and a **sub-folder** of `models/loras` to keep these LoRAs in (for example `civitai`).
+- the **ComfyUI folder** (the installation, for example `/home/me/ComfyUI`): choose a *server* from the list (it shows the servers that have a *ComfyUI folder*, set in [Servers](catalogue.md#servers)) and the folder fills itself in; you can also type any folder; and a **sub-folder** of `models/loras` to keep these LoRAs in (for example `civitai`).
 
 The group is created at once, empty. The downloads then go on **in the background**, one model after another with a pause between downloads (15 seconds by default, as Civitai asks for politeness; none after a model that was already downloaded). For each model you get a message, and an **item** appears in the group:
 

@@ -16,11 +16,13 @@ type groupForm struct {
 }
 
 type groupsTable struct {
-	Items   []domain.Group
-	Pager   pagerData
-	Tag     string
-	Tags    []domain.TagCount
-	Blank   groupForm
+	Items []domain.Group
+	Pager pagerData
+	Tag   string
+	Tags  []domain.TagCount
+	Blank groupForm
+	// Civitai is what the import dialog shows; only the page fills it.
+	Civitai civitaiForm
 	TagList tagList
 }
 
@@ -81,6 +83,10 @@ func (u *UI) groupRoutes() {
 	u.handle("GET /groups", func(w http.ResponseWriter, r *http.Request) {
 		t, err := u.groupsTable(r)
 		if err != nil {
+			u.failPage(w, r, err)
+			return
+		}
+		if t.Civitai, err = u.civitaiForm(r); err != nil {
 			u.failPage(w, r, err)
 			return
 		}

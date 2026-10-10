@@ -36,6 +36,7 @@ Calls `POST /api/v1/servers`.
 | Flag | Meaning |
 |---|---|
 | `--code-name` | the code name used in commands |
+| `--comfyui-path` | the folder of ComfyUI's installation, offered when LoRAs are imported |
 | `--file` | read the JSON body from this file (- for standard input); flags override it |
 | `--host` | the ComfyUI address, http://host:8188 |
 | `--local` | ComfyUI reads this machine's files |
@@ -51,6 +52,7 @@ Calls `PUT /api/v1/servers/{id}`.
 | Flag | Meaning |
 |---|---|
 | `--code-name` | the code name |
+| `--comfyui-path` | the folder of ComfyUI's installation |
 | `--file` | read the JSON body from this file (- for standard input); flags override it |
 | `--host` | the ComfyUI address |
 | `--local` | ComfyUI reads this machine's files |

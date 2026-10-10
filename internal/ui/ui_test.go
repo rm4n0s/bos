@@ -10,8 +10,32 @@ import (
 
 func serverForm(id int, name, host, code string) map[string]any {
 	return map[string]any{"servers": map[string]any{"form": map[string]any{
-		"id": id, "name": name, "host": host, "code_name": code, "is_local": false, "max_concurrent_jobs": 1,
+		"id": id, "name": name, "host": host, "code_name": code, "is_local": false, "max_concurrent_jobs": 1, "comfyui_path": "",
 	}}}
+}
+
+// withFolder is serverForm with the folder of the ComfyUI installation.
+func withFolder(form map[string]any, folder string) map[string]any {
+	form["servers"].(map[string]any)["form"].(map[string]any)["comfyui_path"] = folder
+	return form
+}
+
+func TestServerComfyUIFolder(t *testing.T) {
+	u := newTestUI(t)
+	mustContain(t, "dialog", u.get("/servers").Body, `data-bind="servers.form.comfyui_path"`, `"comfyui_path":""`, "ComfyUI folder")
+
+	r := u.datastar("POST", "/ui/servers", withFolder(serverForm(0, "GPU One", "http://gpu1:8188", "gpu1"), " /home/me/ComfyUI "))
+	mustContain(t, "table", r.patches(), `id="servers-table"`, "/home/me/ComfyUI")
+	// Edit gives it back to the form, and saving an empty one clears it.
+	form := u.datastar("GET", "/ui/servers/1/edit", struct{}{}).signals()["servers"].(map[string]any)["form"].(map[string]any)
+	if form["comfyui_path"] != "/home/me/ComfyUI" {
+		t.Errorf("edit signals = %v", form)
+	}
+	r = u.datastar("POST", "/ui/servers", serverForm(1, "GPU One", "http://gpu1:8188", "gpu1"))
+	mustNotContain(t, "cleared", r.patches(), "/home/me/ComfyUI")
+	// A folder that cannot be kept is a message in the dialog.
+	r = u.datastar("POST", "/ui/servers", withFolder(serverForm(1, "GPU One", "http://gpu1:8188", "gpu1"), "/a\nb"))
+	mustContain(t, "refused", r.patches(), "selector #servers-error", "single line")
 }
 
 func TestPagesRender(t *testing.T) {

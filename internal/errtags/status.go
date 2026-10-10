@@ -33,7 +33,7 @@ var statuses = map[string]int{
 	"ItemCodeNameTaken": http.StatusConflict,
 
 	"NameInvalid": http.StatusUnprocessableEntity, "OutputTypeInvalid": http.StatusUnprocessableEntity,
-	"ServerMaxJobsInvalid": http.StatusUnprocessableEntity, "ServerHostInvalid": http.StatusUnprocessableEntity,
+	"ServerMaxJobsInvalid": http.StatusUnprocessableEntity, "ServerHostInvalid": http.StatusUnprocessableEntity, "ServerComfyPathInvalid": http.StatusUnprocessableEntity,
 	"FixerTitleRequired": http.StatusUnprocessableEntity, "GeneratorTitleRequired": http.StatusUnprocessableEntity, "ItemControlNetInvalid": http.StatusUnprocessableEntity,
 	"ItemRegionInvalid": http.StatusUnprocessableEntity,
 

@@ -26,7 +26,13 @@ func TestEveryRoute(t *testing.T) {
 		if r.Header.Get("Location") != "/api/v1/servers/1" || r.json()["online"] != true {
 			t.Errorf("created = %v, Location = %q", r.json(), r.Header.Get("Location"))
 		}
-		ok(a.do("POST", "/api/v1/servers", map[string]any{"name": "GPU 2", "host": "http://gpu2:8188", "code_name": "gpu2"}), 201)
+		two := ok(a.do("POST", "/api/v1/servers", map[string]any{"name": "GPU 2", "host": "http://gpu2:8188", "code_name": "gpu2", "comfyui_path": "/home/me/ComfyUI"}), 201).json()
+		if two["comfyui_path"] != "/home/me/ComfyUI" || r.json()["comfyui_path"] != "" {
+			t.Errorf("the ComfyUI folder: %v and %v", two["comfyui_path"], r.json()["comfyui_path"])
+		}
+		if back := ok(a.do("GET", "/api/v1/servers/2", nil), 200).json(); back["comfyui_path"] != "/home/me/ComfyUI" {
+			t.Errorf("read back %v", back["comfyui_path"])
+		}
 		list := ok(a.do("GET", "/api/v1/servers", nil), 200).json()
 		if list["total"] != float64(2) || list["page"] != float64(1) || list["page_size"] != float64(20) || list["total_pages"] != float64(1) {
 			t.Errorf("list = %v", list)

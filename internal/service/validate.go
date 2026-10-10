@@ -13,6 +13,7 @@ import (
 const (
 	maxServerName = 100
 	maxHost       = 100
+	maxComfyPath  = 500
 	maxCodeName   = 100
 	maxName       = 300
 	maxTag        = 50
@@ -53,6 +54,20 @@ func checkHost(host string) error {
 		return errors.New("ServerHostInvalid", "the host must be an http or https address", "host", host)
 	}
 	return nil
+}
+
+// cleanComfyPath trims the folder of a ComfyUI installation and checks it. It
+// may be empty, and it is not required to exist here: it is only a place to
+// copy files to when an import is asked for.
+func cleanComfyPath(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	switch {
+	case utf8.RuneCountInString(path) > maxComfyPath:
+		return "", errors.New("ServerComfyPathInvalid", "the ComfyUI folder has at most 500 characters", "limit", maxComfyPath)
+	case strings.ContainsAny(path, "\x00\r\n"):
+		return "", errors.New("ServerComfyPathInvalid", "the ComfyUI folder must be a single line of text without NUL characters")
+	}
+	return path, nil
 }
 
 // cleanTags lower-cases tags, checks each one (SPEC §3.4) and drops repeats.

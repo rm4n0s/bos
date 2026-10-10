@@ -11,8 +11,15 @@
 {{define "civitai_fields"}}
 <label>Models — one per line: Civitai model id, model strength, text-encoder strength (the strengths default to 1)
   <textarea name="models" rows="4" placeholder="123456&#10;789012, 0.8, 0.8" required></textarea></label>
+{{if .Servers}}<label>Server
+  <select data-on:change="if (el.value) { el.closest('form').elements.comfyui_path.value = el.value }">
+    <option value="">— choose a server —</option>
+    {{range .Servers}}<option value="{{.ComfyUIPath}}"{{if eq (len $.Servers) 1}} selected{{end}}>{{.Name}} — {{.ComfyUIPath}}</option>
+    {{end}}
+  </select></label>
+{{else}}<p class="hint">No server has a ComfyUI folder yet: set one in <a href="/servers">Servers</a>, or type the folder below.</p>{{end}}
 <div class="row">
-  <label>ComfyUI folder <input name="comfyui_path" placeholder="/home/me/ComfyUI" required></label>
+  <label>ComfyUI folder <input name="comfyui_path" placeholder="/home/me/ComfyUI"{{if eq (len .Servers) 1}} value="{{(index .Servers 0).ComfyUIPath}}"{{end}} required></label>
   <label>LoRA sub-folder <input name="lora_subfolder" placeholder="civitai"></label>
 </div>
 {{end}}

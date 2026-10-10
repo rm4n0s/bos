@@ -34,7 +34,7 @@
 
   <div class="modal" data-class:open="$groups.civitaiOpen">
     <form class="dialog wide stack" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/groups/civitai', {contentType: 'form'})">
-      <div id="group-civitai-body">{{template "group_civitai_form" .Data.Blank}}</div>
+      <div id="group-civitai-body">{{template "group_civitai_form" .Data.Civitai}}</div>
       <p class="error" id="groups-civitai-error"></p>
       <div class="buttons">
         <button type="button" class="secondary" data-on:click="$groups.civitaiOpen=false">Cancel</button>

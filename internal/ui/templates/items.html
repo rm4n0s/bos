@@ -21,7 +21,7 @@
   <div class="modal" data-class:open="$items.civitaiOpen">
     <form class="dialog wide stack" enctype="multipart/form-data" data-on:submit__prevent="@post('/ui/groups/{{.Data.Group.ID}}/items/civitai', {contentType: 'form'})">
       <h2>Add LoRAs from Civitai to {{.Data.Group.Name}}</h2>
-      {{template "civitai_fields" .Data.Blank}}
+      <div id="items-civitai-body">{{template "civitai_fields" .Data.Civitai}}</div>
       <p class="error" id="items-civitai-error"></p>
       <div class="buttons">
         <button type="button" class="secondary" data-on:click="$items.civitaiOpen=false">Cancel</button>

@@ -81,6 +81,7 @@ Every entity carries creation and last-update timestamps. Identifiers are unique
 | code_name | unique, ≤100 chars; referenced from commands |
 | is_local | boolean — true when ComfyUI can read the application's files directly (shared filesystem); otherwise input files are uploaded to it (§8.7) |
 | max_concurrent_jobs | integer ≥ 1, default 1 — jobs this server may run at once |
+| comfyui_path | optional, one line, at most 500 characters, kept without the spaces around it — the folder of the ComfyUI installation **as this program sees it**. The Civitai LoRA imports (§19) offer the servers that have one and copy the models below it. It is not checked to exist (it may be a share that is only mounted at import time); an invalid one is `ServerComfyPathInvalid` |
 
 Derived: **status** `online` / `offline`, reflecting current reachability.
 
@@ -722,7 +723,7 @@ Static plans therefore never leave work unassigned, but they can leave a server 
 Requires the API token and LoRA cache directory; otherwise the operation fails with a clear message.
 
 - Download a model by id, producing `<id>.safetensors` and `<id>.json` (trigger words, tags, description, model name).
-- Copy the model into the ComfyUI installation's LoRA folder, in a chosen sub-folder (the app must have filesystem access to it).
+- Copy the model into the ComfyUI installation's LoRA folder, in a chosen sub-folder (the app must have filesystem access to it). The web dialogs of the import (group import and adding a LoRA to a group) show a select of the servers that have a `comfyui_path` (§3.1), by name; choosing one fills the ComfyUI folder field, which stays editable, and a single such server is chosen at once. The REST API takes the folder itself (`comfyui_path` in the body).
 - Create a group of LoRAs: one item per model with code_name = model id, name = Civitai model name, positive_prompt = trigger words separated by blank lines, and one LoRA entry with the chosen model/clip strengths. When importing several models, pause 15 s between downloads.
 - Create a single LoRA item in an existing group.
 - List LoRAs available on a ComfyUI server.
@@ -1027,7 +1028,7 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 
 | Screen | Behaviour |
 |---|---|
-| Servers | Table with a status badge updated live; add/edit dialog; "test connection" button |
+| Servers | Table with a status badge updated live and the ComfyUI folder; add/edit dialog (the folder is optional); "test connection" button |
 | Generators | Paste or upload workflow JSON → the dialog calls the `analyze` service by itself (when the box loses focus after an edit, after a paste, and when a file is chosen; there is no button) and fills output type, attributes, output node and the prompt-node fields (the nodes titled `positive…` and `negative…`, without overwriting what was typed) and offers the discovered node titles as dropdowns for them; duplicate titles are flagged |
 | Fixers | Same, with image-input and image-output node pickers |
 | Groups | Table with thumbnail, tag chips (click to filter), feature-flag chips; tag input with autocomplete; dialogs for text-file import and Civitai import (progress shown through the event stream) |
@@ -1082,6 +1083,7 @@ These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 | Request | `InvalidRequest` (malformed body, unknown field, bad id), `UploadTooLarge` | 400, 413 |
 | Not found | `ServerNotFound`, `GeneratorNotFound`, `FixerNotFound`, `GroupNotFound`, `ItemNotFound`, `ProjectNotFound`, `CommandNotFound`, `JobNotFound`, `FileNotFound` | 404 |
 | Naming | `CodeNameInvalid`, `CodeNameReserved`, `TagInvalid` | 422 |
+| Servers | `ServerComfyPathInvalid` | 422 |
 | Generators | `GeneratorTitleRequired` (metadata `candidates`) | 422 |
 | Tags | `TagNotFound` | 404 |
 | Uniqueness | `ServerCodeNameTaken`, `GeneratorCodeNameTaken`, `FixerCodeNameTaken`, `GroupCodeNameTaken`, `ItemCodeNameTaken` | 409 |

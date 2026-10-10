@@ -65,6 +65,7 @@ func All() []Tag {
 		{Name: "OutputTypeInvalid", Group: Validation},
 		{Name: "ServerMaxJobsInvalid", Group: Validation},
 		{Name: "ServerHostInvalid", Group: Validation},
+		{Name: "ServerComfyPathInvalid", Group: Validation},
 		{Name: "FixerTitleRequired", Group: Validation},
 		{Name: "GeneratorTitleRequired", Group: Validation},
 		{Name: "ItemControlNetInvalid", Group: Validation},

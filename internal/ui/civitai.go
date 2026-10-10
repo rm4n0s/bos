@@ -39,9 +39,24 @@ func parseModels(text string) ([]service.CivitaiModel, error) {
 	return out, nil
 }
 
+// civitaiForm is what the import dialogs show: the servers that have a ComfyUI
+// folder, one of which can be chosen to fill the folder field.
+type civitaiForm struct {
+	Servers []domain.Server
+}
+
+func (u *UI) civitaiForm(r *http.Request) (civitaiForm, error) {
+	servers, err := u.Services.Servers.WithComfyUIPath(r.Context())
+	return civitaiForm{Servers: servers}, err
+}
+
 func (u *UI) civitaiRoutes() {
-	u.handle("GET /ui/groups/civitai/new", view(u, func(_ *http.Request, _ *struct{}, s *stream) error {
-		if err := s.into("group-civitai-body", "group_civitai_form", groupForm{}); err != nil {
+	u.handle("GET /ui/groups/civitai/new", view(u, func(r *http.Request, _ *struct{}, s *stream) error {
+		form, err := u.civitaiForm(r)
+		if err != nil {
+			return err
+		}
+		if err := s.into("group-civitai-body", "group_civitai_form", form); err != nil {
 			return err
 		}
 		return s.set(map[string]any{"groups": map[string]any{"civitaiOpen": true}})
@@ -66,7 +81,14 @@ func (u *UI) civitaiRoutes() {
 		}
 		return u.refreshGroups(r, s, "The import started. A message tells you about each model.")
 	}))
-	u.handle("GET /ui/groups/{id}/items/civitai/new", view(u, func(_ *http.Request, _ *struct{}, s *stream) error {
+	u.handle("GET /ui/groups/{id}/items/civitai/new", view(u, func(r *http.Request, _ *struct{}, s *stream) error {
+		form, err := u.civitaiForm(r)
+		if err != nil {
+			return err
+		}
+		if err := s.into("items-civitai-body", "civitai_fields", form); err != nil {
+			return err
+		}
 		return s.set(map[string]any{"items": map[string]any{"civitaiOpen": true}})
 	}))
 	u.handle("POST /ui/groups/{id}/items/civitai", u.actForm("items-civitai-error", func(r *http.Request, f *form, s *stream) error {

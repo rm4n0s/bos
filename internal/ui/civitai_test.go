@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -105,4 +106,50 @@ func TestCivitaiNotConfiguredInTheInterface(t *testing.T) {
 	u := newTestUI(t)
 	r := u.submit("POST", "/ui/groups/civitai", field("name", "A"), field("code_name", "a"), field("models", "7"), field("comfyui_path", t.TempDir()))
 	mustContain(t, "not configured", r.patches(), "selector #groups-civitai-error", "civitai_token")
+}
+
+// The import dialogs offer the servers that have a ComfyUI folder, and
+// choosing one fills the folder. With one such server it is chosen already.
+func TestCivitaiDialogsOfferTheServersWithAFolder(t *testing.T) {
+	u, _ := withCivitai(t)
+	gid := u.ui.newTestGroup(t, domain.Group{Name: "Loras", CodeName: "loras", UseLora: true})
+	groups, items := "/ui/groups/civitai/new", "/ui/groups/"+itoa(gid)+"/items/civitai/new"
+	mk := func(name, code, folder string) {
+		_, err := u.env.Services.Servers.Create(t.Context(), domain.Server{Name: name, Host: "http://" + code + ":8188", CodeName: code, ComfyUIPath: folder})
+		check(t, err)
+	}
+
+	// No server has a folder: a hint says where to set one, and the folder is typed.
+	for _, p := range []string{groups, items} {
+		mk0 := u.datastar("GET", p, struct{}{}).patches()
+		mustContain(t, "none "+p, mk0, "No server has a ComfyUI folder yet", `href="/servers"`, `name="comfyui_path"`)
+		mustNotContain(t, "none "+p, mk0, "<select")
+	}
+
+	mk("Zeta box", "z", "/srv/zeta")
+	mk("No folder", "n", "")
+	mk("Alpha box", "a", "/srv/alpha")
+	for _, p := range []string{groups, items} {
+		got := u.datastar("GET", p, struct{}{}).patches()
+		mustContain(t, "select "+p, got, "<select", `<option value="/srv/alpha"`, "Alpha box", `<option value="/srv/zeta"`, "Zeta box",
+			`elements.comfyui_path.value = el.value`, "choose a server")
+		mustNotContain(t, "select "+p, got, "No folder", "No server has a ComfyUI folder")
+		// By name, and nothing is chosen for the user when there are several.
+		if strings.Index(got, "Alpha box") > strings.Index(got, "Zeta box") {
+			t.Errorf("%s: the servers are not in order of name", p)
+		}
+		mustNotContain(t, "several "+p, got, ` selected`, `placeholder="/home/me/ComfyUI" value=`)
+	}
+
+	// The pages carry the same select, so the dialogs are right before they are opened.
+	mustContain(t, "groups page", u.get("/groups").Body, `<option value="/srv/alpha"`)
+	mustContain(t, "items page", u.get("/groups/"+itoa(gid)+"/items").Body, `<option value="/srv/alpha"`, `id="items-civitai-body"`)
+	mustContain(t, "items dialog", u.datastar("GET", items, struct{}{}).patches(), "selector #items-civitai-body")
+
+	// One server with a folder is chosen and fills the field.
+	u2, _ := withCivitai(t)
+	_, err := u2.env.Services.Servers.Create(t.Context(), domain.Server{Name: "Only", Host: "http://only:8188", CodeName: "only", ComfyUIPath: "/srv/only"})
+	check(t, err)
+	got := u2.datastar("GET", groups, struct{}{}).patches()
+	mustContain(t, "one server", got, `<option value="/srv/only" selected`, `placeholder="/home/me/ComfyUI" value="/srv/only" required`)
 }

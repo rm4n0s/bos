@@ -195,6 +195,13 @@ Not an error but often asked:
 **What to do.** Use 1 or more.
 
 
+### `ServerComfyPathInvalid`
+
+**Why.** The *ComfyUI folder* of a server is longer than 500 characters or has a line break (or another control character) in it.
+
+**What to do.** Write the folder on one line, for example `/home/me/ComfyUI`. It may stay empty.
+
+
 ### `ServerHostInvalid`
 
 **Why.** The server address is not an `http://` or `https://` address with a host, or is longer than 100 characters.

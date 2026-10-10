@@ -157,3 +157,30 @@ func TestMigrationNumbersAreContiguous(t *testing.T) {
 		}
 	}
 }
+
+// A database made by the first version has servers without a ComfyUI folder;
+// migration 2 adds the column and they read back with an empty one.
+func TestMigrationTwoAddsTheComfyUIPathOfServers(t *testing.T) {
+	db := openBare(t)
+	all := migrations()
+	check(t, db.applyMigrations(ctx(t), all[:1]))
+	now := fakeClock()()
+	check(t, db.gorm.Create(&v1Server{Name: "old", Host: "http://old:8188", CodeName: "old", MaxConcurrentJobs: 1, CreatedAt: now, UpdatedAt: now}).Error)
+
+	check(t, db.Migrate(ctx(t)))
+	if v, _ := db.SchemaVersion(ctx(t)); v < 2 {
+		t.Fatalf("version = %d", v)
+	}
+	got, err := db.Repos().Servers.GetByCode(ctx(t), "old")
+	check(t, err)
+	if got.ComfyUIPath != "" || got.Name != "old" {
+		t.Errorf("server = %+v", got)
+	}
+	got.ComfyUIPath = "/opt/ComfyUI"
+	check(t, db.Repos().Servers.Update(ctx(t), got))
+	again, err := db.Repos().Servers.Get(ctx(t), got.ID)
+	check(t, err)
+	if again.ComfyUIPath != "/opt/ComfyUI" {
+		t.Errorf("path = %q", again.ComfyUIPath)
+	}
+}

@@ -60,6 +60,8 @@ type itemsTable struct {
 	Pager    pagerData
 	ItemTags []domain.TagCount
 	Blank    itemForm
+	// Civitai is what the import dialog shows; only the page fills it.
+	Civitai civitaiForm
 }
 
 func fmtNum(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
@@ -196,6 +198,10 @@ func (u *UI) itemRoutes() {
 		}
 		t, err := u.itemsTable(r, g)
 		if err != nil {
+			u.failPage(w, r, err)
+			return
+		}
+		if t.Civitai, err = u.civitaiForm(r); err != nil {
 			u.failPage(w, r, err)
 			return
 		}
