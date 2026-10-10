@@ -39,3 +39,4 @@ go.work.sum
 *.db-wal
 /bos
 /config.json
+/bin
