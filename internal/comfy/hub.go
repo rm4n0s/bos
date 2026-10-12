@@ -147,7 +147,7 @@ func (s *Server) run(ctx context.Context) {
 	defer s.wg.Done()
 	attempt := 0
 	for ctx.Err() == nil {
-		client, err := comfyui.NewClient(s.baseURL, comfyui.WithTimeout(s.opts.RequestTimeout))
+		client, err := comfyui.NewClient(s.baseURL, clientOption(s.opts))
 		if err != nil {
 			s.logger.Debug("comfy: websocket dial failed", "host", s.baseURL, "error", err.Error())
 			if !sleep(ctx, s.opts.Backoff(attempt)) {

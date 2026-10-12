@@ -3,6 +3,7 @@ package comfy
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"strings"
@@ -801,5 +802,69 @@ func TestMapErrorKeepsApplicationErrors(t *testing.T) {
 	orig := errors.New("Other", "x")
 	if got := s.mapError(t.Context(), orig, "ComfyUIRejected", "op"); got != error(orig) { //nolint:errorlint // identity is the point
 		t.Errorf("application error was wrapped: %v", got)
+	}
+}
+
+// At the debug level the HTTP call that queues a prompt is logged as it goes
+// over the wire: the body is {client_id, prompt: {the workflow}} and the answer
+// has the prompt id. The polling of the queue and the history is not logged.
+func TestDebugLogsTheHTTPRequestThatQueuesAPrompt(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	f := newFakeComfy(t)
+	s := newServer(t, f, func(o *Options) { o.Logger = logger })
+	id := queue(t, s)
+	f.succeed(id, outputsOf("9", "a.png"), false) // only the history knows, so Wait polls it
+	if _, err := s.Wait(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+
+	type call struct {
+		Msg    string
+		ID     uint64
+		Method string
+		URL    string
+		Status int
+		Body   map[string]json.RawMessage
+	}
+	var req, ans *call
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		var c call
+		if err := json.Unmarshal([]byte(line), &c); err != nil {
+			continue // a body that is not an object
+		}
+		switch {
+		case c.Msg == "HTTP request to ComfyUI" && c.Method == "POST" && strings.HasSuffix(c.URL, "/prompt"):
+			req = &c
+		case c.Msg == "HTTP answer from ComfyUI" && req != nil && c.ID == req.ID:
+			ans = &c
+		}
+		if strings.Contains(c.URL, "/history") || strings.HasSuffix(c.URL, "/queue") {
+			t.Errorf("a poll was logged: %s", line)
+		}
+	}
+	if req == nil || ans == nil {
+		t.Fatalf("the prompt request or its answer is not in the log:\n%s", logs.String())
+	}
+	var sent map[string]struct {
+		ClassType string `json:"class_type"`
+	}
+	if err := json.Unmarshal(req.Body["prompt"], &sent); err != nil || sent["1"].ClassType != "KSampler" || len(req.Body["client_id"]) == 0 {
+		t.Errorf("request body = %v (%v)", req.Body, err)
+	}
+	if ans.Status != 200 || !strings.Contains(string(ans.Body["prompt_id"]), id) {
+		t.Errorf("answer = %+v, want status 200 and prompt id %s", ans, id)
+	}
+}
+
+// At the default level the library's own client is used and nothing is logged.
+func TestNoHTTPLogAtInfoLevel(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	f := newFakeComfy(t)
+	s := newServer(t, f, func(o *Options) { o.Logger = logger })
+	queue(t, s)
+	if strings.Contains(logs.String(), "HTTP request to ComfyUI") {
+		t.Errorf("log = %s", logs.String())
 	}
 }

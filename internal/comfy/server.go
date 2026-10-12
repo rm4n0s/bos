@@ -126,7 +126,7 @@ var _ Client = (*Server)(nil)
 // relies on polling.
 func NewServer(baseURL string, opts Options) (*Server, error) {
 	opts = opts.withDefaults()
-	httpClient, err := comfyui.NewClient(baseURL, comfyui.WithoutWebSocket(), comfyui.WithTimeout(opts.RequestTimeout))
+	httpClient, err := comfyui.NewClient(baseURL, comfyui.WithoutWebSocket(), clientOption(opts))
 	if err != nil {
 		return nil, errors.NewErr("ServerHostInvalid", err).SetMetadata("host", baseURL)
 	}
