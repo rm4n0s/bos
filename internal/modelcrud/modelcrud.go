@@ -112,6 +112,18 @@ func (c *Client) DeleteOutput(ctx context.Context, path string) error {
 	return err
 }
 
+// DeleteModel removes one file of a model folder of ComfyUI, such as `loras`:
+// path is relative to the folder, with slashes, as the server lists it. A file
+// that is already gone is not an error.
+func (c *Client) DeleteModel(ctx context.Context, folder, path string) error {
+	q := url.Values{"path": {path}}
+	err := c.send(ctx, request{op: "delete model", method: http.MethodDelete, path: "/model_crud/models/" + url.PathEscape(folder), query: q})
+	if rejectedWith(err, "file_not_found") {
+		return nil
+	}
+	return err
+}
+
 // request is one call of the extension.
 type request struct {
 	op      string

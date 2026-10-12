@@ -740,7 +740,8 @@ func TestExpandCopiesItemData(t *testing.T) {
 	cat.groups["characters"][0].IPAdapters = []IPAdapter{{ImageFile: "ref.png", Weight: 0.5}}
 	x := expand(t, cat, `gpu1 -$ g: characters(alice) * characters(alice)`)
 	j := x.Jobs[0]
-	if len(j.LoRAs) != 2 || j.LoRAs[0] != (LoRA{Name: "L", StrengthModel: 0.8, StrengthClip: 0.6}) {
+	// The same item twice carries its LoRA once.
+	if len(j.LoRAs) != 1 || j.LoRAs[0] != (LoRA{Name: "L", StrengthModel: 0.8, StrengthClip: 0.6}) {
 		t.Errorf("loras = %+v", j.LoRAs)
 	}
 	if len(j.IPAdapters) != 2 || j.IPAdapters[0].ImageFile != "ref.png" {
@@ -790,4 +791,25 @@ func hasProblem(t *testing.T, err error, tag string) bool {
 		}
 	}
 	return false
+}
+
+// The LoRAs of all the selected items reach the job, in term order, and a file
+// that two items share is listed once with the strengths of the first.
+func TestExpandCollectsTheLoRAsOfEveryItem(t *testing.T) {
+	cat := sampleCatalogue()
+	cat.groups["characters"][0].LoRAs = []LoRA{{Name: "chars/alice", StrengthModel: 1, StrengthClip: 1}, {Name: "shared", StrengthModel: 0.7, StrengthClip: 0.7}}
+	cat.groups["poses"][0].LoRAs = []LoRA{{Name: "pose.safetensors", StrengthModel: 0.5, StrengthClip: 0.4}}
+	cat.groups["style"][0].LoRAs = []LoRA{{Name: "shared.safetensors", StrengthModel: 0.2, StrengthClip: 0.2}, {Name: `chars\alice.safetensors`, StrengthModel: 0.1, StrengthClip: 0.1}}
+	x := expand(t, cat, `gpu1 -$ g: characters(alice) * poses(standing) * style(style1)`)
+	if len(x.Jobs) != 1 {
+		t.Fatalf("%d jobs", len(x.Jobs))
+	}
+	want := []LoRA{
+		{Name: "chars/alice", StrengthModel: 1, StrengthClip: 1},
+		{Name: "shared", StrengthModel: 0.7, StrengthClip: 0.7},
+		{Name: "pose.safetensors", StrengthModel: 0.5, StrengthClip: 0.4},
+	}
+	if got := x.Jobs[0].LoRAs; !reflect.DeepEqual(got, want) {
+		t.Errorf("loras = %+v, want %+v", got, want)
+	}
 }

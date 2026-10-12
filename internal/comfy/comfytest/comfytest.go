@@ -37,10 +37,14 @@ type Server struct {
 	received []map[string]json.RawMessage
 
 	// The extension (extension.go).
-	deleted    []string
-	models     map[string][]byte // "folder/path" → content
-	sessions   map[string]*modelUpload
-	nextUpload int
+	deleted []string
+	// deletedModels are the models deleted, deleteRefused the error code that
+	// makes a deletion fail.
+	deletedModels []string
+	deleteRefused string
+	models        map[string][]byte // "folder/path" → content
+	sessions      map[string]*modelUpload
+	nextUpload    int
 }
 
 type prompt struct {

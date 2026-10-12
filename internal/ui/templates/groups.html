@@ -61,7 +61,7 @@
     <td><a href="/groups/{{.ID}}/items">{{.Name}}</a>{{if .Description}}<div class="muted clip">{{.Description}}</div>{{end}}</td>
     <td><code>{{.CodeName}}</code></td>
     <td class="tags">{{range .Tags}}<button type="button" class="chip" data-on:click="@get('/ui/groups/table?tag={{urlquery .}}')">{{.}}</button>{{end}}</td>
-    <td class="tags">{{if .UseLora}}<span class="chip">LoRA</span>{{end}}{{if .UseControlnet}}<span class="chip">ControlNet</span>{{end}}{{if .UseIPAdapter}}<span class="chip">IP-Adapter</span>{{end}}{{if .UseMaskRegion}}<span class="chip">mask regions</span>{{end}}{{if .UseCoordinatesRegion}}<span class="chip">box regions</span>{{end}}{{if .UseTypeAttributes}}<span class="chip">output</span>{{end}}</td>
+    <td class="tags">{{if .UseControlnet}}<span class="chip">ControlNet</span>{{end}}{{if .UseIPAdapter}}<span class="chip">IP-Adapter</span>{{end}}{{if .UseMaskRegion}}<span class="chip">mask regions</span>{{end}}{{if .UseCoordinatesRegion}}<span class="chip">box regions</span>{{end}}{{if .UseTypeAttributes}}<span class="chip">output</span>{{end}}</td>
     <td class="actions">
       <a href="/groups/{{.ID}}/items"><button type="button" class="secondary">Items</button></a>
       <button type="button" class="secondary" data-on:click="@get('/ui/groups/{{.ID}}/edit')">Edit</button>
@@ -87,7 +87,6 @@
 <label>Tags (separated by commas) <input name="tags" list="group-tag-names" value="{{.Tags}}" placeholder="people, scenery"></label>
 <fieldset><legend>What the items of this group can carry</legend>
   <div class="check-row">
-    <label class="check"><input type="checkbox" name="use_lora"{{if .UseLora}} checked{{end}}> LoRAs</label>
     <label class="check"><input type="checkbox" name="use_controlnet"{{if .UseControlnet}} checked{{end}}> ControlNet</label>
     <label class="check"><input type="checkbox" name="use_ip_adapter"{{if .UseIPAdapter}} checked{{end}}> IP-Adapter</label>
     <label class="check"><input type="checkbox" name="use_mask_region"{{if .UseMaskRegion}} checked{{end}}> Mask regions</label>

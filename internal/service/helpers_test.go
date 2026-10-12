@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -150,11 +151,30 @@ func (f *fakeFleet) Client(_ context.Context, s domain.Server) (comfy.Client, er
 
 // fakeClient is a comfy.Client that only knows which LoRAs are installed.
 type fakeClient struct {
-	loras []string
-	err   error
+	mu        sync.Mutex
+	loras     []string
+	err       error
+	deleteErr error
+	deleted   []string // "folder/path" of the models deleted
 }
 
 func (c *fakeClient) DeleteOutput(context.Context, comfy.OutputFile) error { return nil }
+func (c *fakeClient) DeleteModel(_ context.Context, folder, path string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.deleteErr != nil {
+		return c.deleteErr
+	}
+	c.deleted = append(c.deleted, folder+"/"+path)
+	kept := c.loras[:0:0]
+	for _, n := range c.loras {
+		if strings.ReplaceAll(n, `\`, "/") != path {
+			kept = append(kept, n)
+		}
+	}
+	c.loras = kept
+	return nil
+}
 func (c *fakeClient) UploadModel(context.Context, string, string, string, int64, io.Reader) (string, error) {
 	return "", errors.New("Unsupported", "the fake client only lists models")
 }

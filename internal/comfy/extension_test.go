@@ -38,6 +38,37 @@ func TestDeleteOutputGoesThroughTheExtension(t *testing.T) {
 	}
 }
 
+func TestDeleteModelGoesThroughTheExtension(t *testing.T) {
+	ext := comfytest.New(0)
+	t.Cleanup(ext.Close)
+	ext.SetLoRAs("civitai/12.safetensors", "keep.safetensors")
+	s, err := NewServer(ext.URL, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := s.DeleteModel(t.Context(), "loras", "civitai/12.safetensors"); err != nil {
+		t.Fatal(err)
+	}
+	if got := ext.DeletedModels(); len(got) != 1 || got[0] != "loras/civitai/12.safetensors" {
+		t.Errorf("deleted = %v", got)
+	}
+	left, err := s.ListModels(t.Context(), "loras")
+	if err != nil || len(left) != 1 || left[0] != "keep.safetensors" {
+		t.Errorf("the server lists %v, %v", left, err)
+	}
+	// Gone already: still fine.
+	if err := s.DeleteModel(t.Context(), "loras", "civitai/12.safetensors"); err != nil {
+		t.Errorf("a missing file: %v", err)
+	}
+	ext.RefuseDeletes("delete_disabled")
+	wantTag(t, s.DeleteModel(t.Context(), "loras", "keep.safetensors"), "DeleteModel", "ModelCrudDisabled")
+}
+
 func TestUploadModelGoesThroughTheExtension(t *testing.T) {
 	ext := comfytest.New(0)
 	t.Cleanup(ext.Close)

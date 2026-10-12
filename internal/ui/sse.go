@@ -129,7 +129,7 @@ func describe(err error) (message string, userFault bool) {
 	if !ok {
 		return "", false
 	}
-	if errtags.Status(appErr.Tag) >= http.StatusInternalServerError && appErr.Tag != "ServerUnreachable" {
+	if errtags.Status(appErr.Tag) >= http.StatusInternalServerError && appErr.Tag != "ServerUnreachable" && appErr.Tag != "LoRADeleteFailed" {
 		return "", false
 	}
 	message = appErr.Message

@@ -87,7 +87,6 @@ var groupFields = []field{
 	{"code-name", "code_name", kString, "the code name used in commands"},
 	{"description", "description", kString, "a description"},
 	{"tags", "tags", kList, "group tags, separated by commas"},
-	{"use-lora", "use_lora", kBool, "its items can carry LoRAs"},
 	{"use-controlnet", "use_controlnet", kBool, "its items can carry ControlNets"},
 	{"use-ip-adapter", "use_ip_adapter", kBool, "its items can carry an IP-Adapter"},
 	{"use-mask-region", "use_mask_region", kBool, "its items can carry mask regions"},
@@ -139,6 +138,15 @@ var commands = []command{
 			{"max-jobs", "max_concurrent_jobs", kInt, "jobs it may run at once"}}},
 	{Resource: "server", Verb: "delete", Summary: "Delete a server", Method: "DELETE", Path: "/servers/{id}", Args: []string{"id"}, Result: resultNone},
 	{Resource: "server", Verb: "loras", Summary: "List the LoRAs installed on a server", Method: "GET", Path: "/servers/{id}/loras", Args: []string{"id"}, Result: resultDoc},
+
+	// loras
+	{Resource: "lora", Verb: "list", Summary: "List the LoRAs of all items and servers", Method: "GET", Path: "/loras", Paged: true, Result: resultList,
+		Query:   []field{{"q", "q", kString, "only names that contain this text"}},
+		Columns: []column{{"NAME", "name", 0}, {"ITEMS", "items", 0}, {"SERVERS", "servers", 0}}},
+	{Resource: "lora", Verb: "show", Summary: "Show where a LoRA is installed and which items carry it", Method: "GET", Path: "/loras/detail", Result: resultDoc,
+		Query: []field{{"name", "name", kString, "the LoRA, such as civitai/123.safetensors"}}},
+	{Resource: "lora", Verb: "delete", Summary: "Delete a LoRA from every server and the cache, with the items that carry it", Method: "DELETE", Path: "/loras", Result: resultDoc,
+		Query: []field{{"name", "name", kString, "the LoRA, such as civitai/123.safetensors"}}},
 
 	// generators
 	{Resource: "generator", Verb: "list", Summary: "List generators", Method: "GET", Path: "/generators", Paged: true, Result: resultList,

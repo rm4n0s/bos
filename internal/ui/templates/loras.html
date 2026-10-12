@@ -1,0 +1,67 @@
+{{define "content"}}<section data-signals='{"_armed":0,"loras":{"open":false,"armed":false}}'>
+  <div class="bar">
+    <h1>LoRAs</h1>
+  </div>
+  <p class="hint">Every LoRA that an item carries or that a ComfyUI server has. Open one to see on which servers it is installed. Any item can carry LoRAs: add them in the item's dialog.</p>
+  <label>Search <input type="search" id="lora-filter" value="{{.Data.Q}}" placeholder="part of a name" autocomplete="off"
+    data-on:input__debounce.300ms="@get('/ui/loras/table?q=' + encodeURIComponent(el.value))"></label>
+  {{template "loras_table" .Data}}
+
+  <div class="modal" data-class:open="$loras.open">
+    <div class="dialog wide stack" id="lora-detail"></div>
+  </div>
+</section>{{end}}
+
+{{define "loras_table"}}<div id="loras-table">
+{{if .Unreachable}}<p class="hint">These servers could not be asked, so their LoRAs are not listed: {{range $i, $c := .Unreachable}}{{if $i}}, {{end}}<code>{{$c}}</code>{{end}}.</p>{{end}}
+{{if not .Items}}<p class="empty">{{if .Q}}No LoRA has this text in its name.{{else}}No LoRA yet: no item carries one and no server has one.{{end}}</p>{{else}}
+{{template "pager" .Pager}}
+<table>
+  <thead><tr><th>Name</th><th>Items</th><th>Installed on</th><th></th></tr></thead>
+  <tbody>
+  {{range .Items}}<tr>
+    <td><button type="button" class="link" data-on:click="@get('/ui/loras/detail?name={{urlquery .Name}}&q={{urlquery $.Q}}')"><code>{{.Name}}</code></button></td>
+    <td>{{.Items}}</td>
+    <td class="tags">{{range .Servers}}<span class="chip">{{.}}</span>{{else}}<span class="muted">none</span>{{end}}</td>
+    <td class="actions"><button type="button" class="secondary" data-on:click="@get('/ui/loras/detail?name={{urlquery .Name}}&q={{urlquery $.Q}}')">Open</button></td>
+  </tr>{{end}}
+  </tbody>
+</table>
+{{template "pager" .Pager}}
+{{end}}
+</div>{{end}}
+
+{{define "lora_detail"}}<h2><code>{{.Name}}</code></h2>
+<h3>Installed on</h3>
+{{if .Servers}}<table>
+  <thead><tr><th>Server</th><th>Code name</th><th>State</th></tr></thead>
+  <tbody>
+  {{range .Servers}}<tr>
+    <td>{{.Name}}</td>
+    <td><code>{{.Code}}</code></td>
+    <td>{{if not .Reachable}}<span class="badge offline">not asked: offline</span>{{else if .Installed}}<span class="badge online">installed</span>{{else}}<span class="muted">not installed</span>{{end}}</td>
+  </tr>{{end}}
+  </tbody>
+</table>{{else}}<p class="empty">There are no servers.</p>{{end}}
+<h3>Items that carry it</h3>
+{{if .Items}}<table>
+  <thead><tr><th>Group</th><th>Item</th><th>Model</th><th>Text encoder</th></tr></thead>
+  <tbody>
+  {{range .Items}}<tr>
+    <td><a href="/groups/{{.GroupID}}/items"><code>{{.GroupCode}}</code></a></td>
+    <td>{{if .Name}}{{.Name}} {{end}}<code>{{.Code}}</code></td>
+    <td>{{.StrengthModel}}</td>
+    <td>{{.StrengthClip}}</td>
+  </tr>{{end}}
+  </tbody>
+</table>{{else}}<p class="empty">No item carries it.</p>{{end}}
+<p class="hint">Deleting removes the file from every server above, from the Civitai cache, and deletes {{len .Items}} item{{if ne (len .Items) 1}}s{{end}} with their files. This cannot be undone.</p>
+<p class="error" id="lora-error"></p>
+<div class="buttons">
+  <button type="button" class="secondary" data-on:click="$loras.open=false">Close</button>
+  <button type="button" class="danger"
+    data-on:click="$loras.armed ? @delete('/ui/loras?name={{urlquery .Name}}&q={{urlquery .Q}}') : $loras.armed = true"
+    data-text="$loras.armed ? 'Really delete everywhere?' : 'Delete everywhere'">Delete everywhere</button>
+</div>{{end}}
+
+{{define "lora_suggest"}}{{range .Names}}<button type="button" class="secondary" data-name="{{.}}">{{.}}</button>{{end}}{{end}}

@@ -102,6 +102,13 @@ Not an error but often asked:
 **What to do.** A result is only there once its job has finished. Use the paths the server gives (`result_path`, `thumbnail`, …).
 
 
+### `LoRANotFound`
+
+**Why.** No item carries that LoRA and no server that answered has it. The name may be spelled differently from the file (`style` and `style.safetensors` are the same file; the folder matters), or the LoRA was already deleted.
+
+**What to do.** Look for it on the LoRAs page. If a server is offline its LoRAs are not listed; bring it back first.
+
+
 ### `TagNotFound`
 
 **Why.** You tried to rename a tag that no group or item carries.
@@ -499,6 +506,13 @@ Not an error but often asked:
 **Why.** The extension refused the call. The log has its error code (`code`) and message: for example `extension_not_allowed` (the file type is not on its list; see `MODEL_CRUD_EXTRA_EXTENSIONS`), `too_large`, `insufficient_storage`, `too_many_uploads` or `path_outside_root`.
 
 **What to do.** Read the code in the log and the extension's documentation, and change the server or the request. A failed upload is cancelled on the server.
+
+
+### `LoRADeleteFailed`
+
+**Why.** A LoRA is deleted from every server before anything else, and at least one server could not do it: it is offline or does not answer, or the extension refused (`ModelCrudDisabled`, `ModelCrudMissing` or `ModelCrudRejected`; the log has the reason for each server). The message and the metadata `servers` name them. `deleted_from` lists the servers that already deleted the file. **No item was deleted and the Civitai cache was not touched.**
+
+**What to do.** Start the servers named, or install or enable the extension on them, and delete the LoRA again. Servers that already deleted the file are not a problem the second time. If a server is gone for good, delete it on the Servers page.
 
 
 ## Civitai

@@ -115,3 +115,9 @@ legend { font-weight: 600; padding: 0 6px; }
 .setting .muted { font-size: 0.85rem; }
 .setting .warn { font-size: 0.85rem; color: var(--warn); }
 .restart { margin-bottom: var(--gap); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+/* The LoRA table of the item dialog and its search box. */
+[hidden] { display: none !important; }
+#lora-suggest { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.lora-table input[type="number"] { width: 7rem; }
+.lora-table td:first-child code { word-break: break-all; }

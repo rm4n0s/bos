@@ -25,6 +25,7 @@ const extensionChunk = 16
 func (s *Server) routeExtension(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /model_crud/output", s.handleDeleteOutput)
 	mux.HandleFunc("GET /model_crud/models/{folder}", s.handleListModels)
+	mux.HandleFunc("DELETE /model_crud/models/{folder}", s.handleDeleteModel)
 	mux.HandleFunc("POST /model_crud/uploads", s.handleCreateUpload)
 	mux.HandleFunc("PUT /model_crud/uploads/{id}/chunks/{index}", s.handleChunk)
 	mux.HandleFunc("POST /model_crud/uploads/{id}/complete", s.handleComplete)
@@ -41,6 +42,14 @@ func (s *Server) DeletedOutputs() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.deleted...)
+}
+
+// DeletedModels returns the models the program asked to delete, as
+// "folder/path", in order.
+func (s *Server) DeletedModels() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.deletedModels...)
 }
 
 // Models returns the models received, by "folder/path".
@@ -63,6 +72,51 @@ func (s *Server) handleDeleteOutput(w http.ResponseWriter, r *http.Request) {
 	s.deleted = append(s.deleted, path)
 	s.mu.Unlock()
 	writeJSON(w, 200, map[string]any{"area": "output", "path": path, "deleted": true})
+}
+
+// handleDeleteModel removes a model from what the server lists and holds. A file
+// the server does not have answers file_not_found, as the extension does.
+func (s *Server) handleDeleteModel(w http.ResponseWriter, r *http.Request) {
+	if s.refuse(w) {
+		return
+	}
+	folder, path := r.PathValue("folder"), r.URL.Query().Get("path")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.deleteRefused != "" {
+		extensionError(w, http.StatusForbidden, s.deleteRefused, "deleting is not allowed")
+		return
+	}
+	found := false
+	if _, ok := s.models[folder+"/"+path]; ok {
+		delete(s.models, folder+"/"+path)
+		found = true
+	}
+	if folder == "loras" {
+		kept := s.loras[:0:0]
+		for _, n := range s.loras {
+			if strings.ReplaceAll(n, `\`, "/") == path {
+				found = true
+				continue
+			}
+			kept = append(kept, n)
+		}
+		s.loras = kept
+	}
+	if !found {
+		extensionError(w, http.StatusNotFound, "file_not_found", "no such file")
+		return
+	}
+	s.deletedModels = append(s.deletedModels, folder+"/"+path)
+	writeJSON(w, 200, map[string]any{"folder": folder, "path": path, "deleted": true})
+}
+
+// RefuseDeletes makes the deletion of models answer with the error code, such as
+// delete_disabled; an empty code allows it again.
+func (s *Server) RefuseDeletes(code string) {
+	s.mu.Lock()
+	s.deleteRefused = code
+	s.mu.Unlock()
 }
 
 func (s *Server) handleListModels(w http.ResponseWriter, r *http.Request) {

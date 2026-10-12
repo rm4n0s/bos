@@ -16,7 +16,7 @@ The program **uploads** each LoRA to the ComfyUI server you choose, into its `lo
 - the Civitai model ids, one per line, each with optional strengths for the model and the text encoder (default 1). Without more, the newest version of the model is taken; to take another, write `/` and the version id after the model id (`123456/789012`, in the API `version_id`);
 - the **server** to upload the LoRAs to (in the API and `bosctl`, its code name: `server`, `--upload-to`), and a **sub-folder** of its `loras` folder to keep these LoRAs in (for example `civitai`). A server that is offline or unknown is refused before anything is downloaded.
 
-The group is created at once, empty. The downloads then go on **in the background**, one model after another with a pause between downloads (15 seconds by default, as Civitai asks for politeness; none after a model that was already downloaded). For each model you get a message, and an **item** appears in the group:
+The group is created at once, empty. (Imported LoRAs show up on the [LoRAs page](catalogue.md#loras), where you can also delete one from all servers.) The downloads then go on **in the background**, one model after another with a pause between downloads (15 seconds by default, as Civitai asks for politeness; none after a model that was already downloaded). For each model you get a message, and an **item** appears in the group:
 
 - code name: the model id (`123456`, so you write `loras(123456)`);
 - name: the model's name on Civitai;

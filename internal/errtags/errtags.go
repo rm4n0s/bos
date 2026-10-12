@@ -49,6 +49,7 @@ func All() []Tag {
 		{Name: "JobNotFound", Group: NotFound},
 		{Name: "FileNotFound", Group: NotFound},
 		{Name: "TagNotFound", Group: NotFound},
+		{Name: "LoRANotFound", Group: NotFound},
 
 		{Name: "CodeNameInvalid", Group: Naming},
 		{Name: "CodeNameReserved", Group: Naming},
@@ -111,6 +112,7 @@ func All() []Tag {
 		{Name: "ModelCrudMissing", Group: ComfyUI},
 		{Name: "ModelCrudDisabled", Group: ComfyUI},
 		{Name: "ModelCrudRejected", Group: ComfyUI},
+		{Name: "LoRADeleteFailed", Group: ComfyUI},
 
 		{Name: "CivitaiNotConfigured", Group: Civitai},
 		{Name: "CivitaiModelNotFound", Group: Civitai},

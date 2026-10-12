@@ -52,13 +52,23 @@ func appendLoRAs(lists ...[]LoRA) []LoRA {
 	return out
 }
 
-// dedupeLoRAs keeps the first LoRA of each name (SPEC §6.5, step 4).
+// loraKey is the file a LoRA name stands for: `style` and `style.safetensors`
+// are one file, and so are two spellings that differ in the slashes.
+func loraKey(name string) string {
+	name = strings.ReplaceAll(name, `\`, "/")
+	if i := strings.LastIndex(name, "."); i < 0 || strings.Contains(name[i:], "/") {
+		name += ".safetensors"
+	}
+	return name
+}
+
+// dedupeLoRAs keeps the first LoRA of each file (SPEC §6.5, step 4).
 func dedupeLoRAs(in []LoRA) []LoRA {
 	seen := make(map[string]bool, len(in))
 	var out []LoRA
 	for _, l := range in {
-		if !seen[l.Name] {
-			seen[l.Name] = true
+		if k := loraKey(l.Name); !seen[k] {
+			seen[k] = true
 			out = append(out, l)
 		}
 	}

@@ -68,10 +68,19 @@
 <label>Thumbnail (PNG, JPEG or GIF) <input type="file" name="thumbnail" accept="image/png,image/jpeg,image/gif"></label>
 {{with .ThumbURL}}<div><img class="thumb" src="{{.}}" alt=""> <label class="check"><input type="checkbox" name="clear_thumbnail"> Remove the thumbnail</label></div>{{end}}
 
-{{if .Flags.UseLora}}<fieldset><legend>LoRAs</legend>
-  <label>One per line: name, strength for the model, strength for the text encoder
-    <textarea name="loras" rows="3" placeholder="dance.safetensors, 0.8, 0.8">{{.LoRAs}}</textarea></label>
-</fieldset>{{end}}
+<fieldset class="loras"><legend>LoRAs</legend>
+  <table class="lora-table"{{if not .LoRAs}} hidden{{end}}>
+    <thead><tr><th>LoRA</th><th>Model strength</th><th>Text-encoder strength</th><th></th></tr></thead>
+    <tbody id="lora-rows">{{range .LoRAs}}{{template "lora_row" .}}{{end}}</tbody>
+  </table>
+  <p class="empty" id="lora-none"{{if .LoRAs}} hidden{{end}}>This item carries no LoRA.</p>
+  <label>Add a LoRA <input type="search" id="lora-search" autocomplete="off" placeholder="type part of a name"
+    data-on:input__debounce.200ms="@get('/ui/loras/suggest?q=' + encodeURIComponent(el.value))"
+    data-on:focus="@get('/ui/loras/suggest?q=' + encodeURIComponent(el.value))"></label>
+  <div id="lora-suggest" class="suggest" aria-live="polite"></div>
+  <p class="hint">Search the LoRAs that other items carry or that a server has; <kbd>↑</kbd> <kbd>↓</kbd> choose, <kbd>Enter</kbd> adds. Manage the files on the <a href="/loras">LoRAs</a> page.</p>
+  <template id="lora-row-template">{{template "lora_row" (dict "Name" "" "Model" "1" "Clip" "1")}}</template>
+</fieldset>
 
 {{if .Flags.UseIPAdapter}}<fieldset><legend>IP-Adapter</legend>
   <label class="check"><input type="checkbox" name="ip_enabled"{{if .IP.Enabled}} checked{{end}}> Use an IP-Adapter</label>
@@ -123,3 +132,10 @@
     <textarea name="output_attributes" rows="3" spellcheck="false" placeholder='{"width": 768, "height": 1152}'>{{.OutputAttributes}}</textarea></label>
 </fieldset>{{end}}
 {{end}}
+
+{{define "lora_row"}}<tr class="lora-row">
+  <td><code>{{.Name}}</code><input type="hidden" name="lora_name" value="{{.Name}}"></td>
+  <td><input type="number" step="any" name="lora_model" value="{{.Model}}" aria-label="Strength for the model"></td>
+  <td><input type="number" step="any" name="lora_clip" value="{{.Clip}}" aria-label="Strength for the text encoder"></td>
+  <td><button type="button" class="secondary" data-lora-remove>Remove</button></td>
+</tr>{{end}}

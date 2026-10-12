@@ -10,7 +10,7 @@ import (
 
 func TestGroups(t *testing.T) {
 	e := newEnv(t)
-	g, err := e.Groups.Create(ctx(t), domain.Group{Name: "Characters", CodeName: "characters", Description: "people", Tags: []string{"Anime", "wip", "ANIME"}, UseLora: true})
+	g, err := e.Groups.Create(ctx(t), domain.Group{Name: "Characters", CodeName: "characters", Description: "people", Tags: []string{"Anime", "wip", "ANIME"}, UseControlnet: true})
 	check(t, err)
 	if !reflect.DeepEqual(g.Tags, []string{"anime", "wip"}) {
 		t.Errorf("tags = %v, want them lower-cased, sorted and without repeats", g.Tags)
@@ -36,7 +36,7 @@ func TestGroups(t *testing.T) {
 
 	upd, err := e.Groups.Update(ctx(t), g.ID, domain.Group{Name: "People", CodeName: "characters", Tags: []string{"done"}})
 	check(t, err)
-	if upd.Name != "People" || !reflect.DeepEqual(upd.Tags, []string{"done"}) || upd.UseLora {
+	if upd.Name != "People" || !reflect.DeepEqual(upd.Tags, []string{"done"}) || upd.UseControlnet {
 		t.Errorf("updated = %+v", upd)
 	}
 	check(t, e.Groups.Delete(ctx(t), g.ID))

@@ -79,3 +79,65 @@ func TestAttachmentsAreUploadedAndInjected(t *testing.T) {
 		t.Errorf("prompt = %q", got)
 	}
 }
+
+// Every LoRA of every selected item is loaded before the prompt is queued: one
+// loader for each file in the order of the command's terms, the first
+// strengths for a file two items share, and the sampler and the text encoders
+// read from the end of the chain.
+func TestLoRAsOfAllSelectedItemsAreChainedInTheWorkflow(t *testing.T) {
+	r := newRig(t)
+	_, gpu1 := r.server("gpu1", 1)
+	w := r.world(false)
+	poses, err := r.svc.Groups.Create(ctx(t), domain.Group{Name: "poses", CodeName: "poses"})
+	check(t, err)
+	_, err = r.svc.Items.Create(ctx(t), w.group.ID, domain.Item{CodeName: "look", PositivePrompt: "look", LoRAs: []domain.LoRA{
+		{Name: "chars/x", StrengthModel: 0.9, StrengthClip: 0.8}, {Name: "shared", StrengthModel: 0.7, StrengthClip: 0.6},
+	}})
+	check(t, err)
+	_, err = r.svc.Items.Create(ctx(t), poses.ID, domain.Item{CodeName: "dance", PositivePrompt: "dance", LoRAs: []domain.LoRA{
+		{Name: "shared.safetensors", StrengthModel: 0.1, StrengthClip: 0.1}, {Name: "y.safetensors", StrengthModel: 0.5, StrengthClip: 0.4},
+	}})
+	check(t, err)
+
+	cmd := r.command(w, "gpu1 -$ anime: chars(look) * poses(dance)")
+	r.start()
+	r.run(cmd)
+	r.waitStatus(cmd, domain.StatusFinished)
+
+	g := gpu1.graphs()[0]
+	// Walk from the sampler back to the checkpoint.
+	samplers := 0
+	var chain []string
+	for _, n := range g.Nodes() {
+		if n.ClassType != "KSampler" {
+			continue
+		}
+		samplers++
+		cur, ok := n.Link("model")
+		for ok {
+			node, err := g.Node(cur.Node)
+			check(t, err)
+			if node.ClassType != "LoraLoader" {
+				break
+			}
+			chain = append([]string{strings.Trim(string(node.Inputs["lora_name"]), `"`) + " " + string(node.Inputs["strength_model"]) + "/" + string(node.Inputs["strength_clip"])}, chain...)
+			cur, ok = node.Link("model")
+		}
+	}
+	if samplers == 0 {
+		t.Fatal("no sampler in the submitted workflow")
+	}
+	want := []string{"chars/x.safetensors 0.9/0.8", "shared.safetensors 0.7/0.6", "y.safetensors 0.5/0.4"}
+	if !slices.Equal(chain, want) {
+		t.Errorf("LoRA chain = %v, want %v", chain, want)
+	}
+	loaders := 0
+	for _, n := range g.Nodes() {
+		if n.ClassType == "LoraLoader" {
+			loaders++
+		}
+	}
+	if loaders != 3 {
+		t.Errorf("%d LoRA loaders in the workflow, want 3", loaders)
+	}
+}

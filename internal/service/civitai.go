@@ -123,7 +123,6 @@ func (s *CivitaiService) ImportGroup(ctx context.Context, in CivitaiImport) (*do
 	if err := s.check(ctx, &in); err != nil {
 		return nil, err
 	}
-	in.Group.UseLora = true
 	g, err := s.groups.Create(ctx, in.Group)
 	if err != nil {
 		return nil, err

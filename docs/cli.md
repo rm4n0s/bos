@@ -69,6 +69,40 @@ List the LoRAs installed on a server.
 
 Calls `GET /api/v1/servers/{id}/loras`.
 
+## lora
+
+### `bosctl lora list [flags]`
+
+List the LoRAs of all items and servers.
+
+Calls `GET /api/v1/loras`.
+
+| Flag | Meaning |
+|---|---|
+| `--page-size` | items on a page (at most 200) |
+| `--page` | the page, from 1 |
+| `--q` | only names that contain this text |
+
+### `bosctl lora show [flags]`
+
+Show where a LoRA is installed and which items carry it.
+
+Calls `GET /api/v1/loras/detail`.
+
+| Flag | Meaning |
+|---|---|
+| `--name` | the LoRA, such as civitai/123.safetensors |
+
+### `bosctl lora delete [flags]`
+
+Delete a LoRA from every server and the cache, with the items that carry it.
+
+Calls `DELETE /api/v1/loras`.
+
+| Flag | Meaning |
+|---|---|
+| `--name` | the LoRA, such as civitai/123.safetensors |
+
 ## generator
 
 ### `bosctl generator list [flags]`
@@ -245,7 +279,6 @@ Calls `POST /api/v1/groups`.
 | `--use-controlnet` | its items can carry ControlNets |
 | `--use-coordinates-region` | its items can carry box regions |
 | `--use-ip-adapter` | its items can carry an IP-Adapter |
-| `--use-lora` | its items can carry LoRAs |
 | `--use-mask-region` | its items can carry mask regions |
 | `--use-type-attributes` | its items can set output attributes |
 
@@ -266,7 +299,6 @@ Calls `PUT /api/v1/groups/{id}`.
 | `--use-controlnet` | its items can carry ControlNets |
 | `--use-coordinates-region` | its items can carry box regions |
 | `--use-ip-adapter` | its items can carry an IP-Adapter |
-| `--use-lora` | its items can carry LoRAs |
 | `--use-mask-region` | its items can carry mask regions |
 | `--use-type-attributes` | its items can set output attributes |
 

@@ -157,6 +157,9 @@ func (client) ListModels(_ context.Context, folder string) ([]string, error) {
 }
 func (client) DeleteOutput(context.Context, comfy.OutputFile) error { return nil }
 
+// DeleteModel does nothing.
+func (client) DeleteModel(context.Context, string, string) error { return nil }
+
 // UploadModel takes the model and says where it went.
 func (client) UploadModel(_ context.Context, _, subfolder, filename string, _ int64, r io.Reader) (string, error) {
 	if _, err := io.Copy(io.Discard, r); err != nil {

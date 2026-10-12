@@ -198,7 +198,7 @@ func TestGroupsAndTags(t *testing.T) {
 	if !reflect.DeepEqual(g.Tags, []string{"anime", "wip"}) {
 		t.Errorf("tags on create = %v", g.Tags)
 	}
-	g.UseLora, g.UseMaskRegion, g.Thumbnail, g.Description = true, true, "thumbs/c.png", "people"
+	g.UseMaskRegion, g.Thumbnail, g.Description = true, "thumbs/c.png", "people"
 	check(t, r.Groups.Update(ctx(t), g))
 	got, err := r.Groups.Get(ctx(t), g.ID)
 	check(t, err)
@@ -457,5 +457,29 @@ func TestForeignKeysProtectParents(t *testing.T) {
 	mustCommand(t, r, p.ID, "c", 0)
 	if err := db.gorm.Delete(&projectRecord{}, "id = ?", p.ID).Error; err == nil {
 		t.Error("a project with commands was deleted behind the repositories")
+	}
+}
+
+func TestItemLoRAUsage(t *testing.T) {
+	db := newDB(t)
+	r := db.Repos()
+	g := &domain.Group{Name: "G", CodeName: "g"}
+	check(t, r.Groups.Create(ctx(t), g))
+	plain := &domain.Item{GroupID: g.ID, CodeName: "plain"}
+	one := &domain.Item{GroupID: g.ID, CodeName: "one", Name: "One", LoRAs: []domain.LoRA{{Name: "a.safetensors", StrengthModel: 1, StrengthClip: 0.5}}}
+	two := &domain.Item{GroupID: g.ID, CodeName: "two", LoRAs: []domain.LoRA{{Name: "a.safetensors", StrengthModel: 1, StrengthClip: 1}, {Name: "b", StrengthModel: 1, StrengthClip: 1}}}
+	for _, it := range []*domain.Item{plain, one, two} {
+		check(t, r.Items.Create(ctx(t), it))
+	}
+	got, err := r.Items.LoRAUsage(ctx(t))
+	check(t, err)
+	if len(got) != 2 {
+		t.Fatalf("usage = %+v, want the two items that carry LoRAs", got)
+	}
+	if got[0].ItemID != one.ID || got[0].ItemCode != "one" || got[0].ItemName != "One" || got[0].GroupCode != "g" || got[0].GroupID != g.ID || got[0].LoRAs[0].StrengthClip != 0.5 {
+		t.Errorf("first = %+v", got[0])
+	}
+	if got[1].ItemID != two.ID || len(got[1].LoRAs) != 2 || got[1].LoRAs[1].Name != "b" {
+		t.Errorf("second = %+v", got[1])
 	}
 }

@@ -23,7 +23,7 @@ var statuses = map[string]int{
 	"ServerNotFound": http.StatusNotFound, "GeneratorNotFound": http.StatusNotFound, "FixerNotFound": http.StatusNotFound,
 	"GroupNotFound": http.StatusNotFound, "ItemNotFound": http.StatusNotFound, "ProjectNotFound": http.StatusNotFound,
 	"CommandNotFound": http.StatusNotFound, "JobNotFound": http.StatusNotFound, "FileNotFound": http.StatusNotFound,
-	"TagNotFound": http.StatusNotFound,
+	"TagNotFound": http.StatusNotFound, "LoRANotFound": http.StatusNotFound,
 
 	"CodeNameInvalid": http.StatusUnprocessableEntity, "CodeNameReserved": http.StatusUnprocessableEntity,
 	"TagInvalid": http.StatusUnprocessableEntity,
@@ -58,6 +58,7 @@ var statuses = map[string]int{
 	"ComfyUIResultMissing": http.StatusBadGateway, "ComfyUIInterrupted": http.StatusBadGateway,
 	"ComfyUIPromptLost": http.StatusBadGateway, "ComfyUICallCancelled": http.StatusServiceUnavailable,
 	"ModelCrudMissing": http.StatusBadGateway, "ModelCrudDisabled": http.StatusBadGateway, "ModelCrudRejected": http.StatusBadGateway,
+	"LoRADeleteFailed": http.StatusBadGateway,
 
 	"CivitaiNotConfigured": http.StatusConflict, "CivitaiModelNotFound": http.StatusNotFound,
 	"CivitaiRateLimited": http.StatusServiceUnavailable, "CivitaiDownloadFailed": http.StatusBadGateway,

@@ -95,6 +95,8 @@ type ItemStore interface {
 	Get(ctx context.Context, id domain.ID) (*domain.Item, error)
 	ListByGroup(ctx context.Context, group domain.ID, p domain.Page) (domain.Paged[domain.Item], error)
 	AllByGroup(ctx context.Context, group domain.ID) ([]domain.Item, error)
+	// LoRAUsage lists the items that carry LoRAs, with those LoRAs.
+	LoRAUsage(ctx context.Context) ([]domain.LoRAUse, error)
 }
 
 // TagStore lists and renames tags.
@@ -247,6 +249,7 @@ type Services struct {
 	Commands   *CommandService
 	Jobs       *JobService
 	Repl       *ReplService
+	LoRAs      *LoRAService
 	Civitai    *CivitaiService
 	Settings   *SettingsService
 }
@@ -272,6 +275,7 @@ func New(deps Deps) *Services {
 		Commands:   &CommandService{base: b},
 		Jobs:       &JobService{base: b},
 		Repl:       &ReplService{base: b},
+		LoRAs:      &LoRAService{base: b},
 		Civitai:    &CivitaiService{base: b, groups: groups, items: items, sem: make(chan struct{}, 1)},
 		Settings:   &SettingsService{base: b},
 	}

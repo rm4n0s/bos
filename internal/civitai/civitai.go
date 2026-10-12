@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/rm4n0s/errors"
@@ -158,4 +159,36 @@ func ModelName(modelID, versionID int, subfolder string) string {
 		return file
 	}
 	return subfolder + "/" + file
+}
+
+// CacheFiles lists the files Download keeps in the cache folder dir for the
+// LoRA that ComfyUI knows by name (the inverse of ModelName): the model and its
+// metadata. A name that did not come from an import, such as `style.safetensors`
+// or `civitai/my lora.safetensors`, has none.
+func CacheFiles(dir, name string) []string {
+	if dir == "" {
+		return nil
+	}
+	base := name
+	if i := strings.LastIndexAny(base, `/\`); i >= 0 {
+		base = base[i+1:]
+	}
+	stem, ok := strings.CutSuffix(base, ".safetensors")
+	if !ok {
+		return nil
+	}
+	id, version, hasVersion := strings.Cut(stem, "-")
+	modelID, err := strconv.Atoi(id)
+	if err != nil || modelID < 1 || strconv.Itoa(modelID) != id {
+		return nil
+	}
+	folder := dir
+	if hasVersion {
+		versionID, err := strconv.Atoi(version)
+		if err != nil || versionID < 1 || strconv.Itoa(versionID) != version {
+			return nil
+		}
+		folder = filepath.Join(dir, "versions", version)
+	}
+	return []string{filepath.Join(folder, id+".safetensors"), filepath.Join(folder, id+".json")}
 }

@@ -49,6 +49,7 @@ func (a *API) Routes() []route { return append([]route(nil), a.routes...) }
 // registerAll registers every route of SPEC §15.2.
 func (a *API) registerAll() {
 	a.serverRoutes()
+	a.loraRoutes()
 	a.generatorRoutes()
 	a.fixerRoutes()
 	a.groupRoutes()

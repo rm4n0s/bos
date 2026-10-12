@@ -60,7 +60,7 @@ A group is a named list of items that play one role: `characters`, `poses`, `pla
 |---|---|
 | Name, code name, description | |
 | Tags | **Group tags** only organise the groups page (filter by a tag chip). Commands cannot see them |
-| Features | What this group's items may carry: LoRAs, ControlNet, IP-Adapter, mask regions, box regions, output settings. Only the sections of the features you tick appear in the item editor |
+| Features | What this group's items may carry: ControlNet, IP-Adapter, mask regions, box regions, output settings. Only the sections of the features you tick appear in the item editor. Every item can carry LoRAs, so there is no box for them |
 | Thumbnail | PNG, JPEG or GIF, for the list |
 
 Deleting a group deletes its items and their files.
@@ -77,7 +77,7 @@ An item is one choice in a group.
 | Name | For people |
 | Positive and negative prompt | Text added to the job's prompts; may hold `<tmpl:name>` placeholders for [templates](commands.md#templates) |
 | Item tags | Labels the language can select by: `#acrobatic`. Lower-cased when saved |
-| LoRAs | `name`, strength for the model, strength for the text encoder; the name is the file as ComfyUI knows it (`styles/fox.safetensors`) |
+| LoRAs | A table with the name of each LoRA (the file as ComfyUI knows it, `styles/fox.safetensors`), its strength for the model and its strength for the text encoder, and a *Remove* button. To add one, type part of its name in the search box under the table and choose from the suggestions (↑ ↓ and Enter work too). The suggestions are the LoRAs that other items carry and the ones the servers have; see [the LoRAs page](#loras) |
 | ControlNets | Type (`openpose`, `dwpose`, `tile`, `canny`, `midas`, `depth`, `lineart`, `softedge`, `scribble`, `normal`), an image, a strength, an optional part of the model's file name to choose it, and whether the image is already a ready-made map (a reference) |
 | IP-Adapter | A reference image, weight and its model names |
 | Mask regions | A PNG in flat colours on a white background; each colour becomes a named region (`red`, `blue`, …, plus `background`). The program makes the masks when you save the item and shows the names it found |
@@ -85,9 +85,17 @@ An item is one choice in a group.
 | Output settings | An output type and attributes that apply to jobs using this item |
 | Thumbnail | For the list |
 
-When a command combines items, their prompts are joined (a single space between), LoRAs and the like are collected from all of them, and the job copies the result.
+When a command combines items, their prompts are joined (a single space between), LoRAs and the like are collected from all of them, and the job copies the result. A LoRA that two of the items share is loaded once, with the strengths of the first item that names it: loading it twice would apply it twice.
 
 **Pictures you upload** are checked by what they contain, not by their name: thumbnails must be PNG, JPEG or GIF; reference images may also be WebP; the mask picture must be PNG, because a lossy format would add stray colours. Files bigger than `upload_limit_bytes` are refused.
+
+## LoRAs
+
+The **LoRAs** page (in the menu) lists every LoRA that an item carries or that a server has, one row for each file, with the number of items that carry it and the servers where it is installed. Type in the search box to find one by a part of its name.
+
+Open a LoRA to see, for each server, whether it is installed (or that the server was offline and was not asked), and the items that carry it with the strengths they give it.
+
+**Delete everywhere** removes the LoRA from **every** server's `loras` folder (through the extension), from the Civitai download cache, and **deletes every item that carries it**, with those items' files. The button asks twice, and the text above it says how many items go. If a server is offline, or refuses (the extension may be read-only), nothing is deleted at all, and the message names the servers; fix them and delete again. Jobs that already used a deleted item keep what they have.
 
 ## Tags
 

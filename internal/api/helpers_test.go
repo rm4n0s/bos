@@ -94,6 +94,7 @@ func (loraClient) ListModels(_ context.Context, folder string) ([]string, error)
 	return nil, nil
 }
 func (loraClient) DeleteOutput(context.Context, comfy.OutputFile) error { return nil }
+func (loraClient) DeleteModel(context.Context, string, string) error    { return nil }
 func (loraClient) UploadModel(context.Context, string, string, string, int64, io.Reader) (string, error) {
 	return "", errors.New("Unsupported", "test client")
 }

@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -44,7 +45,7 @@ type itemForm struct {
 	Negative         string
 	Tags             string
 	ThumbURL         string
-	LoRAs            string
+	LoRAs            []loraRow
 	IP               ipForm
 	ControlNets      []controlNetSlot
 	ControlNetTypes  []string
@@ -77,11 +78,9 @@ func (u *UI) itemFormOf(g *domain.Group, it *domain.Item) itemForm {
 	f.ID, f.CodeName, f.Name, f.Positive, f.Negative = it.ID, it.CodeName, it.Name, it.PositivePrompt, it.NegativePrompt
 	f.Tags = strings.Join(it.Tags, ", ")
 	f.ThumbURL = u.fileURL("thumbnails", it.Thumbnail)
-	var lines []string
 	for _, l := range it.LoRAs {
-		lines = append(lines, fmt.Sprintf("%s, %s, %s", l.Name, fmtNum(l.StrengthModel), fmtNum(l.StrengthClip)))
+		f.LoRAs = append(f.LoRAs, loraRow{Name: l.Name, Model: fmtNum(l.StrengthModel), Clip: fmtNum(l.StrengthClip)})
 	}
-	f.LoRAs = strings.Join(lines, "\n")
 	if ip := it.IPAdapter; ip != nil {
 		f.IP = ipForm{
 			Enabled: true, ImageURL: u.fileURL("ipadapter", ip.ImageFile), Weight: fmtNum(ip.Weight), WeightType: ip.WeightType,
@@ -112,6 +111,39 @@ func (u *UI) itemFormOf(g *domain.Group, it *domain.Item) itemForm {
 		}
 	}
 	return f
+}
+
+// loraRow is one line of the LoRA table of the item dialog.
+type loraRow struct{ Name, Model, Clip string }
+
+// readLoRAs reads the LoRA table of the item dialog: the fields lora_name,
+// lora_model and lora_clip come once for each row, in the same order. A
+// strength that is left empty is 1.
+func readLoRAs(f *form) ([]domain.LoRA, error) {
+	names, models, clips := f.values["lora_name"], f.values["lora_model"], f.values["lora_clip"]
+	var out []domain.LoRA
+	for i, name := range names {
+		l := domain.LoRA{Name: strings.TrimSpace(name), StrengthModel: 1, StrengthClip: 1}
+		if l.Name == "" {
+			return nil, errors.New("InvalidRequest", "a LoRA row has no name", "field", "lora_name")
+		}
+		for _, s := range []struct {
+			list  []string
+			field string
+			dst   *float64
+		}{{models, "lora_model", &l.StrengthModel}, {clips, "lora_clip", &l.StrengthClip}} {
+			if i >= len(s.list) || strings.TrimSpace(s.list[i]) == "" {
+				continue
+			}
+			n, err := strconv.ParseFloat(strings.TrimSpace(s.list[i]), 64)
+			if err != nil || math.IsNaN(n) || math.IsInf(n, 0) {
+				return nil, errors.New("InvalidRequest", "the strength of the LoRA "+l.Name+" is not a number: "+s.list[i], "field", s.field, "value", s.list[i])
+			}
+			*s.dst = n
+		}
+		out = append(out, l)
+	}
+	return out, nil
 }
 
 // parseLoRAs reads `name, model strength, text-encoder strength` lines; the
@@ -324,10 +356,8 @@ func (u *UI) saveItem(r *http.Request, f *form, s *stream) (err error) {
 	if _, err := u.upload(f, "thumbnail", "thumbnail", uploads.Kind{Dir: d.Thumbnails, MIMEs: uploads.ThumbnailTypes}, set); err != nil {
 		return err
 	}
-	if group.UseLora {
-		if in.LoRAs, err = parseLoRAs(f.raw("loras")); err != nil {
-			return err
-		}
+	if in.LoRAs, err = readLoRAs(f); err != nil {
+		return err
 	}
 	if group.UseIPAdapter {
 		if err := u.readIPAdapter(f, &in, set); err != nil {

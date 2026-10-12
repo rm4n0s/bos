@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -348,5 +349,36 @@ func TestInstallToAServerWithTheExtension(t *testing.T) {
 	}
 	if got := ext.Models()["loras/civitai/7.safetensors"]; string(got) != string(site.content) {
 		t.Errorf("the server holds %d bytes, want %d", len(got), len(site.content))
+	}
+}
+
+func TestCacheFiles(t *testing.T) {
+	tests := []struct {
+		name string
+		lora string
+		want []string
+	}{
+		{"newest version", "civitai/123.safetensors", []string{"/c/123.safetensors", "/c/123.json"}},
+		{"no sub-folder", "123.safetensors", []string{"/c/123.safetensors", "/c/123.json"}},
+		{"a chosen version", "styles/anime/123-456.safetensors", []string{"/c/versions/456/123.safetensors", "/c/versions/456/123.json"}},
+		{"a backslash path", `civitai\123-456.safetensors`, []string{"/c/versions/456/123.safetensors", "/c/versions/456/123.json"}},
+		{"a hand-made name", "civitai/my lora.safetensors", nil},
+		{"no extension", "123", nil},
+		{"another extension", "123.ckpt", nil},
+		{"a leading zero", "0123.safetensors", nil},
+		{"not a version", "123-final.safetensors", nil},
+		{"a zero id", "0.safetensors", nil},
+		{"a path that tries to leave", "../123.safetensors", []string{"/c/123.safetensors", "/c/123.json"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := CacheFiles("/c", tc.lora)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("CacheFiles(%q) = %v, want %v", tc.lora, got, tc.want)
+			}
+		})
+	}
+	if got := CacheFiles("", "123.safetensors"); got != nil {
+		t.Errorf("without a cache folder: %v", got)
 	}
 }

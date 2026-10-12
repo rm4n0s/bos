@@ -43,6 +43,10 @@ type Client interface {
 	// and returns the path the model has there. A model that is already there
 	// with the same size is not sent again.
 	UploadModel(ctx context.Context, folder, subfolder, filename string, size int64, r io.Reader) (path string, err error)
+	// DeleteModel removes the file path (relative to the folder, with slashes)
+	// from a model folder of the server, such as "loras", through the same
+	// extension. A file that is already gone is not an error.
+	DeleteModel(ctx context.Context, folder, path string) error
 	// Cancel removes a pending prompt from the queue or interrupts a running one.
 	Cancel(ctx context.Context, promptID string) error
 	Close() error

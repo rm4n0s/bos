@@ -24,7 +24,7 @@ You set up the **catalogue** once, then write **commands**. A command is one lin
 | **Server** | A ComfyUI installation, reached by its address (for example `http://192.168.1.20:8188`). Has a *code name* (`gpu1`) and a limit on how many jobs it runs at once. |
 | **Generator** | A ComfyUI workflow (exported in API format) that produces the main result: an image, a video or a 3D model. The program writes the prompts, the seed and the settings into it for every job. |
 | **Fixer** | A workflow that takes a finished picture and returns a better one: an upscale, a face repair, a background removal. |
-| **Group** | A named list of **items**: all your characters, all your poses. A group says which features its items may carry (LoRAs, ControlNets, an IP-Adapter, regions, output settings). |
+| **Group** | A named list of **items**: all your characters, all your poses. A group says which features its items may carry (ControlNets, an IP-Adapter, regions, output settings); every item can carry LoRAs. |
 | **Item** | One choice inside a group: “alice”, with a positive prompt, a negative prompt and perhaps LoRAs or images. |
 | **Tag** | A label on an item (`#acrobatic`) that commands can select by, or a label on a group that only organises the page. |
 | **Code name** | The short name used in commands: letters, digits and `_`, not one of the command language's reserved words. |

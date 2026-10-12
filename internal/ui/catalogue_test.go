@@ -134,9 +134,9 @@ func TestGroupScreen(t *testing.T) {
 
 	// Create with a thumbnail and some features.
 	r := u.submit("POST", "/ui/groups", field("id", "0"), field("name", "Characters"), field("code_name", "characters"), field("tags", "People, main"),
-		field("use_lora", "on"), field("use_controlnet", "on"), file("thumbnail", "c.png", png1()))
+		field("use_controlnet", "on"), file("thumbnail", "c.png", png1()))
 	p := r.patches()
-	mustContain(t, "create", p, "Characters", `<img class="thumb" src="/files/thumbnails/`, "LoRA", "ControlNet", "Group saved.", "people", "main")
+	mustContain(t, "create", p, "Characters", `<img class="thumb" src="/files/thumbnails/`, "ControlNet", "Group saved.", "people", "main")
 	thumbs := stored(t, u.env.Dirs.Thumbnails)
 	if len(thumbs) != 1 {
 		t.Fatalf("thumbnails = %v", thumbs)
@@ -158,7 +158,7 @@ func TestGroupScreen(t *testing.T) {
 	// Edit keeps the thumbnail unless asked to remove it; a new one replaces it.
 	u.submit("POST", "/ui/groups", field("id", "1"), field("name", "Characters"), field("code_name", "characters"), field("tags", "people"), file("thumbnail", "", nil))
 	got, _ := u.env.Services.Groups.Get(t.Context(), 1)
-	if got.Thumbnail != thumbs[0] || len(got.Tags) != 1 || got.UseLora {
+	if got.Thumbnail != thumbs[0] || len(got.Tags) != 1 || got.UseControlnet {
 		t.Errorf("group = %+v", got)
 	}
 	u.submit("POST", "/ui/groups", field("id", "1"), field("name", "Characters"), field("code_name", "characters"), file("thumbnail", "n.png", png1()))
@@ -248,11 +248,12 @@ func TestOpeningADialogReplacesItsBody(t *testing.T) {
 func TestItemScreenShowsOnlyTheSectionsOfTheGroup(t *testing.T) {
 	u := newTestUI(t)
 	plain := u.ui.newTestGroup(t, domain.Group{Name: "Plain", CodeName: "plain"})
-	full := u.ui.newTestGroup(t, domain.Group{Name: "Full", CodeName: "full", UseLora: true, UseControlnet: true, UseIPAdapter: true, UseMaskRegion: true, UseCoordinatesRegion: true, UseTypeAttributes: true})
+	full := u.ui.newTestGroup(t, domain.Group{Name: "Full", CodeName: "full", UseControlnet: true, UseIPAdapter: true, UseMaskRegion: true, UseCoordinatesRegion: true, UseTypeAttributes: true})
 
 	page := u.datastar("GET", "/ui/groups/"+itoa(plain)+"/items/new", struct{}{}).patches()
-	mustContain(t, "plain form", page, `name="code_name"`, `name="positive_prompt"`)
-	mustNotContain(t, "plain form", page, "<legend>LoRAs", "<legend>ControlNet", "<legend>IP-Adapter", "<legend>Mask regions", "<legend>Box regions", "<legend>Output settings")
+	// Every item can carry LoRAs, whatever its group offers.
+	mustContain(t, "plain form", page, `name="code_name"`, `name="positive_prompt"`, "<legend>LoRAs", `id="lora-search"`, `id="lora-rows"`, `id="lora-row-template"`)
+	mustNotContain(t, "plain form", page, "<legend>ControlNet", "<legend>IP-Adapter", "<legend>Mask regions", "<legend>Box regions", "<legend>Output settings")
 
 	page = u.datastar("GET", "/ui/groups/"+itoa(full)+"/items/new", struct{}{}).patches()
 	mustContain(t, "full form", page, "<legend>LoRAs", "<legend>ControlNet", "<legend>IP-Adapter", "<legend>Mask regions", "<legend>Box regions", "<legend>Output settings",
@@ -276,14 +277,15 @@ func itoa(n int64) string { return strconv.FormatInt(n, 10) }
 
 func TestItemScreen(t *testing.T) {
 	u := newTestUI(t)
-	gid := u.ui.newTestGroup(t, domain.Group{Name: "Full", CodeName: "full", UseLora: true, UseControlnet: true, UseIPAdapter: true, UseMaskRegion: true, UseCoordinatesRegion: true, UseTypeAttributes: true})
+	gid := u.ui.newTestGroup(t, domain.Group{Name: "Full", CodeName: "full", UseControlnet: true, UseIPAdapter: true, UseMaskRegion: true, UseCoordinatesRegion: true, UseTypeAttributes: true})
 	path := "/ui/groups/" + itoa(gid) + "/items"
 
 	// Create with everything.
 	r := u.submit("POST", path,
 		field("id", "0"), field("code_name", "alice"), field("name", "Alice"), field("positive_prompt", "alice, smiling"), field("negative_prompt", "blurry"), field("tags", "Combat, hero"),
 		file("thumbnail", "t.png", png1()),
-		field("loras", "dance.safetensors, 0.8, 0.7\nfox.safetensors"),
+		field("lora_name", "dance.safetensors"), field("lora_model", "0.8"), field("lora_clip", "0.7"),
+		field("lora_name", "fox.safetensors"), field("lora_model", ""), field("lora_clip", ""),
 		field("ip_enabled", "on"), field("ip_weight", "0.6"), field("ip_weight_type", "linear"), field("ip_start_at", "0"), field("ip_end_at", "1"),
 		field("ip_clip_vision_model", "clip.safetensors"), field("ip_model_name", "ipa.safetensors"), file("ip_adapter_image", "ip.png", png1()),
 		field("cn_0_type", ""), field("cn_1_type", "openpose"), field("cn_1_strength", "0.9"), field("cn_1_reference", "on"), file("cn_1_image", "pose.png", png1()),
@@ -327,7 +329,8 @@ func TestItemScreen(t *testing.T) {
 
 	// The edit dialog shows all of it, and the mask keywords found.
 	edit := u.datastar("GET", "/ui/items/1/edit", struct{}{}).patches()
-	mustContain(t, "edit", edit, `value="alice"`, "dance.safetensors, 0.8, 0.7", `value="ipa.safetensors"`, `<option value="openpose" selected>`,
+	mustContain(t, "edit", edit, `value="alice"`, `<input type="hidden" name="lora_name" value="dance.safetensors">`, `name="lora_model" value="0.8"`, `name="lora_clip" value="0.7"`,
+		`name="lora_model" value="1"`, `data-lora-remove`, `value="ipa.safetensors"`, `<option value="openpose" selected>`,
 		"Regions found:", `<span class="chip">red</span>`, `<span class="chip">blue</span>`, `<span class="chip">background</span>`, "left 512 1024 0 0", `"width"`,
 		`<img class="thumb" src="/files/thumbnails/`, `<img class="thumb" src="/files/ipadapter/`)
 
@@ -335,7 +338,7 @@ func TestItemScreen(t *testing.T) {
 	before := len(stored(t, u.env.Root))
 	r = u.submit("POST", path,
 		field("id", "1"), field("code_name", "alice"), field("name", "Alice"), field("positive_prompt", "alice"), field("tags", "combat"),
-		field("loras", "dance.safetensors, 0.8, 0.7"),
+		field("lora_name", "dance.safetensors"), field("lora_model", "0.8"), field("lora_clip", "0.7"),
 		field("ip_enabled", "on"), field("ip_weight", "0.6"), field("ip_weight_type", "linear"), field("ip_start_at", "0"), field("ip_end_at", "1"),
 		field("ip_clip_vision_model", "clip.safetensors"), field("ip_model_name", "ipa.safetensors"),
 		field("cn_0_type", "openpose"), field("cn_0_strength", "0.9"), field("cn_0_reference", "on"), field("cn_0_keep", it.ControlNets[0].ImagePath),
@@ -380,7 +383,9 @@ func TestItemScreen(t *testing.T) {
 
 	// Failures name the problem.
 	for name, parts := range map[string][]part{
-		"bad LoRA strength":  {field("code_name", "x"), field("name", "x"), field("loras", "a.safetensors, high")},
+		"bad LoRA strength":  {field("code_name", "x"), field("name", "x"), field("lora_name", "a.safetensors"), field("lora_model", "high"), field("lora_clip", "1")},
+		"infinite strength":  {field("code_name", "x"), field("name", "x"), field("lora_name", "a.safetensors"), field("lora_model", "1"), field("lora_clip", "Inf")},
+		"LoRA without name":  {field("code_name", "x"), field("name", "x"), field("lora_name", " "), field("lora_model", "1"), field("lora_clip", "1")},
 		"bad region":         {field("code_name", "x"), field("name", "x"), field("coords", "left 512")},
 		"bad attributes":     {field("code_name", "x"), field("name", "x"), field("output_attributes", "{")},
 		"bad number":         {field("code_name", "x"), field("name", "x"), field("ip_enabled", "on"), field("ip_weight", "heavy")},

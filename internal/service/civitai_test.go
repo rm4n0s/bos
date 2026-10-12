@@ -129,7 +129,7 @@ func TestImportGroup(t *testing.T) {
 	c := newCivitaiEnv(t)
 	g, err := c.Civitai.ImportGroup(ctx(t), c.imp(7, 8, 9))
 	check(t, err)
-	if g.CodeName != "foxes" || !g.UseLora || g.ID == 0 {
+	if g.CodeName != "foxes" || g.ID == 0 {
 		t.Errorf("group = %+v", g)
 	}
 	c.Civitai.Wait()

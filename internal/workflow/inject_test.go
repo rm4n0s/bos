@@ -486,3 +486,52 @@ func TestInjectorsKeepAllExamplesWellFormed(t *testing.T) {
 		}
 	}
 }
+
+func TestSameLoRA(t *testing.T) {
+	for _, tc := range []struct {
+		a, b string
+		want bool
+	}{
+		{"style", "style.safetensors", true},
+		{"chars/b", `chars\b.safetensors`, true},
+		{"style", "other", false},
+		{"a/style", "b/style", false},
+		{"style.pt", "style", false},
+		{"Style", "style", false},
+	} {
+		if got := SameLoRA(tc.a, tc.b); got != tc.want {
+			t.Errorf("SameLoRA(%q, %q) = %v, want %v", tc.a, tc.b, got, tc.want)
+		}
+	}
+}
+
+// A LoRA listed twice, under spellings that name one file, is loaded once with
+// the strengths of its first entry; the others are chained in order.
+func TestInjectLoRAsLoadsAFileOnce(t *testing.T) {
+	g := example(t, "creators/illustrious_xl.json")
+	orig := g.Clone()
+	check(t, InjectLoRAs(g, []LoRA{
+		{Name: "style_a", StrengthModel: 0.8, StrengthClip: 0.6},
+		{Name: "chars/b.safetensors", StrengthModel: 1, StrengthClip: 0.5},
+		{Name: "style_a.safetensors", StrengthModel: 0.1, StrengthClip: 0.1},
+		{Name: `chars\b`, StrengthModel: 0.2, StrengthClip: 0.2},
+		{Name: "c", StrengthModel: 0.3, StrengthClip: 0.3},
+	}))
+	assertWellFormed(t, g)
+	ids := addedIDs(orig, g, "LoraLoader")
+	if len(ids) != 3 {
+		t.Fatalf("added %v, want one loader for each of the three files", ids)
+	}
+	var got []string
+	for _, id := range ids {
+		n := node(t, g, id)
+		got = append(got, string(n.Inputs["lora_name"])+" "+string(n.Inputs["strength_model"]))
+	}
+	want := []string{`"style_a.safetensors" 0.8`, `"chars/b.safetensors" 1`, `"c.safetensors" 0.3`}
+	if strings.Join(got, ";") != strings.Join(want, ";") {
+		t.Errorf("loaders = %v, want %v", got, want)
+	}
+	if link(t, g, "3", "model") != (Link{ids[2], 0}) {
+		t.Errorf("the sampler reads %v, want the last loader", link(t, g, "3", "model"))
+	}
+}

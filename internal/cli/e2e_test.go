@@ -94,6 +94,15 @@ func TestCLIAgainstTheRealAPI(t *testing.T) {
 	if loras := r.must("server", "loras", "1")["loras"].([]any); len(loras) != 2 {
 		t.Errorf("loras = %v", loras)
 	}
+	if l := r.must("lora", "list", "--q", "fox"); l["total"] != float64(1) {
+		t.Errorf("lora list = %v", l)
+	}
+	if d := r.must("lora", "show", "--name", "dance"); d["name"] != "dance.safetensors" {
+		t.Errorf("lora show = %v", d)
+	}
+	if d := r.must("lora", "delete", "--name", "fox"); d["name"] != "fox.safetensors" {
+		t.Errorf("lora delete = %v", d)
+	}
 	if a := r.must("generator", "analyze", "--workflow", "@"+wf); a["output_type"] != "image" {
 		t.Errorf("analysis = %v", a)
 	}

@@ -117,6 +117,31 @@ func (r *ItemRepo) AllByGroup(ctx context.Context, group domain.ID) ([]domain.It
 	return r.itemsOf(ctx, recs)
 }
 
+// LoRAUsage returns, in creation order, every item that carries a LoRA with
+// the LoRAs it carries. It reads only the columns it needs.
+func (r *ItemRepo) LoRAUsage(ctx context.Context) ([]domain.LoRAUse, error) {
+	recs, err := all[itemRecord](r.conn(ctx).Select("id", "group_id", "code_name", "name", "loras").Order("id"), "list item LoRAs")
+	if err != nil {
+		return nil, err
+	}
+	groups, err := all[groupRecord](r.conn(ctx).Select("id", "code_name"), "list item LoRAs")
+	if err != nil {
+		return nil, err
+	}
+	codes := make(map[int64]string, len(groups))
+	for _, g := range groups {
+		codes[g.ID] = g.CodeName
+	}
+	var out []domain.LoRAUse
+	for _, rec := range recs {
+		if len(rec.LoRAs.V) == 0 {
+			continue
+		}
+		out = append(out, domain.LoRAUse{ItemID: rec.ID, ItemCode: rec.CodeName, ItemName: rec.Name, GroupID: rec.GroupID, GroupCode: codes[rec.GroupID], LoRAs: rec.LoRAs.V})
+	}
+	return out, nil
+}
+
 // Delete removes an item and returns the files and folders that belonged to it
 // (SPEC §7.4) for the caller to remove after the transaction has committed.
 func (r *ItemRepo) Delete(ctx context.Context, id domain.ID) ([]string, error) {

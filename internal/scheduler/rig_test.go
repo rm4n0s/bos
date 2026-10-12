@@ -233,6 +233,7 @@ func (f *fakeComfy) UploadModel(context.Context, string, string, string, int64, 
 }
 
 func (f *fakeComfy) ListModels(context.Context, string) ([]string, error) { return nil, nil }
+func (f *fakeComfy) DeleteModel(context.Context, string, string) error    { return nil }
 
 func (f *fakeComfy) Cancel(_ context.Context, id string) error {
 	f.mu.Lock()

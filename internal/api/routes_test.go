@@ -226,6 +226,21 @@ func TestEveryRoute(t *testing.T) {
 		}
 	})
 
+	t.Run("loras", func(t *testing.T) {
+		list := ok(a.do("GET", "/api/v1/loras", nil), 200).json()
+		if list["total"].(float64) < 2 {
+			t.Errorf("the servers' LoRAs are listed: %v", list)
+		}
+		detail := ok(a.do("GET", "/api/v1/loras/detail?name=dance.safetensors", nil), 200).json()
+		if detail["name"] != "dance.safetensors" {
+			t.Errorf("detail = %v", detail)
+		}
+		del := ok(a.do("DELETE", "/api/v1/loras?name=fox.safetensors", nil), 200).json()
+		if servers, _ := del["servers"].([]any); len(servers) == 0 {
+			t.Errorf("deletion = %v", del)
+		}
+	})
+
 	t.Run("events, files and the contract", func(t *testing.T) {
 		a.events.Append(eventOf("processing"))
 		ev := ok(a.do("GET", "/api/v1/events", nil), 200).json()

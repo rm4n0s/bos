@@ -120,17 +120,20 @@ func (r fixerRecord) domain() domain.Fixer {
 // ---- groups ----
 
 type groupRecord struct {
-	ID                   int64  `gorm:"column:id;primaryKey"`
-	Name                 string `gorm:"column:name"`
-	Description          string `gorm:"column:description"`
-	CodeName             string `gorm:"column:code_name"`
-	Thumbnail            string `gorm:"column:thumbnail"`
-	UseLora              bool   `gorm:"column:use_lora"`
-	UseControlnet        bool   `gorm:"column:use_controlnet"`
-	UseIPAdapter         bool   `gorm:"column:use_ip_adapter"`
-	UseMaskRegion        bool   `gorm:"column:use_mask_region"`
-	UseCoordinatesRegion bool   `gorm:"column:use_coordinates_region"`
-	UseTypeAttributes    bool   `gorm:"column:use_type_attributes"`
+	ID          int64  `gorm:"column:id;primaryKey"`
+	Name        string `gorm:"column:name"`
+	Description string `gorm:"column:description"`
+	CodeName    string `gorm:"column:code_name"`
+	Thumbnail   string `gorm:"column:thumbnail"`
+	// UseLora is no longer part of a group (every item can carry LoRAs). The
+	// column stays, written as false, because SQLite cannot drop it without
+	// rebuilding the table under the foreign keys that point at groups.
+	UseLora              bool `gorm:"column:use_lora"`
+	UseControlnet        bool `gorm:"column:use_controlnet"`
+	UseIPAdapter         bool `gorm:"column:use_ip_adapter"`
+	UseMaskRegion        bool `gorm:"column:use_mask_region"`
+	UseCoordinatesRegion bool `gorm:"column:use_coordinates_region"`
+	UseTypeAttributes    bool `gorm:"column:use_type_attributes"`
 	Stamps
 }
 
@@ -138,7 +141,7 @@ func (groupRecord) TableName() string { return "groups" }
 
 func groupToRecord(v *domain.Group) groupRecord {
 	return groupRecord{ID: v.ID, Name: v.Name, Description: v.Description, CodeName: v.CodeName,
-		Thumbnail: v.Thumbnail, UseLora: v.UseLora, UseControlnet: v.UseControlnet, UseIPAdapter: v.UseIPAdapter,
+		Thumbnail: v.Thumbnail, UseControlnet: v.UseControlnet, UseIPAdapter: v.UseIPAdapter,
 		UseMaskRegion: v.UseMaskRegion, UseCoordinatesRegion: v.UseCoordinatesRegion,
 		UseTypeAttributes: v.UseTypeAttributes, Stamps: stampsOf(v.Timestamps)}
 }
@@ -146,7 +149,7 @@ func groupToRecord(v *domain.Group) groupRecord {
 // domain converts the record; the caller fills in the tags.
 func (r groupRecord) domain() domain.Group {
 	return domain.Group{ID: r.ID, Name: r.Name, Description: r.Description, CodeName: r.CodeName,
-		Tags: []string{}, Thumbnail: r.Thumbnail, UseLora: r.UseLora, UseControlnet: r.UseControlnet,
+		Tags: []string{}, Thumbnail: r.Thumbnail, UseControlnet: r.UseControlnet,
 		UseIPAdapter: r.UseIPAdapter, UseMaskRegion: r.UseMaskRegion, UseCoordinatesRegion: r.UseCoordinatesRegion,
 		UseTypeAttributes: r.UseTypeAttributes, Timestamps: r.Stamps.domain()}
 }

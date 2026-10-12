@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/rm4n0s/errors"
@@ -21,6 +22,12 @@ func loraFile(name string) string {
 		return name + ".safetensors"
 	}
 	return name
+}
+
+// SameLoRA reports whether two names are one file for ComfyUI: they differ at
+// most in the extension left out and in the direction of the slashes.
+func SameLoRA(a, b string) bool {
+	return strings.ReplaceAll(loraFile(a), `\`, "/") == strings.ReplaceAll(loraFile(b), `\`, "/")
 }
 
 type loaderStyle int
@@ -70,7 +77,9 @@ func modelLoader(g Graph, injector string) (Node, loaderStyle, error) {
 
 // InjectLoRAs chains one LoRA loader per LoRA after the model loader and
 // rewires every consumer of the loader's outputs to the last one (SPEC §8.2,
-// step 5). A checkpoint-style workflow gets LoraLoader nodes that patch MODEL
+// step 5). A LoRA that is listed twice, even spelled differently, is loaded
+// once with the strengths of its first entry: a second loader would apply it
+// twice. A checkpoint-style workflow gets LoraLoader nodes that patch MODEL
 // and CLIP; a split-style one (UNETLoader + CLIPLoader) gets
 // LoraLoaderModelOnly nodes, so strength_clip is not used there.
 func InjectLoRAs(g Graph, loras []LoRA) error {
@@ -83,7 +92,12 @@ func InjectLoRAs(g Graph, loras []LoRA) error {
 	}
 	e := newEditor(g)
 	src := loader.ID
+	var loaded []string
 	for _, l := range loras {
+		if slices.ContainsFunc(loaded, func(n string) bool { return SameLoRA(n, l.Name) }) {
+			continue
+		}
+		loaded = append(loaded, l.Name)
 		name := loraFile(l.Name)
 		title := "BOS LoRA " + name
 		var id string

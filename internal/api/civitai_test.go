@@ -51,7 +51,7 @@ func TestCivitaiRoutes(t *testing.T) {
 		"name": "Foxes", "code_name": "foxes", "tags": []string{"Animals"}, "server": server, "lora_subfolder": "civitai",
 		"models": []map[string]any{{"model_id": 7, "model_strength": 0.7}, {"model_id": 8, "model_strength": 1, "model_clip": 0.5}, {"model_id": 99}},
 	}), 202, "")
-	if r.Header.Get("Location") != "/api/v1/groups/1" || r.json()["use_lora"] != true || r.json()["code_name"] != "foxes" {
+	if r.Header.Get("Location") != "/api/v1/groups/1" || r.json()["code_name"] != "foxes" {
 		t.Errorf("accepted = %v, Location = %q", r.json(), r.Header.Get("Location"))
 	}
 	a.api.Services.Civitai.Wait()

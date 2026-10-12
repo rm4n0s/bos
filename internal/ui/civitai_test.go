@@ -59,7 +59,7 @@ func TestCivitaiImportFromTheGroupsPage(t *testing.T) {
 
 	r := u.submit("POST", "/ui/groups/civitai", field("name", "Foxes"), field("code_name", "foxes"), field("tags", "animals"),
 		field("models", "7, 0.7\n8"), field("server", server), field("lora_subfolder", "civitai"))
-	mustContain(t, "started", r.patches(), "The import started.", "Foxes", `<span class="chip">LoRA</span>`)
+	mustContain(t, "started", r.patches(), "The import started.", "Foxes")
 	if r.signals()["groups"].(map[string]any)["civitaiOpen"] != false {
 		t.Errorf("the dialog must close: %v", r.signals())
 	}
@@ -89,7 +89,7 @@ func TestCivitaiImportFromTheGroupsPage(t *testing.T) {
 
 func TestCivitaiItemsOnTheItemsPage(t *testing.T) {
 	u, server := withCivitai(t)
-	gid := u.ui.newTestGroup(t, domain.Group{Name: "Loras", CodeName: "loras", UseLora: true})
+	gid := u.ui.newTestGroup(t, domain.Group{Name: "Loras", CodeName: "loras"})
 	path := "/groups/" + itoa(gid) + "/items"
 	mustContain(t, "page", u.get(path).Body, "Add from Civitai", `data-group="`+itoa(gid)+`"`)
 
@@ -125,7 +125,7 @@ func TestCivitaiNotConfiguredInTheInterface(t *testing.T) {
 // the one that is chosen. With a single server it is chosen already.
 func TestCivitaiDialogsOfferTheServers(t *testing.T) {
 	u := civitaiUI(t)
-	gid := u.ui.newTestGroup(t, domain.Group{Name: "Loras", CodeName: "loras", UseLora: true})
+	gid := u.ui.newTestGroup(t, domain.Group{Name: "Loras", CodeName: "loras"})
 	groups, items := "/ui/groups/civitai/new", "/ui/groups/"+itoa(gid)+"/items/civitai/new"
 	mk := func(name, code string) {
 		_, err := u.env.Services.Servers.Create(t.Context(), domain.Server{Name: name, Host: "http://" + code + ":8188", CodeName: code})

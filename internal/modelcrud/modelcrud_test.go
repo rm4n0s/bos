@@ -79,6 +79,18 @@ func (f *fakeExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		delete(f.output, path)
 		f.reply(w, 200, map[string]any{"area": "output", "path": path, "deleted": true})
+	case r.Method == http.MethodDelete && p == "/model_crud/models/loras":
+		if f.disabled != "" {
+			f.fail(w, 403, f.disabled, "disabled")
+			return
+		}
+		key := "loras/" + r.URL.Query().Get("path")
+		if _, there := f.models[key]; !there {
+			f.fail(w, 404, "file_not_found", "no such file")
+			return
+		}
+		delete(f.models, key)
+		f.reply(w, 200, map[string]any{"folder": "loras", "deleted": true})
 	case r.Method == http.MethodGet && p == "/model_crud/models/loras":
 		var files []map[string]any
 		for k, v := range f.models {
@@ -252,6 +264,45 @@ func TestDeleteOutputFailures(t *testing.T) {
 			tc.setup(f)
 			err := newClient(t, f).DeleteOutput(t.Context(), "a.png")
 			wantTag(t, err, "Client.DeleteOutput", tc.tag)
+		})
+	}
+}
+
+func TestDeleteModel(t *testing.T) {
+	f := newFake()
+	f.models["loras/civitai/12.safetensors"] = []byte("a")
+	f.models["loras/other.safetensors"] = []byte("b")
+	c := newClient(t, f)
+	if err := c.DeleteModel(t.Context(), "loras", "civitai/12.safetensors"); err != nil {
+		t.Fatal(err)
+	}
+	if _, there := f.models["loras/civitai/12.safetensors"]; there || len(f.models) != 1 {
+		t.Errorf("models = %v", f.models)
+	}
+	if got := f.calls[len(f.calls)-1]; got != "DELETE /model_crud/models/loras?path=civitai%2F12.safetensors" {
+		t.Errorf("request = %q", got)
+	}
+	// A file that is already gone is not an error.
+	if err := c.DeleteModel(t.Context(), "loras", "civitai/12.safetensors"); err != nil {
+		t.Errorf("a missing file: %v", err)
+	}
+}
+
+func TestDeleteModelFailures(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*fakeExtension)
+		tag   string
+	}{
+		{name: "no extension on the server", setup: func(f *fakeExtension) { f.absent = true }, tag: "ModelCrudMissing"},
+		{name: "deletes are switched off", setup: func(f *fakeExtension) { f.disabled = "delete_disabled" }, tag: "ModelCrudDisabled"},
+		{name: "the extension refuses the path", setup: func(f *fakeExtension) { f.disabled = "path_outside_root" }, tag: "ModelCrudRejected"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFake()
+			tc.setup(f)
+			wantTag(t, newClient(t, f).DeleteModel(t.Context(), "loras", "a.safetensors"), "Client.DeleteModel", tc.tag)
 		})
 	}
 }

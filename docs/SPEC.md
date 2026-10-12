@@ -134,7 +134,7 @@ There is no category entity. Classification is done with **tags**: short labels 
 ### 3.5 Group
 A named collection of items that share a role.
 
-Fields: name (≤300), description, **code_name (globally unique, ≤100)**, `tags` (group tags, §3.4), thumbnail (optional), and feature flags that decide which sections an item editor offers: `use_lora`, `use_controlnet`, `use_ip_adapter`, `use_mask_region`, `use_coordinates_region`, `use_type_attributes`.
+Fields: name (≤300), description, **code_name (globally unique, ≤100)**, `tags` (group tags, §3.4), thumbnail (optional), and feature flags that decide which sections an item editor offers: `use_controlnet`, `use_ip_adapter`, `use_mask_region`, `use_coordinates_region`, `use_type_attributes`. There is no flag for LoRAs: every item can carry them (§3.6, §9.1). A group made before this change keeps an unused `use_lora` column in the database; it is neither read nor shown, and a request that still sends `use_lora` is refused as an unknown field.
 
 ### 3.6 Item
 One selectable value inside a group.
@@ -144,7 +144,7 @@ One selectable value inside a group.
 | group, code_name | code_name unique **within its group** |
 | name | ≤300 |
 | positive_prompt, negative_prompt | text; may contain `<tmpl:name>` placeholders (§6.5) |
-| loras | list of `{name, strength_model, strength_clip}` |
+| loras | list of `{name, strength_model, strength_clip}`; any item may carry them. The name is the file as ComfyUI knows it (`styles/fox.safetensors`; a name without an extension means `.safetensors`). The item dialog shows them as a table (name, the two strengths, a *Remove* button) with a search box that completes names from the LoRAs of all items and all servers (§9.1) |
 | ip_adapter | `{image_file, weight, weight_type, start_at, end_at, clip_vision_model, model_name}` |
 | controlnets | list of `{type, image_path, is_reference, model_pattern, strength}`; types: openpose, dwpose, tile, canny, midas, depth, lineart, softedge, scribble, normal |
 | mask_region_images | `{reference_path, folder_path, mask_files: {keyword → mask image}}`, generated (§7.3) |
@@ -604,7 +604,7 @@ Sample data: groups `characters` = alice, bob, carol; `poses` = standing, jumpin
 3. Apply `where`, then `limit` / `sample`, then `repeat` (§6.7).
 4. For every resulting job:
    - positive/negative prompts: items' prompts joined by a single space in term order, then placeholders removed;
-   - LoRAs, ControlNets, IP-Adapters: concatenated across items;
+   - LoRAs, ControlNets, IP-Adapters: concatenated across items in term order; **a LoRA that two items share is kept once, with the strengths of the first** (two spellings of one file, `style` and `style.safetensors` or `a\b` and `a/b`, are one file), because loading it twice would apply it twice;
    - used `{group, item}` list (literals contribute none);
    - output type/attributes: generator's → overridden by the last item that defines both → overridden by the command's `with` values (§6.8); effective seed recorded;
    - repeat index;
@@ -666,7 +666,7 @@ Starting from the generator's workflow, apply in this order:
 2. For image generators, apply the effective output attributes (generator → item → command `with`; §6.8) to every sampler (`KSampler`, `KSamplerAdvanced`: steps, cfg, sampler_name, scheduler, denoise, seed) and to the empty-latent nodes (width, height); only non-null values. No sampler present → error.
 3. Seed: apply the job's effective seed (§6.8). If `has_random_seed` and no seed override exists, generate a random 64-bit seed per job, set it on every `KSampler` and record it on the job.
 4. **IP-Adapter** injection: for each adapter add a CLIP-vision loader, image loader, IP-Adapter model loader and an advanced IP-Adapter node, chained.
-5. **LoRA** injection: checkpoint-style workflows (a `CheckpointLoader*` node) get a `LoraLoader` per LoRA; split-style workflows (`UNETLoader` + `CLIPLoader`) get `LoraLoaderModelOnly`. Consumers of the original model/clip outputs are rewired.
+5. **LoRA** injection: checkpoint-style workflows (a `CheckpointLoader*` node) get a `LoraLoader` per LoRA; split-style workflows (`UNETLoader` + `CLIPLoader`) get `LoraLoaderModelOnly`. The loaders are chained in the order of the job's LoRA list (the items in term order, then the LoRAs of the regions), each file once with the strengths of its first entry, and consumers of the original model/clip outputs are rewired to the last loader.
 6. **ControlNet** injection: per config add an image loader, an optional preprocessor, a preview save node for the preprocessed image, a ControlNet loader and `ControlNetApplyAdvanced`, wired between the text encoders and the sampler. Preprocessors: openpose → `OpenposePreprocessor`, dwpose → `DWPreprocessor`, canny → `CannyEdgePreprocessor`, midas → `MidasDepthMapPreprocessor`, depth → `DepthAnythingPreprocessor`, lineart → `LineArtPreprocessor`, softedge → `HEDPreprocessor`, scribble → `ScribblePreprocessor`, normal → `BAE-NormalMapPreprocessor`, tile → none. `is_reference = true` means preprocess; `false` means use the image as-is.
 7. **Region** injection: starting at the sampler's positive input, follow `ControlNetApplyAdvanced` / `ControlNetApply` back to the base text-encode node. For each region add a text encode, then either `LoadImage → ImageToMask(red) → ConditioningSetMask` (mask) or `ConditioningSetArea` (coordinates), and chain with `ConditioningCombine`. A region must have a mask xor coordinates. Requires a `KSampler`.
 
@@ -734,6 +734,14 @@ Requires the API token and LoRA cache directory; otherwise the operation fails w
 - Create a group of LoRAs: one item per model with code_name = model id (`<model id>_<version id>` when a version was chosen), name = Civitai model name, positive_prompt = trigger words separated by blank lines, and one LoRA entry with the chosen model/clip strengths. When importing several models, pause 15 s between downloads.
 - Create a single LoRA item in an existing group.
 - List LoRAs available on a ComfyUI server.
+
+### 9.1 LoRA pages
+
+A LoRA has no record of its own. It is a file name that items carry (§3.6) and that ComfyUI servers hold in their `loras` folder. The **LoRAs page** (`/loras`) and the LoRA routes (§15.2) join the two: one row for each file name that any item carries or any server that answers lists, with the number of items that carry it and the code names of the servers that have it. Two spellings of one file (`style` and `style.safetensors`; a backslash and a slash) are one row, shown as `<path>.safetensors` with slashes. The list can be filtered by a part of the name (not case sensitive) and is paged. A server that is offline or does not answer is not asked; the list names it, because its LoRAs are missing from the list.
+
+- **Details.** Opening a LoRA says, for every server, whether it is installed there (or that the server was not asked), and lists the items that carry it (group, item, the two strengths). A name that no item carries and no server has is `LoRANotFound`.
+- **Deleting a LoRA** removes it everywhere: its file from every server that has it (`DELETE /model_crud/models/loras?path=<path>` of the extension, §18.8; a file that is already gone is not an error), its model and metadata from the Civitai cache (only for names an import made: `<id>.safetensors`, `<id>-<version>.safetensors`, §9), and **every item that carries it**, with those items' files. The web page asks twice, and the dialog says how many items go. **Nothing is touched unless every server answers**: a server that is offline or does not answer, or that refuses the delete, stops the operation with `LoRADeleteFailed`, naming those servers, and no item is deleted; doing it again after fixing them finishes the job, because the servers that already deleted the file are not asked to find it. Deleting an item that a command's jobs used does not change those jobs (§7.4).
+- **Autocomplete** of the item dialog (`GET /ui/loras/suggest?q=`): the names that contain the text, those that start with it first, at most 12, from the same join. A name can only be added from this list; a name that nothing and nobody has cannot be typed in.
 
 ## 10. Persistence and files
 
@@ -906,6 +914,14 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 | `GET /servers/{id}` · `PUT` · `DELETE` | get / edit / delete | 200 / 200 / 204 | `ServerNotFound`, `ServerCodeNameTaken` |
 | `GET /servers/{id}/loras` | LoRAs installed on that ComfyUI | 200 | `ServerUnreachable` |
 
+**LoRAs** (§9.1)
+
+| Route | Purpose | Success | Notable errors |
+|---|---|---|---|
+| `GET /loras?q=&page=&page_size=` | page of `{name, items, servers}` (the LoRAs of all items and all servers) plus `unreachable` (servers not asked) | 200 | `InvalidRequest` |
+| `GET /loras/detail?name=` | `{name, items:[{id, group_id, group_code, code_name, name, strength_model, strength_clip}], servers:[{code_name, name, reachable, installed}]}` | 200 | `InvalidRequest`, `LoRANotFound` |
+| `DELETE /loras?name=` | delete the LoRA from every server and the cache, and the items that carry it; returns `{name, servers, items, files}` | 200 | `InvalidRequest`, `LoRANotFound`, `LoRADeleteFailed` |
+
 **Generators and fixers**
 
 | Method and path | Operation | Success | Notable errors |
@@ -1019,7 +1035,7 @@ Full pages are plain `GET`s that return a complete HTML document. Everything int
 
 | Kind | Examples | Notes |
 |---|---|---|
-| Page | `GET /` · `/servers` · `/generators` · `/fixers` · `/groups` · `/groups/{id}/items` · `/projects` · `/projects/{id}/commands` · `/commands/{id}/jobs` · `/repl` | One per screen of §4; the common header menu is part of every page |
+| Page | `GET /` · `/servers` · `/generators` · `/fixers` · `/groups` · `/groups/{id}/items` · `/loras` · `/projects` · `/projects/{id}/commands` · `/commands/{id}/jobs` · `/repl` | One per screen of §4; the common header menu is part of every page |
 | Fragment (read) | `GET /ui/servers/table?page=2` · `GET /ui/groups/{id}/items/list` | Return an SSE response that patches the table/list; used for paging, filtering and refresh. Every table of 20-row pages (servers, generators, fixers, groups, items, projects, commands, jobs) has its pager **above and below** it, shown when there is more than one page: *First*, *Previous*, the page numbers (the first and the last page, the current one with two on each side, and a gap `…` where pages are left out), *Next*, *Last*, and "Page n of m · total in all" |
 | Action (write) | `POST /ui/servers` (creates, or updates when the form carries an id) · `DELETE /ui/servers/{id}` · `POST /ui/commands/{id}/run` … | Read the signals (JSON body, `Datastar-Request: true`), call a service, patch the affected element(s) and close the dialog via a signal patch |
 | Upload | `POST /ui/groups/{id}/items` | The form uses Datastar's `contentType: 'form'`, which sends `multipart/form-data` |
@@ -1027,6 +1043,7 @@ Full pages are plain `GET`s that return a complete HTML document. Everything int
 | Picture list | `GET /ui/commands/{id}/jobs/pictures[?status=]` | JSON, not SSE: `[{url, label}]` for every finished image job of the command in job order, past the page size; the viewer on the job list loads it (the table says where in `data-pictures`) and asks again when it reaches the last picture. A status other than `finished` has none; an unknown status is 400 |
 | Preview | `POST /ui/commands/preview` | Live feedback while typing (§16.3) |
 | Settings | `GET /settings` · `POST /ui/settings` · `POST /ui/settings/restart` | The settings page, saving it, and restarting the program (§2) |
+| LoRAs | `GET /ui/loras/table?q=&page=` · `GET /ui/loras/detail?name=&q=` · `DELETE /ui/loras?name=&q=` · `GET /ui/loras/suggest?q=` | The LoRAs page (§9.1): the table, the dialog of one LoRA, the deletion, and the item dialog's autocomplete |
 | Completion | `POST /ui/commands/complete?pos=N` | Code names that fit at the caret of the command text area (§16.3); `N` is the caret in UTF-16 units |
 | Static | `GET /static/…` | Embedded Datastar script, the scripts of the interface, CSS |
 
@@ -1041,8 +1058,9 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 | Servers | Table with a status badge updated live; add/edit dialog (it names the extension every server must run); "test connection" button |
 | Generators | Paste or upload workflow JSON → the dialog calls the `analyze` service by itself (when the box loses focus after an edit, after a paste, and when a file is chosen; there is no button) and fills output type, attributes, output node and the prompt-node fields (the nodes titled `positive…` and `negative…`, without overwriting what was typed) and offers the discovered node titles as dropdowns for them; duplicate titles are flagged |
 | Fixers | Same, with image-input and image-output node pickers |
-| Groups | Table with thumbnail, tag chips (click to filter), feature-flag chips; tag input with autocomplete; dialogs for text-file import and Civitai import (progress shown through the event stream) |
-| Items | Editor sections appear only for the flags the group enables; image previews from `/files/…`; mask-region upload shows the generated keywords immediately; item `tags` input with autocomplete; renaming an item tag shows the commands that mention it |
+| Groups | Table with thumbnail, tag chips (click to filter), feature-flag chips (no chip or checkbox for LoRAs: every item can carry them); tag input with autocomplete; dialogs for text-file import and Civitai import (progress shown through the event stream) |
+| LoRAs | Search box (filters as you type) and a table of name, number of items and the servers that have it; a name opens a dialog with the servers (installed, not installed, or not asked) and the items that carry it, and a two-step *Delete everywhere* button; a note names the servers that could not be asked |
+| Items | The LoRA section is always there: a table of the item's LoRAs (name, two strength fields, *Remove*) and a search box that suggests names as you type (arrows choose, Enter adds; a LoRA is added once). The other sections appear only for the flags the group enables; image previews from `/files/…`; mask-region upload shows the generated keywords immediately; item `tags` input with autocomplete; renaming an item tag shows the commands that mention it |
 | Commands | The command text area sends its content, debounced, to `/ui/commands/preview` and patches a result panel: errors with the offending span highlighted, warnings, total jobs, jobs kept after `where`/`limit`/`sample`, and (for several servers) jobs per server. Add is enabled only when the preview is valid. While the user types, the text area also offers the **code names that fit at the caret**: servers (at the start and after `on`), the generator after `-$`, groups after `:`, `*`, `&&`, `||` (also in template and region bodies, in `where` and after `spread by`), the items of the group whose parenthesis the caret is in (and in `where group = …` and `group in (…)`), item tags after `#`, and fixers after `>`. Nothing is offered inside a string, in a pattern (`%`, `?`), where a free name is typed (template tags, region keywords) or where no name belongs. The list is sorted, holds at most 12 names, and is a service call (`CommandService.Complete`) that stores nothing and fails only when the store does. Tab takes the first name (or the chosen one), the arrow keys choose, Enter takes a name only after an arrow chose it, Esc closes the list. List shows progress `finished/total`, run/stop/recreate/download buttons, drag-or-button reordering |
 | Jobs | Grid or table of jobs with status, assigned server, thumbnail of the result, seed; click to open prompts for editing; a click on a result picture opens it in a viewer over the same page, with previous and next buttons (also the arrow keys and a swipe) over **every picture of the command** (the whole collection, not the page on the screen; with the status filter that the table shows), and a modifier-click still opens it in a new tab; error and trace shown for failed jobs |
 | Settings | Every setting of §2 in sections (folders, Civitai, server, jobs, log), with its default as the hint; an empty field is the default; a credential is a password field that says whether a value is set and has a *remove it* box; a note names the `BOS_…` variable that overrides a setting. *Save* checks all of them together and shows every problem; *Restart now* restarts the program and the page reloads when it is back |
@@ -1092,7 +1110,7 @@ These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 | Group | Tags | HTTP |
 |---|---|---|
 | Request | `InvalidRequest` (malformed body, unknown field, bad id), `UploadTooLarge` | 400, 413 |
-| Not found | `ServerNotFound`, `GeneratorNotFound`, `FixerNotFound`, `GroupNotFound`, `ItemNotFound`, `ProjectNotFound`, `CommandNotFound`, `JobNotFound`, `FileNotFound` | 404 |
+| Not found | `ServerNotFound`, `GeneratorNotFound`, `FixerNotFound`, `GroupNotFound`, `ItemNotFound`, `ProjectNotFound`, `CommandNotFound`, `JobNotFound`, `FileNotFound`, `LoRANotFound` | 404 |
 | Naming | `CodeNameInvalid`, `CodeNameReserved`, `TagInvalid` | 422 |
 | Settings | `ConfigInvalid` (metadata `problems`) | 422 (at startup: abort) |
 | Generators | `GeneratorTitleRequired` (metadata `candidates`) | 422 |
@@ -1101,7 +1119,7 @@ These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 | Command language | `CommandLexError`, `CommandSyntaxError`, `CommandRestrictionViolated` (metadata `rule`), `CommandValidationFailed` (metadata `errors`), `CommandSelectionEmpty`, `CommandWhereEmpty` | 422 |
 | State | `CommandNotRunnable`, `CommandNotFinished`, `JobNotRunnable`, `ReplInvalid` | 409, 422 |
 | Workflow | `WorkflowInvalid`, `WorkflowTitleDuplicated`, `WorkflowTitleNotFound`, `OutputNodeNotFound`, `NoSamplerInWorkflow`, `InjectorFailed`, `RegionInvalid`, `MaskGenerationFailed` | 422 (on create/analyze) or recorded on the job |
-| ComfyUI | `ServerUnreachable`, `ComfyUIRejected` (node errors), `ComfyUIExecutionFailed` (traceback in metadata), `ComfyUIUploadFailed`, `ComfyUIResultMissing`, `ModelCrudMissing` (no `/model_crud` routes: the extension is not installed), `ModelCrudDisabled` (the extension forbids uploads or deletes), `ModelCrudRejected` (any other error code of the extension, in metadata `code`) | 502 / 503, or recorded on the job |
+| ComfyUI | `ServerUnreachable`, `ComfyUIRejected` (node errors), `ComfyUIExecutionFailed` (traceback in metadata), `ComfyUIUploadFailed`, `ComfyUIResultMissing`, `ModelCrudMissing` (no `/model_crud` routes: the extension is not installed), `ModelCrudDisabled` (the extension forbids uploads or deletes), `ModelCrudRejected` (any other error code of the extension, in metadata `code`), `LoRADeleteFailed` (a LoRA could not be deleted from every server; metadata `servers`, `deleted_from`) | 502 / 503, or recorded on the job |
 | Civitai | `CivitaiNotConfigured`, `CivitaiModelNotFound`, `CivitaiRateLimited`, `CivitaiDownloadFailed`, `CivitaiMetadataInvalid` | 409, 404, 503, 502, 502 |
 | Infrastructure | `StoreFailure`, `MigrationFailed`, `FileStoreFailure` | 500 (startup: abort) |
 
@@ -1153,6 +1171,7 @@ type Client interface {
     Cancel(ctx context.Context, promptID string) error // DeleteQueued if pending, Interrupt if running
     DeleteOutput(ctx context.Context, f OutputFile) error // §18.8; files of type "output" only
     UploadModel(ctx context.Context, folder, subfolder, filename string, size int64, r io.Reader) (path string, err error) // §18.8
+    DeleteModel(ctx context.Context, folder, path string) error // §18.8; a missing file is not an error
     Close() error
 }
 ```
@@ -1209,11 +1228,12 @@ Every file a workflow reads is made available to the target server before submis
 
 ### 18.8 The comfyui-model-crud extension
 
-ComfyUI can neither delete a file nor receive a model, so every server of this program runs the custom node [comfyui-model-crud](https://github.com/rm4n0s/comfyui-model-crud) (contract: its `openapi.yaml`, version 0.1.0). `internal/modelcrud` is its client, over plain `net/http`; `comfy.Server` owns one per server and exposes it as `DeleteOutput` and `UploadModel` of the port (§18.2). No other part of the program talks to it.
+ComfyUI can neither delete a file nor receive a model, so every server of this program runs the custom node [comfyui-model-crud](https://github.com/rm4n0s/comfyui-model-crud) (contract: its `openapi.yaml`, version 0.1.0). `internal/modelcrud` is its client, over plain `net/http`; `comfy.Server` owns one per server and exposes it as `DeleteOutput`, `UploadModel` and `DeleteModel` of the port (§18.2). No other part of the program talks to it.
 
 | Use | Calls |
 |---|---|
 | Delete a result (§8.2) | `DELETE /model_crud/output?path=<subfolder>/<filename>`; `file_not_found` is success |
+| Delete a model (§9.1) | `DELETE /model_crud/models/{folder}?path=<path relative to the folder>`; `file_not_found` is success |
 | Upload a model (§9) | `POST /model_crud/uploads` `{folder, filename, size, subfolder?, overwrite}` → `{upload_id, path, chunk_size, total_chunks}`; `PUT /model_crud/uploads/{id}/chunks/{i}` with the raw bytes of chunk `i`, one after the other; `POST /model_crud/uploads/{id}/complete` → `{folder, path, size}` |
 
 - An upload starts with `overwrite: false`. On `file_exists` the client lists `GET /model_crud/models/{folder}`: a file of the same path and size is taken as already uploaded (nothing is sent), another size is replaced with a second session that sets `overwrite: true`.

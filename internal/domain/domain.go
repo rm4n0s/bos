@@ -125,7 +125,6 @@ type Group struct {
 	Tags      []string `json:"tags"`
 	Thumbnail string   `json:"thumbnail"`
 
-	UseLora              bool `json:"use_lora"`
 	UseControlnet        bool `json:"use_controlnet"`
 	UseIPAdapter         bool `json:"use_ip_adapter"`
 	UseMaskRegion        bool `json:"use_mask_region"`
@@ -139,6 +138,17 @@ type LoRA struct {
 	Name          string  `json:"name"`
 	StrengthModel float64 `json:"strength_model"`
 	StrengthClip  float64 `json:"strength_clip"`
+}
+
+// LoRAUse says which LoRAs one item carries. The LoRA pages read it for every
+// item that carries at least one.
+type LoRAUse struct {
+	ItemID    ID
+	ItemCode  string
+	ItemName  string
+	GroupID   ID
+	GroupCode string
+	LoRAs     []LoRA
 }
 
 // IPAdapter is the IP-Adapter configuration of an item or a job.

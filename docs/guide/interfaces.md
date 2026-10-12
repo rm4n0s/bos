@@ -4,10 +4,11 @@ The web page, `bosctl` and the REST API are three front ends over the same core.
 
 ## The web page
 
-Open the address of the server (<http://127.0.0.1:8080> by default). The menu has **Servers, Generators, Fixers, Groups, Projects, REPL**.
+Open the address of the server (<http://127.0.0.1:8080> by default). The menu has **Servers, Generators, Fixers, Groups, LoRAs, Projects, REPL**.
 
 - Tables page through long lists. Dialogs add and change things; a mistake appears in red inside the dialog and nothing is lost. Deleting asks once more before it acts.
-- **Groups** has a tag cloud to filter by, an *Import from text* and an *Import from Civitai* dialog, and a tag panel to rename or merge tags. Open a group to edit its **items**; the item dialog shows only the sections the group's features allow.
+- **Groups** has a tag cloud to filter by, an *Import from text* and an *Import from Civitai* dialog, and a tag panel to rename or merge tags. Open a group to edit its **items**; the item dialog has a LoRA table (with a search box that completes names) in every group and shows the other sections only when the group's features allow.
+- **LoRAs** lists every LoRA of every item and server, shows on which servers one is installed, and deletes a LoRA from all servers, the download cache and the items that carry it ([details](catalogue.md#loras)). `bosctl lora list|show|delete` does the same.
 - **Projects → a project** lists its commands. *Add command* opens the editor with the live preview: errors are marked in your text, and *Save command* is enabled only when the command is valid.
 - **A command's jobs** page updates by itself (see [Running work](running.md)). Messages in the corner tell you what finished or failed anywhere.
 - With an `auth_token` set, the page first shows a sign-in form.

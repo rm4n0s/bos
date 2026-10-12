@@ -127,6 +127,9 @@ func TestEveryCommandSendsTheRightRequest(t *testing.T) {
 			map[string]any{"name": "GPU", "host": "http://h:8188", "code_name": "gpu1", "is_local": true, "max_concurrent_jobs": float64(2)}},
 		{"server delete", []string{"server", "delete", "4"}, "DELETE", "/api/v1/servers/4", "", nil},
 		{"server loras", []string{"server", "loras", "4"}, "GET", "/api/v1/servers/4/loras", "", nil},
+		{"lora list", []string{"lora", "list", "--q", "fox", "--page", "2"}, "GET", "/api/v1/loras", "page=2&q=fox", nil},
+		{"lora show", []string{"lora", "show", "--name", "civitai/12.safetensors"}, "GET", "/api/v1/loras/detail", "name=civitai%2F12.safetensors", nil},
+		{"lora delete", []string{"lora", "delete", "--name", "civitai/12.safetensors"}, "DELETE", "/api/v1/loras", "name=civitai%2F12.safetensors", nil},
 		{"generator analyze", []string{"generator", "analyze", "--workflow", "@" + wf}, "POST", "/api/v1/generators/analyze", "", map[string]any{"workflow": map[string]any{"3": map[string]any{"class_type": "KSampler"}}}},
 		{"generator create", []string{"generator", "create", "--name", "A", "--code-name", "a", "--workflow", "@" + wf, "--random-seed", "--attributes", `{"width":512}`}, "POST", "/api/v1/generators", "",
 			map[string]any{"name": "A", "code_name": "a", "has_random_seed": true, "output_attributes": map[string]any{"width": float64(512)}}},
@@ -135,8 +138,8 @@ func TestEveryCommandSendsTheRightRequest(t *testing.T) {
 			map[string]any{"load_image_title": "Load", "save_image_title": "Save"}},
 		{"fixer list", []string{"fixer", "list"}, "GET", "/api/v1/fixers", "", nil},
 		{"group list by tag", []string{"group", "list", "--tag", "people"}, "GET", "/api/v1/groups", "tag=people", nil},
-		{"group create", []string{"group", "create", "--name", "C", "--code-name", "c", "--tags", "a, b", "--use-lora"}, "POST", "/api/v1/groups", "",
-			map[string]any{"name": "C", "code_name": "c", "tags": []any{"a", "b"}, "use_lora": true}},
+		{"group create", []string{"group", "create", "--name", "C", "--code-name", "c", "--tags", "a, b", "--use-controlnet"}, "POST", "/api/v1/groups", "",
+			map[string]any{"name": "C", "code_name": "c", "tags": []any{"a", "b"}, "use_controlnet": true}},
 		{"group import-text", []string{"group", "import-text", "--name", "P", "--code-name", "p", "--text", "@" + prompt}, "POST", "/api/v1/groups/import-text", "",
 			map[string]any{"name": "P", "text": "a long prompt"}},
 		{"group import-civitai", []string{"group", "import-civitai", "--name", "F", "--code-name", "f", "--model", "7/71:0.8:0.5", "--model", "8", "--upload-to", "gpu1", "--lora-subfolder", "civ"}, "POST", "/api/v1/groups/import-civitai", "",
@@ -248,12 +251,12 @@ func TestMergingUpdatesChangeOnlyTheFlagsGiven(t *testing.T) {
 	}
 
 	// A boolean can be turned off.
-	s.answers["GET /api/v1/groups/3"] = answer{200, `{"id":3,"name":"G","code_name":"g","description":"","tags":["x"],"use_lora":true,"thumbnail":"/p"}`, nil}
-	if code, _, e := s.bosctl("group", "update", "3", "--use-lora=false"); code != 0 {
+	s.answers["GET /api/v1/groups/3"] = answer{200, `{"id":3,"name":"G","code_name":"g","description":"","tags":["x"],"use_controlnet":true,"thumbnail":"/p"}`, nil}
+	if code, _, e := s.bosctl("group", "update", "3", "--use-controlnet=false"); code != 0 {
 		t.Fatalf("exit %d: %s", code, e)
 	}
 	body = jsonOf(t, s.last().Body)
-	if body["use_lora"] != false || body["name"] != "G" || len(body["tags"].([]any)) != 1 {
+	if body["use_controlnet"] != false || body["name"] != "G" || len(body["tags"].([]any)) != 1 {
 		t.Errorf("body = %v", body)
 	}
 

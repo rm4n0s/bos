@@ -10,9 +10,9 @@ import (
 
 // groupForm is what the group dialog shows.
 type groupForm struct {
-	ID                                                                                           int64
-	Name, CodeName, Description, Tags, ThumbURL                                                  string
-	UseLora, UseControlnet, UseIPAdapter, UseMaskRegion, UseCoordinatesRegion, UseTypeAttributes bool
+	ID                                                                                  int64
+	Name, CodeName, Description, Tags, ThumbURL                                         string
+	UseControlnet, UseIPAdapter, UseMaskRegion, UseCoordinatesRegion, UseTypeAttributes bool
 }
 
 type groupsTable struct {
@@ -31,8 +31,8 @@ type tagList struct{ GroupTags, ItemTags []domain.TagCount }
 func (u *UI) groupFormOf(g *domain.Group) groupForm {
 	return groupForm{
 		ID: g.ID, Name: g.Name, CodeName: g.CodeName, Description: g.Description, Tags: strings.Join(g.Tags, ", "),
-		ThumbURL: u.fileURL("thumbnails", g.Thumbnail),
-		UseLora:  g.UseLora, UseControlnet: g.UseControlnet, UseIPAdapter: g.UseIPAdapter,
+		ThumbURL:      u.fileURL("thumbnails", g.Thumbnail),
+		UseControlnet: g.UseControlnet, UseIPAdapter: g.UseIPAdapter,
 		UseMaskRegion: g.UseMaskRegion, UseCoordinatesRegion: g.UseCoordinatesRegion, UseTypeAttributes: g.UseTypeAttributes,
 	}
 }
@@ -167,7 +167,7 @@ func (u *UI) saveGroup(r *http.Request, f *form, s *stream) (err error) {
 	}
 	in := domain.Group{
 		Name: f.str("name"), CodeName: f.str("code_name"), Description: f.str("description"), Tags: splitList(f.str("tags")),
-		UseLora: f.checked("use_lora"), UseControlnet: f.checked("use_controlnet"), UseIPAdapter: f.checked("use_ip_adapter"),
+		UseControlnet: f.checked("use_controlnet"), UseIPAdapter: f.checked("use_ip_adapter"),
 		UseMaskRegion: f.checked("use_mask_region"), UseCoordinatesRegion: f.checked("use_coordinates_region"),
 		UseTypeAttributes: f.checked("use_type_attributes"),
 	}

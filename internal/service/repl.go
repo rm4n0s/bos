@@ -95,7 +95,7 @@ func (s *ReplService) Run(ctx context.Context, in ReplInput) (*domain.Job, error
 	}
 	job.PositivePrompt = joinPrompt(append(positive, in.Positive))
 	job.NegativePrompt = joinPrompt(append(negative, in.Negative))
-	job.LoRAs = append(job.LoRAs, in.LoRAs...)
+	job.LoRAs = uniqueLoRAs(append(job.LoRAs, in.LoRAs...))
 	if seed, ok := job.OutputAttributes["seed"]; ok && seed.Kind == domain.AttrInt && !gen.HasRandomSeed {
 		n := seed.Int
 		job.Seed = &n

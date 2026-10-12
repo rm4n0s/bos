@@ -257,6 +257,11 @@ func (s *Server) UploadModel(ctx context.Context, folder, subfolder, filename st
 	return s.crud.UploadModel(ctx, folder, subfolder, filename, size, r)
 }
 
+// DeleteModel implements Client.
+func (s *Server) DeleteModel(ctx context.Context, folder, path string) error {
+	return s.crud.DeleteModel(ctx, folder, path)
+}
+
 // Cancel implements Client: a pending prompt is removed from the queue, a
 // running one is interrupted. A prompt that is in neither is already over.
 func (s *Server) Cancel(ctx context.Context, promptID string) error {

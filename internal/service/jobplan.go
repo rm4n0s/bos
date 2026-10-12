@@ -9,6 +9,7 @@ import (
 
 	"github.com/rm4n0s/bos/internal/command"
 	"github.com/rm4n0s/bos/internal/domain"
+	"github.com/rm4n0s/bos/internal/workflow"
 )
 
 // maxFileStem bounds the readable part of a result file name; longer names are
@@ -97,9 +98,20 @@ func (s *CommandService) jobsOf(cmd *domain.Command, parsed *command.Command, x 
 	return jobs
 }
 
+// uniqueLoRAs keeps the first entry of each LoRA file, in order.
+func uniqueLoRAs(list []domain.LoRA) []domain.LoRA {
+	var out []domain.LoRA
+	for _, l := range list {
+		if !hasLoRA(out, l.Name) {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
 func hasLoRA(list []domain.LoRA, name string) bool {
 	for _, l := range list {
-		if l.Name == name {
+		if workflow.SameLoRA(l.Name, name) {
 			return true
 		}
 	}

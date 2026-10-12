@@ -149,7 +149,7 @@ func (p *plan) combine(digits []int) Job {
 		it := term[digits[t]]
 		pos = append(pos, it.positive)
 		neg = append(neg, it.negative)
-		j.LoRAs = append(j.LoRAs, it.loras...)
+		j.LoRAs = dedupeLoRAs(append(j.LoRAs, it.loras...))
 		j.ControlNets = append(j.ControlNets, it.controlNets...)
 		j.IPAdapters = append(j.IPAdapters, it.ipAdapters...)
 		j.Parts = append(j.Parts, NamePart{Group: it.group, Code: it.code})
@@ -179,7 +179,7 @@ func (p *plan) combine(digits []int) Job {
 }
 
 func regionOf(rp regionPrompt, base *Item) Region {
-	r := Region{Keyword: rp.keyword, Prompt: removePlaceholders(rp.prompt), LoRAs: appendLoRAs(rp.loras)}
+	r := Region{Keyword: rp.keyword, Prompt: removePlaceholders(rp.prompt), LoRAs: dedupeLoRAs(appendLoRAs(rp.loras))}
 	if base == nil {
 		return r
 	}
