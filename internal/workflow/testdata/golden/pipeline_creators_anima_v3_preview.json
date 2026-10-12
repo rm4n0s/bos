@@ -70,13 +70,18 @@
     "_meta": {
       "title": "BOS LoRA style_a.safetensors"
     },
-    "class_type": "LoraLoaderModelOnly",
+    "class_type": "LoraLoader",
     "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
       "lora_name": "style_a.safetensors",
       "model": [
         "1",
         0
       ],
+      "strength_clip": 0.6,
       "strength_model": 0.8
     }
   },
@@ -169,8 +174,8 @@
     "class_type": "CLIPTextEncode",
     "inputs": {
       "clip": [
-        "2",
-        0
+        "14",
+        1
       ],
       "text": "red prompt"
     }
@@ -238,8 +243,8 @@
     "class_type": "CLIPTextEncode",
     "inputs": {
       "clip": [
-        "2",
-        0
+        "14",
+        1
       ],
       "text": "rect"
     }
@@ -293,8 +298,8 @@
     "class_type": "CLIPTextEncode",
     "inputs": {
       "clip": [
-        "2",
-        0
+        "14",
+        1
       ],
       "text": "alice, red hair"
     }
@@ -306,8 +311,8 @@
     "class_type": "CLIPTextEncode",
     "inputs": {
       "clip": [
-        "2",
-        0
+        "14",
+        1
       ],
       "text": "ugly"
     }

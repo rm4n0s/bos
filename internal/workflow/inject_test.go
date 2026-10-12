@@ -57,30 +57,60 @@ func TestInjectLoRAsCheckpointStyle(t *testing.T) {
 	}
 }
 
-// Acceptance test 7, split style.
+// Acceptance test 7, split style: the UNET loader gives MODEL, the CLIP loader
+// gives CLIP, and each LoraLoader patches both with its two strengths.
 func TestInjectLoRAsSplitStyle(t *testing.T) {
 	g := example(t, "creators/anima_aio.json")
 	orig := g.Clone()
 	check(t, InjectLoRAs(g, twoLoRAs))
 	assertWellFormed(t, g)
 
-	ids := addedIDs(orig, g, "LoraLoaderModelOnly")
-	if len(ids) != 2 || classes(g)["LoraLoader"] != 0 {
+	ids := addedIDs(orig, g, "LoraLoader")
+	if len(ids) != 2 || classes(g)["LoraLoaderModelOnly"] != 0 {
 		t.Fatalf("added %v", ids)
 	}
 	l1, l2 := ids[0], ids[1]
-	if n := node(t, g, l1); string(n.Inputs["strength_model"]) != "0.8" || n.Inputs["strength_clip"] != nil {
+	if n := node(t, g, l1); string(n.Inputs["strength_model"]) != "0.8" || string(n.Inputs["strength_clip"]) != "0.6" {
 		t.Errorf("first LoRA = %v", n.Inputs)
 	}
+	if n := node(t, g, l2); string(n.Inputs["strength_model"]) != "1" || string(n.Inputs["strength_clip"]) != "0.5" {
+		t.Errorf("second LoRA = %v", n.Inputs)
+	}
+	// The chain: UNET loader → l1 → l2 for MODEL, CLIP loader → l1 → l2 for CLIP.
 	if link(t, g, l1, "model") != (Link{"1", 0}) || link(t, g, l2, "model") != (Link{l1, 0}) {
 		t.Error("the LoRAs are not chained on the UNET")
 	}
-	// The model-sampling patch reads the end of the chain; CLIP and VAE are untouched.
+	if link(t, g, l1, "clip") != (Link{"2", 0}) || link(t, g, l2, "clip") != (Link{l1, 1}) {
+		t.Error("the LoRAs are not chained on the CLIP loader")
+	}
+	// The model-sampling patch and the text encoder read the end of the chain.
 	if link(t, g, "4", "model") != (Link{l2, 0}) {
 		t.Errorf("model sampling input = %v", link(t, g, "4", "model"))
 	}
-	if link(t, g, "5", "clip") != (Link{"2", 0}) {
-		t.Error("the CLIP loader link changed")
+	if link(t, g, "5", "clip") != (Link{l2, 1}) {
+		t.Errorf("text encoder clip = %v", link(t, g, "5", "clip"))
+	}
+}
+
+// Without a single CLIP source to patch, a split-style workflow still gets its
+// LoRAs on the model, with the model-only node.
+func TestInjectLoRAsSplitStyleWithoutAClipSource(t *testing.T) {
+	g := mustParse(t, `{
+	  "1":{"class_type":"UNETLoader","inputs":{"unet_name":"u"}},
+	  "2":{"class_type":"CLIPLoader","inputs":{"clip_name":"a"}},
+	  "3":{"class_type":"CLIPLoader","inputs":{"clip_name":"b"}},
+	  "4":{"class_type":"KSampler","inputs":{"model":["1",0],"positive":["5",0],"negative":["6",0]}},
+	  "5":{"class_type":"CLIPTextEncode","inputs":{"clip":["2",0],"text":""}},
+	  "6":{"class_type":"CLIPTextEncode","inputs":{"clip":["3",0],"text":""}}}`)
+	orig := g.Clone()
+	check(t, InjectLoRAs(g, []LoRA{{Name: "x", StrengthModel: 0.7, StrengthClip: 0.4}}))
+	assertWellFormed(t, g)
+	ids := addedIDs(orig, g, "LoraLoaderModelOnly")
+	if len(ids) != 1 || classes(g)["LoraLoader"] != 0 {
+		t.Fatalf("added %v", ids)
+	}
+	if link(t, g, "4", "model") != (Link{ids[0], 0}) || link(t, g, "5", "clip") != (Link{"2", 0}) {
+		t.Error("the model was not patched, or the CLIP was touched")
 	}
 }
 

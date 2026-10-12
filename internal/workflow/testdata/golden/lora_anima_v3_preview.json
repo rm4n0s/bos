@@ -13,13 +13,18 @@
     "_meta": {
       "title": "BOS LoRA style_a.safetensors"
     },
-    "class_type": "LoraLoaderModelOnly",
+    "class_type": "LoraLoader",
     "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
       "lora_name": "style_a.safetensors",
       "model": [
         "1",
         0
       ],
+      "strength_clip": 0.6,
       "strength_model": 0.8
     }
   },
@@ -27,13 +32,18 @@
     "_meta": {
       "title": "BOS LoRA chars/b.safetensors"
     },
-    "class_type": "LoraLoaderModelOnly",
+    "class_type": "LoraLoader",
     "inputs": {
+      "clip": [
+        "10",
+        1
+      ],
       "lora_name": "chars/b.safetensors",
       "model": [
         "10",
         0
       ],
+      "strength_clip": 0.5,
       "strength_model": 1
     }
   },
@@ -63,8 +73,8 @@
     "class_type": "CLIPTextEncode",
     "inputs": {
       "clip": [
-        "2",
-        0
+        "11",
+        1
       ],
       "text": ""
     }
@@ -76,8 +86,8 @@
     "class_type": "CLIPTextEncode",
     "inputs": {
       "clip": [
-        "2",
-        0
+        "11",
+        1
       ],
       "text": ""
     }
