@@ -645,6 +645,7 @@ Automatic detection of people (segmentation) is **out of scope**: the original u
 - Delete item: remove its IP-Adapter image, mask reference image and mask folder, and ControlNet images.
 - Delete group: delete all its items (as above), then the group.
 - Delete project: delete all its jobs (and result files), all its commands, then the project.
+- The result files of a command live in `<results>/<command id>/` (§7.1). Whenever result files are removed (deleting a command or a project, recreating a command, editing its text), that folder is removed too once it is empty; a folder that still holds something else is kept. Recreating a command keeps its id, so its next results go back into the same folder.
 
 ## 8. Execution
 

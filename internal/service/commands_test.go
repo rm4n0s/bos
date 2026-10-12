@@ -1,6 +1,7 @@
 package service
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -433,5 +434,83 @@ func TestMoveUpDownRenumber(t *testing.T) {
 	check(t, e.Commands.Renumber(ctx(t), w.project.ID))
 	if got := order(); !reflect.DeepEqual(got, []int64{ids[1], ids[0], ids[2]}) {
 		t.Errorf("order after renumber = %v", got)
+	}
+}
+
+// writeResults puts a file where each job of the command saves its result, as
+// if the command had run, and returns the command's results folder.
+func (e *env) writeResults(t *testing.T, command domain.ID) string {
+	t.Helper()
+	var folder string
+	for _, j := range e.jobsOf(t, command) {
+		check(t, os.MkdirAll(filepath.Dir(j.ResultPath), 0o750))
+		check(t, os.WriteFile(j.ResultPath, []byte("png"), 0o600))
+		folder = filepath.Dir(j.ResultPath)
+	}
+	if filepath.Dir(folder) != e.dirs.Results {
+		t.Fatalf("results folder %s is not below %s", folder, e.dirs.Results)
+	}
+	return folder
+}
+
+// Recreating, editing or deleting a command removes its results and, once it is
+// empty, the command's folder below the results folder.
+func TestCommandResultFoldersDoNotOutliveTheirFiles(t *testing.T) {
+	tests := []struct {
+		name string
+		do   func(e *env, w *world, cmd *domain.Command) error
+	}{
+		{"recreate", func(e *env, _ *world, cmd *domain.Command) error {
+			_, err := e.Commands.Recreate(ctx(t), cmd.ID)
+			return err
+		}},
+		{"edit the text", func(e *env, _ *world, cmd *domain.Command) error {
+			_, err := e.Commands.Edit(ctx(t), cmd.ID, CommandInput{Name: "n", Code: "gpu1 -$ anime: poses"})
+			return err
+		}},
+		{"delete the command", func(e *env, _ *world, cmd *domain.Command) error {
+			return e.Commands.Delete(ctx(t), cmd.ID)
+		}},
+		{"delete the project", func(e *env, w *world, _ *domain.Command) error {
+			return e.Projects.Delete(ctx(t), w.project.ID)
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := newEnv(t)
+			w := e.world(t)
+			cmd := e.add(t, w, "gpu1 -$ anime: characters")
+			other := e.add(t, w, "gpu1 -$ anime: poses")
+			folder := e.writeResults(t, cmd.ID)
+			otherFolder := e.writeResults(t, other.ID)
+			check(t, tc.do(e, w, cmd))
+			if exists(folder) {
+				entries, _ := os.ReadDir(folder)
+				t.Errorf("the folder %s is still there with %d entries", folder, len(entries))
+			}
+			if tc.name != "delete the project" && !exists(otherFolder) {
+				t.Error("the folder of another command was removed")
+			}
+		})
+	}
+}
+
+// A folder that still holds something is kept.
+func TestCommandResultFolderWithOtherFilesIsKept(t *testing.T) {
+	e := newEnv(t)
+	w := e.world(t)
+	cmd := e.add(t, w, "gpu1 -$ anime: characters")
+	folder := e.writeResults(t, cmd.ID)
+	stray := filepath.Join(folder, "notes.txt")
+	check(t, os.WriteFile(stray, []byte("mine"), 0o600))
+	_, err := e.Commands.Recreate(ctx(t), cmd.ID)
+	check(t, err)
+	if !exists(stray) {
+		t.Error("a file the jobs did not make was removed")
+	}
+	entries, err := os.ReadDir(folder)
+	check(t, err)
+	if len(entries) != 1 {
+		t.Errorf("folder holds %d entries, want only the stray file", len(entries))
 	}
 }

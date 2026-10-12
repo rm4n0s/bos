@@ -71,6 +71,29 @@ func (s *Store) Remove(path string) error {
 	return nil
 }
 
+// RemoveIfEmpty deletes a folder that holds nothing. A folder with something in
+// it, or one that does not exist, is left as it is and is not an error.
+func (s *Store) RemoveIfEmpty(path string) error {
+	abs, err := s.resolve(path)
+	if err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(abs)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return errors.NewErr("FileStoreFailure", err).SetMetadata("path", path, "operation", "read folder")
+	}
+	if len(entries) > 0 {
+		return nil
+	}
+	if err := os.Remove(abs); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return errors.NewErr("FileStoreFailure", err).SetMetadata("path", path, "operation", "remove folder")
+	}
+	return nil
+}
+
 // Open opens a file for reading.
 func (s *Store) Open(path string) (io.ReadCloser, error) {
 	abs, err := s.resolve(path)

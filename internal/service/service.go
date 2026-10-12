@@ -12,6 +12,9 @@ import (
 	"encoding/binary"
 	"io"
 	"log/slog"
+	"maps"
+	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/rm4n0s/bos/internal/civitai"
@@ -159,6 +162,8 @@ type SettingsStore interface {
 // they delete, and read the reference image of a region mask.
 type Files interface {
 	Remove(path string) error
+	// RemoveIfEmpty deletes a folder that holds nothing.
+	RemoveIfEmpty(path string) error
 	Open(path string) (io.ReadCloser, error)
 	Write(path string, r io.Reader) error
 }
@@ -313,10 +318,26 @@ func (b base) syncCommand(ctx context.Context, r Repos, id domain.ID) error {
 // removeFiles deletes the files a committed deletion left behind. A file that
 // cannot be removed is logged, not returned: the data is gone and the caller
 // cannot undo it (SPEC §17.4).
+//
+// The results of a command live in a folder of their own below the results
+// folder (SPEC §7.1); a folder that is empty once its files are gone is removed
+// too, so deleting or recreating a command does not leave it behind.
 func (b base) removeFiles(paths []string) {
+	folders := map[string]bool{}
 	for _, p := range paths {
+		if p == "" {
+			continue
+		}
 		if err := b.Files.Remove(p); err != nil {
 			logError(b.Logger, "could not remove a file", err, "path", p)
+		}
+		if dir := filepath.Dir(p); b.Dirs.Results != "" && filepath.Dir(dir) == filepath.Clean(b.Dirs.Results) {
+			folders[dir] = true
+		}
+	}
+	for _, dir := range slices.Sorted(maps.Keys(folders)) {
+		if err := b.Files.RemoveIfEmpty(dir); err != nil {
+			logError(b.Logger, "could not remove an empty results folder", err, "path", dir)
 		}
 	}
 }

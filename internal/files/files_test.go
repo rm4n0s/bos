@@ -255,3 +255,35 @@ func TestSaveUploadOutsideStorage(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestRemoveIfEmpty(t *testing.T) {
+	root := t.TempDir()
+	st, err := NewStore([]string{root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty, full := filepath.Join(root, "1"), filepath.Join(root, "2")
+	for _, d := range []string{empty, full} {
+		if err := os.MkdirAll(d, 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(full, "a.png"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{empty, full, filepath.Join(root, "gone")} {
+		if err := st.RemoveIfEmpty(d); err != nil {
+			t.Errorf("%s: %v", d, err)
+		}
+	}
+	if _, err := os.Stat(empty); !os.IsNotExist(err) {
+		t.Error("the empty folder is still there")
+	}
+	if _, err := os.Stat(filepath.Join(full, "a.png")); err != nil {
+		t.Error("a folder with a file in it was touched")
+	}
+	appErr, ok := errors.FromError(st.RemoveIfEmpty("/etc"))
+	if !ok || appErr.Tag != "FileOutsideStorage" {
+		t.Errorf("a folder outside the storage: %v", appErr)
+	}
+}
