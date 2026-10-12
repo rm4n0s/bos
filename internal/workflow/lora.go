@@ -75,51 +75,13 @@ func modelLoader(g Graph, injector string) (Node, loaderStyle, error) {
 	return Node{}, 0, injectorFailed(injector, "the model chain loops")
 }
 
-// clipSource finds the node output that every text encoder of the graph reads
-// its CLIP from, following the `clip` inputs upstream through nodes that pass
-// CLIP on (CLIPSetLastLayer). It reports false when there is no such source or
-// when the encoders read from more than one.
-func clipSource(g Graph) (Link, bool) {
-	var root Link
-	found := false
-	for _, n := range g.Nodes() {
-		cur, ok := n.Link("clip")
-		if !ok {
-			continue
-		}
-		seen := map[string]bool{}
-		for !seen[cur.Node] {
-			seen[cur.Node] = true
-			up, err := g.Node(cur.Node)
-			if err != nil {
-				return Link{}, false
-			}
-			next, ok := up.Link("clip")
-			if !ok {
-				break
-			}
-			cur = next
-		}
-		if found && cur != root {
-			return Link{}, false
-		}
-		root, found = cur, true
-	}
-	return root, found
-}
-
 // InjectLoRAs chains one LoRA loader per LoRA after the model loader and
 // rewires every consumer of the loader's outputs to the last one (SPEC §8.2,
 // step 5). A LoRA that is listed twice, even spelled differently, is loaded
 // once with the strengths of its first entry: a second loader would apply it
-// twice.
-//
-// Every loader is a LoraLoader, which patches MODEL and CLIP with the two
-// strengths. A checkpoint-style workflow reads both from the checkpoint; a
-// split-style one (UNETLoader + CLIPLoader) reads MODEL from the UNET loader
-// and CLIP from the node its text encoders read. Only when no single CLIP
-// source can be found are LoraLoaderModelOnly nodes used, and strength_clip is
-// then not applied.
+// twice. A checkpoint-style workflow gets LoraLoader nodes that patch MODEL
+// and CLIP; a split-style one (UNETLoader + CLIPLoader) gets
+// LoraLoaderModelOnly nodes, so strength_clip is not used there.
 func InjectLoRAs(g Graph, loras []LoRA) error {
 	if len(loras) == 0 {
 		return nil
@@ -128,11 +90,8 @@ func InjectLoRAs(g Graph, loras []LoRA) error {
 	if err != nil {
 		return err
 	}
-	model, clip, withClip := Link{loader.ID, 0}, Link{loader.ID, 1}, true
-	if style == styleSplit {
-		clip, withClip = clipSource(g)
-	}
 	e := newEditor(g)
+	src := loader.ID
 	var loaded []string
 	for _, l := range loras {
 		if slices.ContainsFunc(loaded, func(n string) bool { return SameLoRA(n, l.Name) }) {
@@ -142,29 +101,27 @@ func InjectLoRAs(g Graph, loras []LoRA) error {
 		name := loraFile(l.Name)
 		title := "BOS LoRA " + name
 		var id string
-		if withClip {
+		outputs := []int{0}
+		if style == styleCheckpoint {
+			outputs = []int{0, 1} // MODEL and CLIP, not the VAE
 			id, err = e.add("LoraLoader", title, map[string]any{
 				"lora_name": name, "strength_model": l.StrengthModel, "strength_clip": l.StrengthClip,
-				"model": model.value(), "clip": clip.value(),
+				"model": Link{src, 0}.value(), "clip": Link{src, 1}.value(),
 			})
 		} else {
 			id, err = e.add("LoraLoaderModelOnly", title, map[string]any{
-				"lora_name": name, "strength_model": l.StrengthModel, "model": model.value(),
+				"lora_name": name, "strength_model": l.StrengthModel, "model": Link{src, 0}.value(),
 			})
 		}
 		if err != nil {
 			return err
 		}
-		if err := e.redirect(e.consumers(model.Node, model.Index, id), Link{id, 0}); err != nil {
-			return err
-		}
-		model = Link{id, 0}
-		if withClip {
-			if err := e.redirect(e.consumers(clip.Node, clip.Index, id), Link{id, 1}); err != nil {
+		for _, out := range outputs {
+			if err := e.redirect(e.consumers(src, out, id), Link{id, out}); err != nil {
 				return err
 			}
-			clip = Link{id, 1}
 		}
+		src = id
 	}
 	return nil
 }
