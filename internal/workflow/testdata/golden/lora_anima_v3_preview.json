@@ -11,7 +11,7 @@
   },
   "10": {
     "_meta": {
-      "title": "BOS LoRA style_a.safetensors"
+      "title": "Load LoRA - style_a.safetensors"
     },
     "class_type": "LoraLoaderModelOnly",
     "inputs": {
@@ -25,7 +25,7 @@
   },
   "11": {
     "_meta": {
-      "title": "BOS LoRA chars/b.safetensors"
+      "title": "Load LoRA - chars/b.safetensors"
     },
     "class_type": "LoraLoaderModelOnly",
     "inputs": {

@@ -58,7 +58,7 @@
   },
   "14": {
     "_meta": {
-      "title": "BOS LoRA style_a.safetensors"
+      "title": "Load LoRA - style_a.safetensors"
     },
     "class_type": "LoraLoader",
     "inputs": {
