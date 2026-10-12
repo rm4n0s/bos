@@ -260,6 +260,9 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
+// At debug level the workflow of every prompt is logged as an object, read back
+// from the finished graph: the prompt text is in it. Nothing about prompts is
+// logged at info level.
 func TestLogsWhatIsSentToComfyUI(t *testing.T) {
 	var logs syncBuffer
 	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -271,65 +274,57 @@ func TestLogsWhatIsSentToComfyUI(t *testing.T) {
 	r.run(cmd)
 	r.waitStatus(cmd, domain.StatusFinished)
 
-	type group struct {
-		Node, Class, Title, Text string
-	}
 	type entry struct {
+		Level    string
 		Msg      string
 		Job      int64
 		Command  int64
 		Server   string
 		Step     string
-		Sampler  string
-		Positive group
-		Negative group
-		Workflow json.RawMessage
-		Loras    []string
+		Workflow map[string]struct {
+			ClassType string                     `json:"class_type"`
+			Inputs    map[string]json.RawMessage `json:"inputs"`
+		}
 	}
-	sent := map[int64]entry{}
-	var debugLines, fixerLines int
+	generation := map[int64]entry{}
+	var fixerLines int
 	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
 		var e entry
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			t.Fatalf("log line %q: %v", line, err)
 		}
-		switch e.Msg {
-		case "sending a prompt to ComfyUI":
-			if e.Step == "generation" {
-				sent[e.Job] = e
-			} else {
-				fixerLines++
-			}
-		case "workflow sent to ComfyUI":
-			debugLines++
-			// The workflow is an object of nodes, not a string with backslashes.
-			var nodes map[string]struct {
-				ClassType string `json:"class_type"`
-			}
-			if err := json.Unmarshal(e.Workflow, &nodes); err != nil || len(nodes) == 0 {
-				t.Errorf("the debug line has no workflow object: %.120s (%v)", line, err)
-			}
+		if e.Level == "INFO" && strings.Contains(e.Msg, "prompt") {
+			t.Errorf("an info line about a prompt: %s", line)
+		}
+		if e.Msg != "workflow sent to ComfyUI" {
+			continue
+		}
+		if len(e.Workflow) == 0 {
+			t.Errorf("the debug line has no workflow object: %.120s", line)
+		}
+		if e.Step == "generation" {
+			generation[e.Job] = e
+		} else {
+			fixerLines++
 		}
 	}
 	jobs := r.jobs(cmd)
-	if len(sent) != len(jobs) {
-		t.Fatalf("%d generation lines for %d jobs", len(sent), len(jobs))
+	if len(generation) != len(jobs) || fixerLines != len(jobs) {
+		t.Fatalf("%d generation lines and %d fixer lines for %d jobs", len(generation), fixerLines, len(jobs))
 	}
 	for _, j := range jobs {
-		e := sent[j.ID]
-		if e.Positive.Text != j.PositivePrompt || e.Negative.Text != j.NegativePrompt {
-			t.Errorf("job %d: logged %q / %q, want %q / %q", j.ID, e.Positive.Text, e.Negative.Text, j.PositivePrompt, j.NegativePrompt)
+		e := generation[j.ID]
+		// "6" and "7" are the Positive and Negative nodes of illustrious_xl.json.
+		if got := strings.Trim(string(e.Workflow["6"].Inputs["text"]), `"`); got != j.PositivePrompt {
+			t.Errorf("job %d: the logged workflow holds %q, want %q", j.ID, got, j.PositivePrompt)
 		}
-		if e.Positive.Class != "CLIPTextEncode" || e.Positive.Title != "Positive" || e.Server != "gpu1" || e.Command != cmd.ID || e.Sampler == "" {
+		if e.Server != "gpu1" || e.Command != cmd.ID {
 			t.Errorf("job %d: entry = %+v", j.ID, e)
 		}
 	}
-	if fixerLines != len(jobs) || debugLines != 2*len(jobs) {
-		t.Errorf("%d fixer lines and %d workflow lines for %d jobs", fixerLines, debugLines, len(jobs))
-	}
 }
 
-// At the default level the workflow itself is not logged.
+// At the default level nothing is logged about the prompts or the workflow.
 func TestDoesNotLogTheWorkflowAtInfoLevel(t *testing.T) {
 	var logs syncBuffer
 	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
@@ -341,7 +336,7 @@ func TestDoesNotLogTheWorkflowAtInfoLevel(t *testing.T) {
 	r.run(cmd)
 	r.waitStatus(cmd, domain.StatusFinished)
 	out := logs.String()
-	if !strings.Contains(out, "sending a prompt to ComfyUI") || strings.Contains(out, "workflow sent to ComfyUI") {
+	if strings.Contains(out, "sending a prompt") || strings.Contains(out, "workflow sent to ComfyUI") {
 		t.Errorf("log = %s", out)
 	}
 }

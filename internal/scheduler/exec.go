@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"maps"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -219,39 +217,31 @@ func (s *Scheduler) warnUnsentPrompts(g workflow.Graph, gen *domain.Generator, j
 		"job", job.ID, "command", job.CommandID, "generator", gen.CodeName, "missing", strings.Join(missing, " and "))
 }
 
-// logQueued records what is about to be sent to ComfyUI: for each sampler, the
-// node its positive and negative conditioning ends in and the text that node
-// holds, read back from the finished workflow rather than from the job. When a
-// server draws the same picture for different jobs, this tells whether the
-// prompts reached the workflow. The whole workflow is logged at debug level.
+// logQueued records, at debug level, the workflow the program is about to hand
+// to ComfyUI, as a JSON object, with the LoRA loaders it holds. The HTTP call
+// itself is logged by the transport of internal/comfy.
 func (s *Scheduler) logQueued(ctx context.Context, r *runner, g workflow.Graph, job *domain.Job) {
+	if !s.Logger.Enabled(ctx, slog.LevelDebug) {
+		return
+	}
+	raw, err := json.Marshal(g)
+	if err != nil {
+		return
+	}
 	step := "generation"
 	if job.IsGenerated {
 		step = "fixer " + strconv.Itoa(job.FinishedFixers+1)
 	}
-	base := []any{"job", job.ID, "command", job.CommandID, "server", r.code(), "step", step}
+	attrs := []any{"job", job.ID, "command", job.CommandID, "server", r.code(), "step", step}
 	if job.Seed != nil {
-		base = append(base, "seed", *job.Seed)
+		attrs = append(attrs, "seed", *job.Seed)
 	}
 	if loras := loadedLoRAs(g); len(loras) > 0 {
-		base = append(base, "loras", loras)
+		attrs = append(attrs, "loras", loras)
 	}
-	samplers := workflow.EffectivePrompts(g)
-	if len(samplers) == 0 {
-		s.Logger.Info("sending a prompt to ComfyUI", append(base, "sampler", "none found")...)
-	}
-	for _, p := range samplers {
-		attrs := append(slices.Clone(base), "sampler", p.Sampler,
-			promptGroup("positive", p.Positive), promptGroup("negative", p.Negative))
-		s.Logger.Info("sending a prompt to ComfyUI", attrs...)
-	}
-	if s.Logger.Enabled(ctx, slog.LevelDebug) {
-		if raw, err := json.Marshal(g); err == nil {
-			// Raw JSON, so the log line holds the workflow as an object and not as
-			// one string full of backslashes.
-			s.Logger.Debug("workflow sent to ComfyUI", append(base, "workflow", json.RawMessage(raw))...)
-		}
-	}
+	// Raw JSON, so the log line holds the workflow as an object and not as one
+	// string full of backslashes.
+	s.Logger.Debug("workflow sent to ComfyUI", append(attrs, "workflow", json.RawMessage(raw))...)
 }
 
 // loadedLoRAs lists the LoRA loaders of the finished workflow, read back from
@@ -270,18 +260,6 @@ func loadedLoRAs(g workflow.Graph) []string {
 		out = append(out, strings.Trim(string(n.Inputs["lora_name"]), `"`)+" "+string(n.Inputs["strength_model"])+"/"+clip)
 	}
 	return out
-}
-
-// promptGroup describes the node a prompt comes from as one log attribute.
-func promptGroup(name string, src workflow.PromptSource) slog.Attr {
-	attrs := []any{"node", src.Node, "class", src.Class, "title", src.Title}
-	for _, input := range slices.Sorted(maps.Keys(src.Texts)) {
-		attrs = append(attrs, input, src.Texts[input])
-	}
-	if len(src.Linked) > 0 {
-		attrs = append(attrs, "linked_inputs", strings.Join(src.Linked, ","))
-	}
-	return slog.Group(name, attrs...)
 }
 
 // collect saves the first file the output node produced as the job's result.

@@ -144,7 +144,7 @@ func TestLoRAsOfAllSelectedItemsAreChainedInTheWorkflow(t *testing.T) {
 	}
 }
 
-// The log shows the LoRAs that are in the workflow, and at debug the whole
+// At debug the log shows the LoRAs that are in the workflow, and the whole
 // workflow, as an object, with their loader nodes.
 func TestLogShowsTheLoRAsOfTheWorkflow(t *testing.T) {
 	var logs syncBuffer
@@ -159,7 +159,7 @@ func TestLogShowsTheLoRAsOfTheWorkflow(t *testing.T) {
 	r.run(cmd)
 	r.waitStatus(cmd, domain.StatusFinished)
 
-	var info, debug bool
+	var lorasLogged, loaderLogged bool
 	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
 		var e struct {
 			Msg      string
@@ -172,17 +172,16 @@ func TestLogShowsTheLoRAsOfTheWorkflow(t *testing.T) {
 		}
 		check(t, json.Unmarshal([]byte(line), &e))
 		switch {
-		case e.Msg == "sending a prompt to ComfyUI" && e.Step == "generation":
-			info = slices.Equal(e.Loras, []string{"styles/fox.safetensors 0.8/0.6"})
 		case e.Msg == "workflow sent to ComfyUI" && e.Step == "generation":
+			lorasLogged = slices.Equal(e.Loras, []string{"styles/fox.safetensors 0.8/0.6"})
 			for _, n := range e.Workflow {
 				if n.ClassType == "LoraLoader" && string(n.Inputs["lora_name"]) == `"styles/fox.safetensors"` {
-					debug = true
+					loaderLogged = true
 				}
 			}
 		}
 	}
-	if !info || !debug {
-		t.Errorf("LoRAs on the info line: %v; LoraLoader in the debug workflow: %v\n%s", info, debug, logs.String())
+	if !lorasLogged || !loaderLogged {
+		t.Errorf("loras attribute: %v; LoraLoader in the logged workflow: %v\n%s", lorasLogged, loaderLogged, logs.String())
 	}
 }
