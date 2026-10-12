@@ -21,6 +21,7 @@ func TestEndToEndWithTheRealAdapter(t *testing.T) {
 	fake.SetLoRAs("detail.safetensors")
 
 	r := newRig(t, func(d *Deps) {
+		d.DeleteOutputs = true
 		d.NewClient = func(srv domain.Server) (comfy.Client, error) {
 			c, err := comfy.NewServer(srv.Host, comfy.Options{PollInterval: 10 * time.Millisecond, CallTimeout: 2 * time.Second})
 			if err != nil {
@@ -73,6 +74,11 @@ func TestEndToEndWithTheRealAdapter(t *testing.T) {
 	}
 	if n := len(fake.Prompts()); n != 6 {
 		t.Errorf("%d prompts, want 3 generations and 3 fixer steps", n)
+	}
+	// Every picture was removed from the server once the job had its copy: the
+	// extension was asked for the three generations and the three fixer steps.
+	if got := fake.DeletedOutputs(); len(got) != 6 {
+		t.Errorf("%d outputs deleted on the server %v, want 6", len(got), got)
 	}
 	if got := r.eventTypes(events.CommandFinished); len(got) != 1 {
 		t.Errorf("events = %v", r.eventTypes())

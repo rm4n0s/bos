@@ -11,15 +11,14 @@
 {{define "civitai_fields"}}
 <label>Models — one per line: Civitai model id, model strength, text-encoder strength (the strengths default to 1). Add <code>/</code> and a version id after the model id for a version other than the newest
   <textarea name="models" rows="4" placeholder="123456&#10;789012, 0.8, 0.8&#10;345678/901234" required></textarea></label>
-{{if .Servers}}<label>Server
-  <select data-on:change="if (el.value) { el.closest('form').elements.comfyui_path.value = el.value }">
-    <option value="">— choose a server —</option>
-    {{range .Servers}}<option value="{{.ComfyUIPath}}"{{if eq (len $.Servers) 1}} selected{{end}}>{{.Name}} — {{.ComfyUIPath}}</option>
-    {{end}}
-  </select></label>
-{{else}}<p class="hint">No server has a ComfyUI folder yet: set one in <a href="/servers">Servers</a>, or type the folder below.</p>{{end}}
-<div class="row">
-  <label>ComfyUI folder <input name="comfyui_path" placeholder="/home/me/ComfyUI"{{if eq (len .Servers) 1}} value="{{(index .Servers 0).ComfyUIPath}}"{{end}} required></label>
+{{if .Servers}}<div class="row">
+  <label>Upload to server
+    <select name="server" required>
+      {{if ne (len .Servers) 1}}<option value="">— choose a server —</option>{{end}}
+      {{range .Servers}}<option value="{{.CodeName}}">{{.Name}} ({{.CodeName}})</option>
+      {{end}}
+    </select></label>
   <label>LoRA sub-folder <input name="lora_subfolder" placeholder="civitai"></label>
 </div>
+{{else}}<p class="hint">Add a <a href="/servers">server</a> first: the models are uploaded to one.</p>{{end}}
 {{end}}

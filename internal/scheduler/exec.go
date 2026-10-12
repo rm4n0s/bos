@@ -287,20 +287,19 @@ func (s *Scheduler) collect(ctx context.Context, r *runner, client comfy.Client,
 		}
 	}
 	job.ResultPath = path
-	s.removeFromComfy(r, job, files[0])
+	s.removeFromComfy(ctx, r, client, job, files[0])
 	return nil
 }
 
 // removeFromComfy deletes a result from the output folder of the server that
-// made it, when the setting is on and the server has a comfyui_path. The job has
-// its copy already, so a file that cannot be removed is a warning, never a
-// failure of the job.
-func (s *Scheduler) removeFromComfy(r *runner, job *domain.Job, f comfy.OutputFile) {
-	root := r.comfyPath()
-	if !s.DeleteOutputs || root == "" {
+// made it, through the comfyui-model-crud extension, when the setting is on.
+// The job has its copy already, so a file that cannot be removed is a warning,
+// never a failure of the job.
+func (s *Scheduler) removeFromComfy(ctx context.Context, r *runner, client comfy.Client, job *domain.Job, f comfy.OutputFile) {
+	if !s.DeleteOutputs {
 		return
 	}
-	if err := comfy.RemoveOutput(root, f); err != nil {
+	if err := client.DeleteOutput(ctx, f); err != nil {
 		logError(s.Logger, "could not remove a result from the ComfyUI output folder", err,
 			"job", job.ID, "command", job.CommandID, "server", r.code(), "file", f.Filename)
 	}

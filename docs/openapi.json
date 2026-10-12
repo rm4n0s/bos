@@ -1446,6 +1446,16 @@
             },
             "description": "Error tags: InvalidRequest"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error tags: ServerNotFound"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -1465,6 +1475,16 @@
               }
             },
             "description": "Error tags: CodeNameInvalid"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error tags: ServerUnreachable"
           }
         },
         "summary": "Create a group and import LoRAs from Civitai into it, in the background"
@@ -1910,7 +1930,7 @@
                 }
               }
             },
-            "description": "Error tags: GroupNotFound"
+            "description": "Error tags: GroupNotFound, ServerNotFound"
           },
           "409": {
             "content": {
@@ -1921,6 +1941,16 @@
               }
             },
             "description": "Error tags: CivitaiNotConfigured"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error tags: ServerUnreachable"
           }
         },
         "summary": "Add one Civitai LoRA to a group as an item, in the background"
@@ -2973,7 +3003,7 @@
                 }
               }
             },
-            "description": "Error tags: CodeNameInvalid, NameInvalid, ServerComfyPathInvalid, ServerHostInvalid, ServerMaxJobsInvalid"
+            "description": "Error tags: CodeNameInvalid, NameInvalid, ServerHostInvalid, ServerMaxJobsInvalid"
           }
         },
         "summary": "Create a server"
@@ -3139,7 +3169,7 @@
                 }
               }
             },
-            "description": "Error tags: NameInvalid, ServerComfyPathInvalid, ServerHostInvalid, ServerMaxJobsInvalid"
+            "description": "Error tags: NameInvalid, ServerHostInvalid, ServerMaxJobsInvalid"
           }
         },
         "summary": "Replace the editable fields of a server"

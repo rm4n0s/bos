@@ -33,11 +33,6 @@ func (s *ServerService) check(v *domain.Server) error {
 	if err := checkCodeName("server", v.CodeName); err != nil {
 		return err
 	}
-	path, err := cleanComfyPath(v.ComfyUIPath)
-	if err != nil {
-		return err
-	}
-	v.ComfyUIPath = path
 	if v.MaxConcurrentJobs == 0 {
 		v.MaxConcurrentJobs = 1
 	}
@@ -140,19 +135,13 @@ func (s *ServerService) Test(ctx context.Context, id domain.ID) error {
 	return client.Ping(ctx)
 }
 
-// WithComfyUIPath returns the servers that have a ComfyUI folder, by name (not
-// case sensitive): the choices of the LoRA imports.
-func (s *ServerService) WithComfyUIPath(ctx context.Context) ([]domain.Server, error) {
+// All returns every server, by name (not case sensitive): the choices of the
+// LoRA imports.
+func (s *ServerService) All(ctx context.Context) ([]domain.Server, error) {
 	all, err := s.Store.Repos().Servers().All(ctx)
 	if err != nil {
 		return nil, err
 	}
-	var out []domain.Server
-	for _, v := range all {
-		if v.ComfyUIPath != "" {
-			out = append(out, v)
-		}
-	}
-	sort.SliceStable(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
-	return out, nil
+	sort.SliceStable(all, func(i, j int) bool { return strings.ToLower(all[i].Name) < strings.ToLower(all[j].Name) })
+	return all, nil
 }

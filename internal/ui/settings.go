@@ -63,7 +63,7 @@ var settingsLayout = []settingSection{
 	{Title: "Jobs", Intro: "How the jobs are run.", Fields: []settingField{
 		{Key: "grace_seconds", Label: "Grace period (seconds)", Placeholder: "30", Help: "How long a server may be unreachable before its waiting jobs go to other servers."},
 		{Key: "max_job_attempts", Label: "Attempts per job", Placeholder: "3", Help: "How many times a job is tried again after its server vanished."},
-		{Key: "delete_comfy_outputs", Label: "Delete results from ComfyUI", Kind: "select", Options: []string{"true", "false"}, Help: "After a result is saved here, remove it from the output folder of its ComfyUI. Only for servers that have a ComfyUI folder (see Servers); the others are left alone."},
+		{Key: "delete_comfy_outputs", Label: "Delete results from ComfyUI", Kind: "select", Options: []string{"true", "false"}, Help: "After a result is saved here, remove it from the output folder of its ComfyUI, through the comfyui-model-crud extension that every server runs."},
 		{Key: "preview_soft_limit", Label: "Preview warning (jobs)", Placeholder: "0 (none)", Help: "A preview warns when a command would make more jobs than this."},
 	}},
 	{Title: "Log and events", Fields: []settingField{

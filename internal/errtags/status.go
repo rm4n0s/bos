@@ -33,7 +33,7 @@ var statuses = map[string]int{
 	"ItemCodeNameTaken": http.StatusConflict,
 
 	"NameInvalid": http.StatusUnprocessableEntity, "OutputTypeInvalid": http.StatusUnprocessableEntity,
-	"ServerMaxJobsInvalid": http.StatusUnprocessableEntity, "ServerHostInvalid": http.StatusUnprocessableEntity, "ServerComfyPathInvalid": http.StatusUnprocessableEntity,
+	"ServerMaxJobsInvalid": http.StatusUnprocessableEntity, "ServerHostInvalid": http.StatusUnprocessableEntity,
 	"FixerTitleRequired": http.StatusUnprocessableEntity, "GeneratorTitleRequired": http.StatusUnprocessableEntity, "ItemControlNetInvalid": http.StatusUnprocessableEntity,
 	"ItemRegionInvalid": http.StatusUnprocessableEntity,
 
@@ -57,6 +57,7 @@ var statuses = map[string]int{
 	"ComfyUIExecutionFailed": http.StatusBadGateway, "ComfyUIUploadFailed": http.StatusBadGateway,
 	"ComfyUIResultMissing": http.StatusBadGateway, "ComfyUIInterrupted": http.StatusBadGateway,
 	"ComfyUIPromptLost": http.StatusBadGateway, "ComfyUICallCancelled": http.StatusServiceUnavailable,
+	"ModelCrudMissing": http.StatusBadGateway, "ModelCrudDisabled": http.StatusBadGateway, "ModelCrudRejected": http.StatusBadGateway,
 
 	"CivitaiNotConfigured": http.StatusConflict, "CivitaiModelNotFound": http.StatusNotFound,
 	"CivitaiRateLimited": http.StatusServiceUnavailable, "CivitaiDownloadFailed": http.StatusBadGateway,

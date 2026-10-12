@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rm4n0s/bos/internal/modelcrud"
 	"github.com/rm4n0s/bos/internal/workflow"
 	comfyui "github.com/rm4n0s/comfyui-client-go"
 	"github.com/rm4n0s/errors"
@@ -102,6 +103,8 @@ type Server struct {
 	http *comfyui.Client
 	hub  *hub
 	conn connection
+	// crud is the client of the comfyui-model-crud extension of the server.
+	crud *modelcrud.Client
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -127,9 +130,13 @@ func NewServer(baseURL string, opts Options) (*Server, error) {
 	if err != nil {
 		return nil, errors.NewErr("ServerHostInvalid", err).SetMetadata("host", baseURL)
 	}
+	crud, err := modelcrud.New(baseURL, modelcrud.Options{CallTimeout: opts.CallTimeout})
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
-		baseURL: strings.TrimRight(baseURL, "/"), opts: opts, logger: opts.Logger, http: httpClient,
+		baseURL: strings.TrimRight(baseURL, "/"), opts: opts, logger: opts.Logger, http: httpClient, crud: crud,
 		hub:     newHub(opts.EarlyEvents, opts.EarlyTTL, opts.Now),
 		cancel:  cancel,
 		uploads: map[string]*upload{},
@@ -235,6 +242,19 @@ func (s *Server) Fetch(ctx context.Context, f OutputFile) (io.ReadCloser, error)
 		return nil, s.mapError(ctx, err, "ComfyUIResultMissing", "fetch output")
 	}
 	return body, nil
+}
+
+// DeleteOutput implements Client.
+func (s *Server) DeleteOutput(ctx context.Context, f OutputFile) error {
+	if f.Type != "output" {
+		return nil
+	}
+	return s.crud.DeleteOutput(ctx, path.Join(f.Subfolder, f.Filename))
+}
+
+// UploadModel implements Client.
+func (s *Server) UploadModel(ctx context.Context, folder, subfolder, filename string, size int64, r io.Reader) (string, error) {
+	return s.crud.UploadModel(ctx, folder, subfolder, filename, size, r)
 }
 
 // Cancel implements Client: a pending prompt is removed from the queue, a

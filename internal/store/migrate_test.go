@@ -2,7 +2,9 @@ package store
 
 import (
 	"testing"
+	"time"
 
+	"github.com/rm4n0s/bos/internal/domain"
 	"github.com/rm4n0s/errors"
 	"gorm.io/gorm"
 )
@@ -158,29 +160,47 @@ func TestMigrationNumbersAreContiguous(t *testing.T) {
 	}
 }
 
-// A database made by the first version has servers without a ComfyUI folder;
-// migration 2 adds the column and they read back with an empty one.
-func TestMigrationTwoAddsTheComfyUIPathOfServers(t *testing.T) {
+// serverWithPath is a row of the servers table as it was before migration 4.
+type serverWithPath struct {
+	ID                int64     `gorm:"column:id;primaryKey;autoIncrement"`
+	Name              string    `gorm:"column:name"`
+	Host              string    `gorm:"column:host"`
+	CodeName          string    `gorm:"column:code_name"`
+	IsLocal           bool      `gorm:"column:is_local"`
+	MaxConcurrentJobs int       `gorm:"column:max_concurrent_jobs"`
+	ComfyUIPath       string    `gorm:"column:comfyui_path"`
+	CreatedAt         time.Time `gorm:"column:created_at"`
+	UpdatedAt         time.Time `gorm:"column:updated_at"`
+}
+
+func (serverWithPath) TableName() string { return "servers" }
+
+// A database made before migration 4 has a ComfyUI folder for its servers;
+// the migration drops the column and keeps the servers.
+func TestMigrationFourDropsTheComfyUIPathOfServers(t *testing.T) {
 	db := openBare(t)
 	all := migrations()
-	check(t, db.applyMigrations(ctx(t), all[:1]))
+	check(t, db.applyMigrations(ctx(t), all[:3]))
+	if !db.gorm.Migrator().HasColumn(&v2Server{}, "ComfyUIPath") {
+		t.Fatal("migration 2 did not add the column")
+	}
 	now := fakeClock()()
-	check(t, db.gorm.Create(&v1Server{Name: "old", Host: "http://old:8188", CodeName: "old", MaxConcurrentJobs: 1, CreatedAt: now, UpdatedAt: now}).Error)
+	check(t, db.gorm.Create(&serverWithPath{Name: "old", Host: "http://old:8188", CodeName: "old", MaxConcurrentJobs: 1, ComfyUIPath: "/opt/ComfyUI", CreatedAt: now, UpdatedAt: now}).Error)
 
 	check(t, db.Migrate(ctx(t)))
-	if v, _ := db.SchemaVersion(ctx(t)); v < 2 {
-		t.Fatalf("version = %d", v)
+	if db.gorm.Migrator().HasColumn(&v2Server{}, "ComfyUIPath") {
+		t.Error("the column is still there")
 	}
 	got, err := db.Repos().Servers.GetByCode(ctx(t), "old")
 	check(t, err)
-	if got.ComfyUIPath != "" || got.Name != "old" {
+	if got.Name != "old" || got.Host != "http://old:8188" || got.MaxConcurrentJobs != 1 {
 		t.Errorf("server = %+v", got)
 	}
-	got.ComfyUIPath = "/opt/ComfyUI"
-	check(t, db.Repos().Servers.Update(ctx(t), got))
-	again, err := db.Repos().Servers.Get(ctx(t), got.ID)
-	check(t, err)
-	if again.ComfyUIPath != "/opt/ComfyUI" {
-		t.Errorf("path = %q", again.ComfyUIPath)
+	// The table was built again: its rules must have survived.
+	dup := &domain.Server{Name: "x", Host: "http://x:1", CodeName: "old", MaxConcurrentJobs: 1}
+	wantRoute(t, db.Repos().Servers.Create(ctx(t), dup), "ServerRepo.Create", "ServerCodeNameTaken")
+	zero := &domain.Server{Name: "y", Host: "http://y:1", CodeName: "y", MaxConcurrentJobs: 0}
+	if err := db.Repos().Servers.Create(ctx(t), zero); err == nil {
+		t.Error("a server that runs no job at a time was accepted")
 	}
 }

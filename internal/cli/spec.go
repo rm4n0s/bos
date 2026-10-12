@@ -118,8 +118,8 @@ var itemFiles = []filePart{
 }
 
 var civitaiFields = []field{
-	{"comfyui-path", "comfyui_path", kString, "the ComfyUI installation folder"},
-	{"lora-subfolder", "lora_subfolder", kString, "the sub-folder of models/loras"},
+	{"upload-to", "server", kString, "the code name of the server the LoRAs are uploaded to"},
+	{"lora-subfolder", "lora_subfolder", kString, "the sub-folder of the loras folder"},
 }
 
 // commands is the table of everything bosctl can do. A test fails when an
@@ -132,13 +132,11 @@ var commands = []command{
 	{Resource: "server", Verb: "create", Summary: "Add a server", Method: "POST", Path: "/servers", Result: resultOne, DataFile: true,
 		Body: []field{{"name", "name", kString, "the name"}, {"host", "host", kString, "the ComfyUI address, http://host:8188"},
 			{"code-name", "code_name", kString, "the code name used in commands"}, {"local", "is_local", kBool, "ComfyUI reads this machine's files"},
-			{"max-jobs", "max_concurrent_jobs", kInt, "jobs it may run at once"},
-			{"comfyui-path", "comfyui_path", kString, "the folder of ComfyUI's installation, offered when LoRAs are imported"}}, Required: []string{"name", "host", "code_name"}},
+			{"max-jobs", "max_concurrent_jobs", kInt, "jobs it may run at once"}}, Required: []string{"name", "host", "code_name"}},
 	{Resource: "server", Verb: "update", Summary: "Change a server", Method: "PUT", Path: "/servers/{id}", Args: []string{"id"}, Result: resultOne, Merge: true, DataFile: true,
 		Body: []field{{"name", "name", kString, "the name"}, {"host", "host", kString, "the ComfyUI address"},
 			{"code-name", "code_name", kString, "the code name"}, {"local", "is_local", kBool, "ComfyUI reads this machine's files"},
-			{"max-jobs", "max_concurrent_jobs", kInt, "jobs it may run at once"},
-			{"comfyui-path", "comfyui_path", kString, "the folder of ComfyUI's installation"}}},
+			{"max-jobs", "max_concurrent_jobs", kInt, "jobs it may run at once"}}},
 	{Resource: "server", Verb: "delete", Summary: "Delete a server", Method: "DELETE", Path: "/servers/{id}", Args: []string{"id"}, Result: resultNone},
 	{Resource: "server", Verb: "loras", Summary: "List the LoRAs installed on a server", Method: "GET", Path: "/servers/{id}/loras", Args: []string{"id"}, Result: resultDoc},
 
@@ -177,7 +175,7 @@ var commands = []command{
 		Required: []string{"name", "code_name", "text"}},
 	{Resource: "group", Verb: "import-civitai", Summary: "Make a group and import LoRAs from Civitai into it", Method: "POST", Path: "/groups/import-civitai", Result: resultOne, DataFile: true,
 		Body:     append(append([]field(nil), groupFields[:4]...), append([]field{{"model", "models", kList, "a model as id[/version][:model strength[:clip strength]], repeatable (no version: the newest)"}}, civitaiFields...)...),
-		Required: []string{"name", "code_name", "models", "comfyui_path"}},
+		Required: []string{"name", "code_name", "models", "server"}},
 
 	// items
 	{Resource: "item", Verb: "list", Summary: "List the items of a group", Method: "GET", Path: "/groups/{id}/items", Args: []string{"group"}, Paged: true, Result: resultList,
@@ -189,7 +187,7 @@ var commands = []command{
 	{Resource: "item", Verb: "delete", Summary: "Delete an item with its files", Method: "DELETE", Path: "/items/{id}", Args: []string{"id"}, Result: resultNone},
 	{Resource: "item", Verb: "add-civitai", Summary: "Add one Civitai LoRA to a group as an item", Method: "POST", Path: "/groups/{id}/items/civitai", Args: []string{"group"}, Result: resultOne,
 		Body:     append([]field{{"model", "model_id", kInt, "the Civitai model id"}, {"version", "version_id", kInt, "the version of the model (default: the newest)"}, {"model-strength", "model_strength", kFloat, "strength for the model (default 1)"}, {"clip-strength", "model_clip", kFloat, "strength for the text encoder (default 1)"}}, civitaiFields...),
-		Required: []string{"model_id", "comfyui_path"}},
+		Required: []string{"model_id", "server"}},
 
 	// tags
 	{Resource: "tag", Verb: "list", Summary: "List the tags in use", Method: "GET", Path: "/tags", Result: resultDoc,

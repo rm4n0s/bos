@@ -73,7 +73,6 @@ func TestErrorEnvelope(t *testing.T) {
 		{"code name reserved", "POST", "/api/v1/groups", map[string]any{"name": "x", "code_name": "where"}, 422, "CodeNameReserved"},
 		{"tag invalid", "POST", "/api/v1/tags/rename", map[string]any{"scope": "item", "from": "a", "to": "bad tag!"}, 422, "TagInvalid"},
 		{"host invalid", "POST", "/api/v1/servers", map[string]any{"name": "x", "host": "ftp://x", "code_name": "x"}, 422, "ServerHostInvalid"},
-		{"comfyui folder invalid", "POST", "/api/v1/servers", map[string]any{"name": "x", "host": "http://x:1", "code_name": "x", "comfyui_path": "/a\nb"}, 422, "ServerComfyPathInvalid"},
 		{"name invalid", "POST", "/api/v1/projects", map[string]any{"name": ""}, 422, "NameInvalid"},
 
 		{"server taken", "POST", "/api/v1/servers", map[string]any{"name": "x", "host": "http://x:1", "code_name": "gpu1"}, 409, "ServerCodeNameTaken"},

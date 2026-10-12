@@ -33,6 +33,16 @@ type Client interface {
 	Upload(ctx context.Context, name string, r io.Reader) (inputValue string, err error)
 	// ListModels lists the installed models of a folder, such as "loras".
 	ListModels(ctx context.Context, folder string) ([]string, error)
+	// DeleteOutput removes a file of type `output` that a job has saved, from
+	// the output folder of the server (SPEC §8.2). It goes through the
+	// comfyui-model-crud extension, which every server runs. A file that is
+	// already gone is not an error; a file of any other type is left alone.
+	DeleteOutput(ctx context.Context, f OutputFile) error
+	// UploadModel stores size bytes read from r as <subfolder>/<filename> in a
+	// model folder of the server, such as "loras", through the same extension,
+	// and returns the path the model has there. A model that is already there
+	// with the same size is not sent again.
+	UploadModel(ctx context.Context, folder, subfolder, filename string, size int64, r io.Reader) (path string, err error)
 	// Cancel removes a pending prompt from the queue or interrupts a running one.
 	Cancel(ctx context.Context, promptID string) error
 	Close() error

@@ -34,7 +34,6 @@ type serverSignals struct {
 			CodeName          string  `json:"code_name"`
 			IsLocal           bool    `json:"is_local"`
 			MaxConcurrentJobs flexInt `json:"max_concurrent_jobs"`
-			ComfyUIPath       string  `json:"comfyui_path"`
 		} `json:"form"`
 	} `json:"servers"`
 }
@@ -66,12 +65,11 @@ func (u *UI) serverRoutes() {
 		}
 		return s.set(map[string]any{"servers": map[string]any{"open": true, "form": map[string]any{
 			"id": v.ID, "name": v.Name, "host": v.Host, "code_name": v.CodeName, "is_local": v.IsLocal, "max_concurrent_jobs": v.MaxConcurrentJobs,
-			"comfyui_path": v.ComfyUIPath,
 		}}})
 	}))
 	u.handle("POST /ui/servers", act(u, "servers-error", func(r *http.Request, in *serverSignals, s *stream) error {
 		f := in.Servers.Form
-		server := domain.Server{Name: f.Name, Host: f.Host, CodeName: f.CodeName, IsLocal: f.IsLocal, MaxConcurrentJobs: int(f.MaxConcurrentJobs), ComfyUIPath: f.ComfyUIPath}
+		server := domain.Server{Name: f.Name, Host: f.Host, CodeName: f.CodeName, IsLocal: f.IsLocal, MaxConcurrentJobs: int(f.MaxConcurrentJobs)}
 		var err error
 		if f.ID > 0 {
 			_, err = u.Services.Servers.Update(r.Context(), int64(f.ID), server)

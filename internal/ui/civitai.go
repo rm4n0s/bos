@@ -47,14 +47,14 @@ func parseModels(text string) ([]service.CivitaiModel, error) {
 	return out, nil
 }
 
-// civitaiForm is what the import dialogs show: the servers that have a ComfyUI
-// folder, one of which can be chosen to fill the folder field.
+// civitaiForm is what the import dialogs show: the servers, one of which the
+// models are uploaded to.
 type civitaiForm struct {
 	Servers []domain.Server
 }
 
 func (u *UI) civitaiForm(r *http.Request) (civitaiForm, error) {
-	servers, err := u.Services.Servers.WithComfyUIPath(r.Context())
+	servers, err := u.Services.Servers.All(r.Context())
 	return civitaiForm{Servers: servers}, err
 }
 
@@ -76,7 +76,7 @@ func (u *UI) civitaiRoutes() {
 		}
 		_, err = u.Services.Civitai.ImportGroup(r.Context(), service.CivitaiImport{
 			Group:  domain.Group{Name: f.str("name"), CodeName: f.str("code_name"), Tags: splitList(f.str("tags"))},
-			Models: models, ComfyPath: f.str("comfyui_path"), Subfolder: f.str("lora_subfolder"),
+			Models: models, Server: f.str("server"), Subfolder: f.str("lora_subfolder"),
 		})
 		if err != nil {
 			return err
@@ -113,7 +113,7 @@ func (u *UI) civitaiRoutes() {
 		}
 		// One import for every line: the service runs them one at a time.
 		for _, m := range models {
-			if _, err := u.Services.Civitai.AddItem(r.Context(), group, m, f.str("comfyui_path"), f.str("lora_subfolder")); err != nil {
+			if _, err := u.Services.Civitai.AddItem(r.Context(), group, m, f.str("server"), f.str("lora_subfolder")); err != nil {
 				return err
 			}
 		}

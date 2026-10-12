@@ -23,7 +23,7 @@ You work in a web page, from a terminal (`bosctl`) or through a REST API. All th
 ## What you need
 
 - **Go 1.26.3 or newer** and a **C compiler** (SQLite is built from source, so `CGO_ENABLED=1`; on Fedora `gcc`, on Debian or Ubuntu `build-essential`).
-- One or more **ComfyUI** servers, reachable over HTTP, with the models your workflows use.
+- One or more **ComfyUI** servers, reachable over HTTP, with the models your workflows use, each running the [comfyui-model-crud](https://github.com/rm4n0s/comfyui-model-crud) extension (the program deletes finished results from the server and uploads Civitai LoRAs to it through that extension).
 
 ## Install and run
 

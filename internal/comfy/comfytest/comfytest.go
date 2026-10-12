@@ -2,7 +2,8 @@
 // code that talks to one. It speaks the HTTP endpoints the adapter uses and
 // completes every prompt it is given after a delay, with one PNG for each save
 // node of the workflow. It has no WebSocket endpoint, so a client falls back to
-// polling the history, as it does when the socket is down (SPEC §18.3).
+// polling the history, as it does when the socket is down (SPEC §18.3). It also
+// runs the routes of the comfyui-model-crud extension that the program uses.
 package comfytest
 
 import (
@@ -34,6 +35,12 @@ type Server struct {
 	closing  chan struct{}
 	timers   sync.WaitGroup
 	received []map[string]json.RawMessage
+
+	// The extension (extension.go).
+	deleted    []string
+	models     map[string][]byte // "folder/path" → content
+	sessions   map[string]*modelUpload
+	nextUpload int
 }
 
 type prompt struct {
@@ -45,7 +52,7 @@ type prompt struct {
 
 // New starts a server. Prompts complete after latency.
 func New(latency time.Duration) *Server {
-	s := &Server{latency: latency, prompts: map[string]*prompt{}, uploads: map[string][]byte{}, closing: make(chan struct{})}
+	s := &Server{latency: latency, prompts: map[string]*prompt{}, uploads: map[string][]byte{}, models: map[string][]byte{}, sessions: map[string]*modelUpload{}, closing: make(chan struct{})}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /system_stats", s.handleStats)
 	mux.HandleFunc("POST /prompt", s.handlePrompt)
@@ -56,6 +63,7 @@ func New(latency time.Duration) *Server {
 	mux.HandleFunc("GET /view", s.handleView)
 	mux.HandleFunc("POST /upload/image", s.handleUpload)
 	mux.HandleFunc("GET /models/{folder}", s.handleModels)
+	s.routeExtension(mux)
 	s.srv = httptest.NewServer(mux)
 	s.URL = s.srv.URL
 	return s

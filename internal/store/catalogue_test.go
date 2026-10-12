@@ -11,7 +11,7 @@ import (
 func TestServers(t *testing.T) {
 	r := newDB(t).Repos()
 	a, b := newServer("gpu1"), newServer("gpu2")
-	b.IsLocal, b.MaxConcurrentJobs, b.ComfyUIPath = true, 3, "/home/me/ComfyUI"
+	b.IsLocal, b.MaxConcurrentJobs = true, 3
 	check(t, r.Servers.Create(ctx(t), a))
 	check(t, r.Servers.Create(ctx(t), b))
 	if a.ID == 0 || b.ID <= a.ID || a.CreatedAt.IsZero() || !a.CreatedAt.Equal(a.UpdatedAt) {
@@ -29,11 +29,11 @@ func TestServers(t *testing.T) {
 		t.Errorf("GetByCode = %+v", byCode)
 	}
 
-	a.Name, a.Host, a.MaxConcurrentJobs, a.ComfyUIPath = "Renamed", "http://other:1", 2, "/srv/comfy"
+	a.Name, a.Host, a.MaxConcurrentJobs = "Renamed", "http://other:1", 2
 	check(t, r.Servers.Update(ctx(t), a))
 	got, err = r.Servers.Get(ctx(t), a.ID)
 	check(t, err)
-	if got.Name != "Renamed" || got.MaxConcurrentJobs != 2 || got.ComfyUIPath != "/srv/comfy" || !got.UpdatedAt.After(got.CreatedAt) || got.CreatedAt != a.CreatedAt {
+	if got.Name != "Renamed" || got.MaxConcurrentJobs != 2 || !got.UpdatedAt.After(got.CreatedAt) || got.CreatedAt != a.CreatedAt {
 		t.Errorf("after update: %+v", got)
 	}
 

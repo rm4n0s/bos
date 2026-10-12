@@ -120,14 +120,6 @@ func (r *runner) code() string {
 	return r.server.CodeName
 }
 
-// comfyPath is the folder of the server's ComfyUI installation, empty when it
-// was not told.
-func (r *runner) comfyPath() string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.server.ComfyUIPath
-}
-
 // ---- monitor ----
 
 // monitor probes the server every interval: reachable means available,

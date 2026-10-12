@@ -55,7 +55,7 @@ The program is started with the path of one **database file** (`-db`, default `d
 | `upload_limit_bytes` | 64 MiB | Maximum size of one uploaded file (§15.1) |
 | `grace_seconds` | 30 | Seconds a server may be unavailable before unpinned jobs are re-assigned elsewhere (§8.7) |
 | `max_job_attempts` | 3 | How many times a job is retried after its server became unreachable (§8.7) |
-| `delete_comfy_outputs` | `true` | Remove a result from the `output` folder of its ComfyUI once this program has saved it (§8.2). `true` or `false`; an empty value is the default, on. Only servers that have a `comfyui_path` (§3.1) are touched |
+| `delete_comfy_outputs` | `true` | Remove a result from the `output` folder of its ComfyUI once this program has saved it (§8.2), through the comfyui-model-crud extension (§18.8). `true` or `false`; an empty value is the default, on |
 | `preview_soft_limit` | 0 (none) | Job count above which the preview warns (§6.11) |
 | `log_level` | `info` | `debug`, `info`, `warn` or `error` |
 | `event_log_size` | 100 (at least 100) | Number of events retained (§8.5, §15.4) |
@@ -85,9 +85,10 @@ Every entity carries creation and last-update timestamps. Identifiers are unique
 | code_name | unique, ≤100 chars; referenced from commands |
 | is_local | boolean — true when ComfyUI can read the application's files directly (shared filesystem); otherwise input files are uploaded to it (§8.7) |
 | max_concurrent_jobs | integer ≥ 1, default 1 — jobs this server may run at once |
-| comfyui_path | optional, one line, at most 500 characters, kept without the spaces around it — the folder of the ComfyUI installation **as this program sees it**. The Civitai LoRA imports (§19) offer the servers that have one and copy the models below it, and with `delete_comfy_outputs` (§2) the results are removed from its `output` folder once downloaded (§8.2). It is not checked to exist (it may be a share that is only mounted at import time); an invalid one is `ServerComfyPathInvalid` |
 
 Derived: **status** `online` / `offline`, reflecting current reachability.
+
+**Every server runs the extension [comfyui-model-crud](https://github.com/rm4n0s/comfyui-model-crud)** (§18.8). The program reaches the `output` and `loras` folders of a server through its HTTP routes and never through the file system, so a server has no folder field, and ComfyUI may run on another machine. (Earlier versions kept an optional `comfyui_path`; migration 4 drops it.)
 
 ### 3.2 Generator
 A ComfyUI workflow that produces the primary output.
@@ -671,7 +672,7 @@ Starting from the generator's workflow, apply in this order:
 
 Then: submit to the job's server (after making its input files available there, §8.7), record the prompt id, status → `processing`, notify `processing`; wait for completion (success event, or queue drained); fetch output images; save to the job's result path; `is_generated = true`.
 
-**Removing the result from ComfyUI.** ComfyUI has no call that deletes a file, so when the setting `delete_comfy_outputs` is on (the default) and the server has a `comfyui_path` (§3.1), the file the job just saved is removed from `<comfyui_path>/output/<subfolder>/<filename>` after the copy is written, for the generation and for every fixer step (§8.3); the program must be able to write to that folder. Only files of type `output` are removed, never `temp` or `input` files, and the path cannot leave `<comfyui_path>/output` (not through `..` and not through a link). A file that is already gone is not an error. A file that cannot be removed is logged as a warning with the tag `FileStoreFailure` (operation `remove`) and does **not** fail the job, which has its copy. A server without a `comfyui_path` is left alone, whatever the setting says; ComfyUI's history keeps its entry for the prompt.
+**Removing the result from ComfyUI.** ComfyUI has no call that deletes a file, so when the setting `delete_comfy_outputs` is on (the default), the file the job just saved is removed through the comfyui-model-crud extension of the server (§18.8) after the copy is written, for the generation and for every fixer step (§8.3): `DELETE /model_crud/output?path=<subfolder>/<filename>`. Only files of type `output` are removed, never `temp` or `input` files. A file that is already gone (`file_not_found`) is not an error. A file that cannot be removed (the server is not reachable, the extension is missing, switched off or refuses) is logged as a warning with the tag of the failure (`ModelCrudMissing`, `ModelCrudDisabled`, `ModelCrudRejected`, `ServerUnreachable`) and does **not** fail the job, which has its copy. ComfyUI's history keeps its entry for the prompt.
 
 - Fixers remaining → status `queued`, re-enqueue.
 - Otherwise → `finished`; if all of the command's jobs are now `finished`, the command also becomes `finished`.
@@ -729,7 +730,7 @@ Static plans therefore never leave work unassigned, but they can leave a server 
 Requires the API token and LoRA cache directory; otherwise the operation fails with a clear message.
 
 - Download a model by id, producing `<id>.safetensors` and `<id>.json` (trigger words, tags, description, model name). The newest version is taken unless a version id is given; a chosen version is stored below `versions/<version id>` in the cache, so versions of one model do not overwrite each other, and it is installed as `<id>-<version id>.safetensors`.
-- Copy the model into the ComfyUI installation's LoRA folder, in a chosen sub-folder (the app must have filesystem access to it). The web dialogs of the import (group import and adding a LoRA to a group) show a select of the servers that have a `comfyui_path` (§3.1), by name; choosing one fills the ComfyUI folder field, which stays editable, and a single such server is chosen at once. The REST API takes the folder itself (`comfyui_path` in the body).
+- Upload the model to a chosen ComfyUI server, into its `loras` folder and a chosen sub-folder, through the comfyui-model-crud extension (§18.8); the server is named by its code name, must exist and be online, and is checked before anything is downloaded. The web dialogs of the import (group import and adding a LoRA to a group) show a select of the servers, by name, and a single server is chosen at once. The REST API takes the server's code name (`server` in the body).
 - Create a group of LoRAs: one item per model with code_name = model id (`<model id>_<version id>` when a version was chosen), name = Civitai model name, positive_prompt = trigger words separated by blank lines, and one LoRA entry with the chosen model/clip strengths. When importing several models, pause 15 s between downloads.
 - Create a single LoRA item in an existing group.
 - List LoRAs available on a ComfyUI server.
@@ -829,7 +830,8 @@ internal/service           application services (use cases): servers, generators
                            groups, items, projects, commands, jobs, repl, civitai import
 internal/scheduler         server monitor, dispatcher, per-server runners, event log (§8)
 internal/comfy             ComfyUI port + adapter over comfyui-client-go, event hub (§18)
-internal/civitai           Civitai `Models` port + adapter over gocivitailib; LoRA copy into ComfyUI (§19)
+internal/modelcrud         client of the comfyui-model-crud extension: delete outputs, upload models (§18.8)
+internal/civitai           Civitai `Models` port + adapter over gocivitailib; LoRA upload to ComfyUI (§19)
 internal/events            ordered, bounded event log with subscriptions (§8.5)
 internal/api               REST handlers, DTOs, error mapping (§15)
 internal/cli               `bosctl` commands: an HTTP client of §15, no access to the store or services (§15.6)
@@ -920,10 +922,10 @@ New direct dependencies are therefore exactly: `gorm.io/gorm`, `gorm.io/driver/s
 | `GET /groups` (filter `?tag=`) · `POST /groups` | list / create (fields include `tags`; thumbnail via multipart) | 200 / 201 | `GroupCodeNameTaken`, `CodeNameInvalid`, `CodeNameReserved` |
 | `GET /groups/{id}` · `PUT` · `DELETE` | get / edit / delete (removes items and files) | | `GroupNotFound` |
 | `POST /groups/import-text` | body: group fields + `text` (one item per line) | 201 | `GroupCodeNameTaken` |
-| `POST /groups/import-civitai` | body: group fields + `models:[{model_id,version_id,model_strength,model_clip}]` (a strength left out is 1, a `version_id` left out is the newest version), `comfyui_path` (the ComfyUI installation) and `lora_subfolder` (below `models/loras`). The group is created at once and returned; the downloads go on in the background, one import at a time, with a pause between models, and report as `import_progress`, `import_error` and `import_finished` events (§15.4) that carry `group_id` and `message` | 202 | `CivitaiNotConfigured`, `InvalidRequest` (an unusable sub-folder or ComfyUI path) |
+| `POST /groups/import-civitai` | body: group fields + `models:[{model_id,version_id,model_strength,model_clip}]` (a strength left out is 1, a `version_id` left out is the newest version), `server` (the code name of the server the LoRAs are uploaded to) and `lora_subfolder` (below the `loras` folder). The group is created at once and returned; the downloads go on in the background, one import at a time, with a pause between models, and report as `import_progress`, `import_error` and `import_finished` events (§15.4) that carry `group_id` and `message` | 202 | `CivitaiNotConfigured`, `InvalidRequest` (an unusable sub-folder, or no server), `ServerNotFound`, `ServerUnreachable` |
 | `GET /groups/{id}/items` · `POST /groups/{id}/items` | list / create (multipart for images) | 200 / 201 | `ItemCodeNameTaken`, `GroupNotFound`, `UploadTooLarge`, `MaskGenerationFailed` |
 | `GET /items/{id}` · `PUT` · `DELETE` | get / edit / delete | | `ItemNotFound` |
-| `POST /groups/{id}/items/civitai` | add one Civitai LoRA as an item: `{model_id, version_id, model_strength, model_clip, comfyui_path, lora_subfolder}`; returns the group, the item arrives in the background | 202 | `CivitaiNotConfigured`, `GroupNotFound`, `InvalidRequest` |
+| `POST /groups/{id}/items/civitai` | add one Civitai LoRA as an item: `{model_id, version_id, model_strength, model_clip, server, lora_subfolder}`; returns the group, the item arrives in the background | 202 | `CivitaiNotConfigured`, `GroupNotFound`, `InvalidRequest`, `ServerNotFound`, `ServerUnreachable` |
 
 **Tags**
 
@@ -1036,7 +1038,7 @@ Each screen implements the capabilities of §4. UI-specific behaviour worth fixi
 
 | Screen | Behaviour |
 |---|---|
-| Servers | Table with a status badge updated live and the ComfyUI folder; add/edit dialog (the folder is optional); "test connection" button |
+| Servers | Table with a status badge updated live; add/edit dialog (it names the extension every server must run); "test connection" button |
 | Generators | Paste or upload workflow JSON → the dialog calls the `analyze` service by itself (when the box loses focus after an edit, after a paste, and when a file is chosen; there is no button) and fills output type, attributes, output node and the prompt-node fields (the nodes titled `positive…` and `negative…`, without overwriting what was typed) and offers the discovered node titles as dropdowns for them; duplicate titles are flagged |
 | Fixers | Same, with image-input and image-output node pickers |
 | Groups | Table with thumbnail, tag chips (click to filter), feature-flag chips; tag input with autocomplete; dialogs for text-file import and Civitai import (progress shown through the event stream) |
@@ -1093,14 +1095,13 @@ These repeat the project rules (see `CLAUDE.md`) because they shape the API:
 | Not found | `ServerNotFound`, `GeneratorNotFound`, `FixerNotFound`, `GroupNotFound`, `ItemNotFound`, `ProjectNotFound`, `CommandNotFound`, `JobNotFound`, `FileNotFound` | 404 |
 | Naming | `CodeNameInvalid`, `CodeNameReserved`, `TagInvalid` | 422 |
 | Settings | `ConfigInvalid` (metadata `problems`) | 422 (at startup: abort) |
-| Servers | `ServerComfyPathInvalid` | 422 |
 | Generators | `GeneratorTitleRequired` (metadata `candidates`) | 422 |
 | Tags | `TagNotFound` | 404 |
 | Uniqueness | `ServerCodeNameTaken`, `GeneratorCodeNameTaken`, `FixerCodeNameTaken`, `GroupCodeNameTaken`, `ItemCodeNameTaken` | 409 |
 | Command language | `CommandLexError`, `CommandSyntaxError`, `CommandRestrictionViolated` (metadata `rule`), `CommandValidationFailed` (metadata `errors`), `CommandSelectionEmpty`, `CommandWhereEmpty` | 422 |
 | State | `CommandNotRunnable`, `CommandNotFinished`, `JobNotRunnable`, `ReplInvalid` | 409, 422 |
 | Workflow | `WorkflowInvalid`, `WorkflowTitleDuplicated`, `WorkflowTitleNotFound`, `OutputNodeNotFound`, `NoSamplerInWorkflow`, `InjectorFailed`, `RegionInvalid`, `MaskGenerationFailed` | 422 (on create/analyze) or recorded on the job |
-| ComfyUI | `ServerUnreachable`, `ComfyUIRejected` (node errors), `ComfyUIExecutionFailed` (traceback in metadata), `ComfyUIUploadFailed`, `ComfyUIResultMissing` | 502 / 503, or recorded on the job |
+| ComfyUI | `ServerUnreachable`, `ComfyUIRejected` (node errors), `ComfyUIExecutionFailed` (traceback in metadata), `ComfyUIUploadFailed`, `ComfyUIResultMissing`, `ModelCrudMissing` (no `/model_crud` routes: the extension is not installed), `ModelCrudDisabled` (the extension forbids uploads or deletes), `ModelCrudRejected` (any other error code of the extension, in metadata `code`) | 502 / 503, or recorded on the job |
 | Civitai | `CivitaiNotConfigured`, `CivitaiModelNotFound`, `CivitaiRateLimited`, `CivitaiDownloadFailed`, `CivitaiMetadataInvalid` | 409, 404, 503, 502, 502 |
 | Infrastructure | `StoreFailure`, `MigrationFailed`, `FileStoreFailure` | 500 (startup: abort) |
 
@@ -1150,6 +1151,8 @@ type Client interface {
     Upload(ctx context.Context, name string, r io.Reader) (inputValue string, err error)
     ListModels(ctx context.Context, folder string) ([]string, error)
     Cancel(ctx context.Context, promptID string) error // DeleteQueued if pending, Interrupt if running
+    DeleteOutput(ctx context.Context, f OutputFile) error // §18.8; files of type "output" only
+    UploadModel(ctx context.Context, folder, subfolder, filename string, size int64, r io.Reader) (path string, err error) // §18.8
     Close() error
 }
 ```
@@ -1191,7 +1194,7 @@ All of the following were requested for this specification and are present in th
 
 ### 18.6 Input files
 
-Every file a workflow reads is made available to the target server before submission (§8.7). **Decision:** upload for every server (`UploadImage`) and use `UploadResult.InputValue()` as the `LoadImage` input. Files are named by the **SHA-256 of their content** plus extension and placed in an application sub-folder (for example `bos/<hash>.png`): ComfyUI reuses a file whose content is identical, so a reference image shared by many jobs is stored once per server, and uploads never collide. The returned name, not the requested one, is always used. ComfyUI has no delete call, so uploaded inputs accumulate on the server; this is documented to the user. Passing an absolute path is permitted only for servers marked `is_local`, because it depends on how that ComfyUI build resolves `LoadImage` paths.
+Every file a workflow reads is made available to the target server before submission (§8.7). **Decision:** upload for every server (`UploadImage`) and use `UploadResult.InputValue()` as the `LoadImage` input. Files are named by the **SHA-256 of their content** plus extension and placed in an application sub-folder (for example `bos/<hash>.png`): ComfyUI reuses a file whose content is identical, so a reference image shared by many jobs is stored once per server, and uploads never collide. The returned name, not the requested one, is always used. ComfyUI has no delete call, so uploaded inputs accumulate on the server; this is documented to the user (the extension of §18.8 could delete them; the program does not use that yet). Passing an absolute path is permitted only for servers marked `is_local`, because it depends on how that ComfyUI build resolves `LoadImage` paths.
 
 ### 18.7 Behaviours the adapter must handle
 
@@ -1202,6 +1205,21 @@ Every file a workflow reads is made available to the target server before submis
 | `GetHistory` → `ErrPromptNotFound` | Not an error: the prompt has not finished (or was evicted from history) |
 | Application restart with jobs in `processing` | If the job's prompt id is still in history, collect its outputs instead of re-running; otherwise return the job to `queued` (acceptance test 28) |
 | `Listen` stream ends | Distinguish context cancellation (normal shutdown) from a dropped connection with `Err()` |
+
+
+### 18.8 The comfyui-model-crud extension
+
+ComfyUI can neither delete a file nor receive a model, so every server of this program runs the custom node [comfyui-model-crud](https://github.com/rm4n0s/comfyui-model-crud) (contract: its `openapi.yaml`, version 0.1.0). `internal/modelcrud` is its client, over plain `net/http`; `comfy.Server` owns one per server and exposes it as `DeleteOutput` and `UploadModel` of the port (§18.2). No other part of the program talks to it.
+
+| Use | Calls |
+|---|---|
+| Delete a result (§8.2) | `DELETE /model_crud/output?path=<subfolder>/<filename>`; `file_not_found` is success |
+| Upload a model (§9) | `POST /model_crud/uploads` `{folder, filename, size, subfolder?, overwrite}` → `{upload_id, path, chunk_size, total_chunks}`; `PUT /model_crud/uploads/{id}/chunks/{i}` with the raw bytes of chunk `i`, one after the other; `POST /model_crud/uploads/{id}/complete` → `{folder, path, size}` |
+
+- An upload starts with `overwrite: false`. On `file_exists` the client lists `GET /model_crud/models/{folder}`: a file of the same path and size is taken as already uploaded (nothing is sent), another size is replaced with a second session that sets `overwrite: true`.
+- A chunk that gets no answer, or `429`/`5xx`, is sent again (4 attempts, with back-off); other answers fail at once. A failed upload is cancelled with `DELETE /model_crud/uploads/{id}`, because the server keeps the disk space of an open session for a day.
+- Errors carry `{error, message}`. A `404` without that body means that the routes do not exist: `ModelCrudMissing`. `uploads_disabled` and `delete_disabled` are `ModelCrudDisabled`. Any other code is `ModelCrudRejected` with the code in the metadata. No answer, or a proxy's `502`/`503`/`504`, is `ServerUnreachable`; a cancelled context is `ComfyUICallCancelled`.
+- The extension has no authentication. Keep ComfyUI on a network you trust (the extension itself can be made read-only with `MODEL_CRUD_READ_ONLY=1`, which makes `ModelCrudDisabled` of every delete and upload).
 
 ## 19. Civitai integration (`gocivitailib`)
 
@@ -1270,7 +1288,7 @@ From §9:
 - `CivitaiNotConfigured` when the token or the cache directory is not configured (the library would return `ErrMissingToken`; the adapter checks first so nothing is attempted).
 - Pass the configured token and domain to `NewClient` explicitly; do not rely on environment variables.
 - Pause between consecutive downloads in a batch (configurable, default 15 s, as in the original). The library's retries handle `429` within a download; the pause is the application's politeness.
-- Copying the model into a ComfyUI `models/loras/<subfolder>/` directory (§9) is application code in `internal/civitai`; it needs filesystem access to that directory. A ComfyUI folder without `models/loras`, or a sub-folder that is not a plain relative path, is the caller's mistake (`InvalidRequest`, checked before anything is downloaded); a copy that fails is `FileStoreFailure`. The copy goes to a temporary name and is renamed, so ComfyUI never sees half a model.
+- Uploading the model to a ComfyUI server's `loras/<subfolder>/` folder (§9) goes through `comfy.Client.UploadModel` (§18.8); `internal/civitai` only opens the downloaded file, checks that the sub-folder is a plain relative path (otherwise `InvalidRequest`, checked before anything is downloaded) and hands the bytes over. A server that does not exist or is not online is refused before anything is downloaded (`ServerNotFound`, `ServerUnreachable`).
 - The LoRA item is built from `Model`: `code_name` = model id (`<model id>_<version id>` for a chosen version), `name` = model name, positive prompt = trigger words separated by blank lines, one LoRA entry `<subfolder>/<id>.safetensors` (`<subfolder>/<id>-<version id>.safetensors` for a chosen version) with the chosen strengths.
 - Error mapping, using `errors.Is` / `errors.As` on the library's errors and wrapping with `errors.NewErr`:
 

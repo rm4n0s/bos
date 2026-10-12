@@ -24,7 +24,7 @@ Not an error but often asked:
 
 ### `InvalidRequest`
 
-**Why.** The program could not understand what was sent: a malformed or empty body, an unknown field, a number that is not a number, a bad page, an id that is not positive, a file of the wrong kind, a path that points outside, a bad sub-folder or ComfyUI folder for an import.
+**Why.** The program could not understand what was sent: a malformed or empty body, an unknown field, a number that is not a number, a bad page, an id that is not positive, a file of the wrong kind, a path that points outside, a bad sub-folder for an import, or no server to import to.
 
 **What to do.** Read the message; it names the field or part. With `bosctl`, nothing is sent for such a mistake (exit code 2). For files, check the type (thumbnails are PNG, JPEG or GIF; the mask picture is PNG).
 
@@ -193,13 +193,6 @@ Not an error but often asked:
 **Why.** *Jobs at once* is less than 1.
 
 **What to do.** Use 1 or more.
-
-
-### `ServerComfyPathInvalid`
-
-**Why.** The *ComfyUI folder* of a server is longer than 500 characters or has a line break (or another control character) in it.
-
-**What to do.** Write the folder on one line, for example `/home/me/ComfyUI`. It may stay empty.
 
 
 ### `ServerHostInvalid`
@@ -487,6 +480,27 @@ Not an error but often asked:
 **What to do.** Nothing to do; the job continues after the next start.
 
 
+### `ModelCrudMissing`
+
+**Why.** The server answered, but it has no `/model_crud` routes: the [comfyui-model-crud](https://github.com/rm4n0s/comfyui-model-crud) extension is not installed in that ComfyUI. The program needs it to delete results from the `output` folder and to upload LoRAs.
+
+**What to do.** Install the extension in the `custom_nodes` folder of that ComfyUI and restart ComfyUI. Open `/model_crud/config` on the server to check that it answers.
+
+
+### `ModelCrudDisabled`
+
+**Why.** The extension is installed but switched off for this action: it was started with `MODEL_CRUD_READ_ONLY=1`, or with `MODEL_CRUD_ALLOW_UPLOAD` or `MODEL_CRUD_ALLOW_DELETE` set to 0.
+
+**What to do.** Start ComfyUI without the setting that forbids it. Until then a result stays in the `output` folder of the server (the job is fine, it has its copy) and a Civitai import to that server fails.
+
+
+### `ModelCrudRejected`
+
+**Why.** The extension refused the call. The log has its error code (`code`) and message: for example `extension_not_allowed` (the file type is not on its list; see `MODEL_CRUD_EXTRA_EXTENSIONS`), `too_large`, `insufficient_storage`, `too_many_uploads` or `path_outside_root`.
+
+**What to do.** Read the code in the log and the extension's documentation, and change the server or the request. A failed upload is cancelled on the server.
+
+
 ## Civitai
 
 
@@ -546,7 +560,7 @@ Not an error but often asked:
 
 **Why.** A file or a folder could not be read, written or removed.
 
-**What to do.** Check permissions and free space of the configured directories, and of the ComfyUI `models/loras` folder for a Civitai import. When the log says `could not remove a result from the ComfyUI output folder`, the job is fine (it has its copy) but the file stayed in the `output` folder of ComfyUI: check that this program may write there, or turn `delete_comfy_outputs` off in Settings.
+**What to do.** Check permissions and free space of the configured directories. A result that cannot be removed from ComfyUI is not this error: see `ModelCrudMissing`, `ModelCrudDisabled` and `ModelCrudRejected`.
 
 
 ### `FileOutsideStorage`

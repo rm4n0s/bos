@@ -17,7 +17,7 @@ func (a *API) groupRoutes() {
 	a.add(route{Method: "POST", Path: "/groups/import-text", Summary: "Create a group with one item per line of text", Success: http.StatusCreated,
 		Body: "json", Errors: []string{"GroupCodeNameTaken", "CodeNameInvalid"}, Run: a.importGroupText})
 	a.add(route{Method: "POST", Path: "/groups/import-civitai", Summary: "Create a group and import LoRAs from Civitai into it, in the background", Success: http.StatusAccepted,
-		Body: "json", Errors: []string{"CivitaiNotConfigured", "GroupCodeNameTaken", "CodeNameInvalid", "InvalidRequest"}, Run: a.importCivitaiGroup})
+		Body: "json", Errors: []string{"CivitaiNotConfigured", "GroupCodeNameTaken", "CodeNameInvalid", "InvalidRequest", "ServerNotFound", "ServerUnreachable"}, Run: a.importCivitaiGroup})
 	a.add(route{Method: "GET", Path: "/groups/{id}", Summary: "Get a group", Errors: []string{"GroupNotFound"}, Run: a.getGroup})
 	a.add(route{Method: "PUT", Path: "/groups/{id}", Summary: "Replace the editable fields of a group", Body: "either",
 		Errors: []string{"GroupNotFound", "GroupCodeNameTaken", "UploadTooLarge"}, Run: a.updateGroup})
@@ -134,7 +134,7 @@ func (a *API) itemRoutes() {
 	a.add(route{Method: "POST", Path: "/groups/{id}/items", Summary: "Create an item; its images may be uploaded", Success: http.StatusCreated,
 		Body: "either", Errors: []string{"ItemCodeNameTaken", "GroupNotFound", "UploadTooLarge", "MaskGenerationFailed", "CodeNameInvalid"}, Run: a.createItem})
 	a.add(route{Method: "POST", Path: "/groups/{id}/items/civitai", Summary: "Add one Civitai LoRA to a group as an item, in the background", Success: http.StatusAccepted,
-		Body: "json", Errors: []string{"CivitaiNotConfigured", "GroupNotFound", "InvalidRequest"}, Run: a.addCivitaiItem})
+		Body: "json", Errors: []string{"CivitaiNotConfigured", "GroupNotFound", "InvalidRequest", "ServerNotFound", "ServerUnreachable"}, Run: a.addCivitaiItem})
 	a.add(route{Method: "GET", Path: "/items/{id}", Summary: "Get an item", Errors: []string{"ItemNotFound"}, Run: a.getItem})
 	a.add(route{Method: "PUT", Path: "/items/{id}", Summary: "Replace the editable fields of an item", Body: "either",
 		Errors: []string{"ItemNotFound", "ItemCodeNameTaken", "UploadTooLarge", "MaskGenerationFailed"}, Run: a.updateItem})
@@ -258,14 +258,14 @@ func (a *API) importCivitaiGroup(w http.ResponseWriter, r *http.Request) error {
 	var in struct {
 		domain.Group
 		Models        []civitaiModel `json:"models"`
-		ComfyUIPath   string         `json:"comfyui_path"`
+		Server        string         `json:"server"`
 		LoRASubfolder string         `json:"lora_subfolder"`
 	}
 	if err := decodeJSON(w, r, &in); err != nil {
 		return err
 	}
 	in.Thumbnail = ""
-	req := service.CivitaiImport{Group: in.Group, ComfyPath: in.ComfyUIPath, Subfolder: in.LoRASubfolder}
+	req := service.CivitaiImport{Group: in.Group, Server: in.Server, Subfolder: in.LoRASubfolder}
 	for _, m := range in.Models {
 		req.Models = append(req.Models, m.service())
 	}
@@ -285,13 +285,13 @@ func (a *API) addCivitaiItem(w http.ResponseWriter, r *http.Request) error {
 	}
 	var in struct {
 		civitaiModel
-		ComfyUIPath   string `json:"comfyui_path"`
+		Server        string `json:"server"`
 		LoRASubfolder string `json:"lora_subfolder"`
 	}
 	if err := decodeJSON(w, r, &in); err != nil {
 		return err
 	}
-	out, err := a.Services.Civitai.AddItem(r.Context(), id, in.service(), in.ComfyUIPath, in.LoRASubfolder)
+	out, err := a.Services.Civitai.AddItem(r.Context(), id, in.service(), in.Server, in.LoRASubfolder)
 	if err != nil {
 		return err
 	}

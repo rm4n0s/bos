@@ -44,8 +44,7 @@ type Deps struct {
 	// NewSeed returns a random 64-bit number for generators with a random seed.
 	NewSeed func() uint64
 	// DeleteOutputs removes a result from the output folder of its ComfyUI once
-	// it is saved here (SPEC §8.2). It needs the server's comfyui_path; a server
-	// without one is left alone.
+	// it is saved here (SPEC §8.2), through the comfyui-model-crud extension.
 	DeleteOutputs bool
 
 	// Grace is how long a server may be unavailable before unpinned jobs that

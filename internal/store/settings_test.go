@@ -68,7 +68,7 @@ func TestMigrationThreeAddsTheSettingsTable(t *testing.T) {
 	if !db.gorm.Migrator().HasTable("settings") {
 		t.Error("migration 3 did not make the settings table")
 	}
-	if v, _ := db.SchemaVersion(ctx(t)); v != 3 {
+	if v, _ := db.SchemaVersion(ctx(t)); v != len(all) {
 		t.Errorf("version = %d", v)
 	}
 }

@@ -24,6 +24,7 @@ func migrations() []migration {
 		{version: 1, name: "initial schema", up: migrateV1},
 		{version: 2, name: "server comfyui path", up: migrateV2},
 		{version: 3, name: "settings", up: migrateV3},
+		{version: 4, name: "drop server comfyui path", up: migrateV4},
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rm4n0s/bos/internal/comfy"
+	"github.com/rm4n0s/bos/internal/comfy/comfytest"
 	"github.com/rm4n0s/errors"
 )
 
@@ -203,46 +206,60 @@ func TestNotConfigured(t *testing.T) {
 	_ = wantTag(t, err, "CivitaiNotConfigured")
 }
 
+// fakeTarget is a ComfyUI server with the extension: it keeps what it is sent.
+type fakeTarget struct {
+	files map[string][]byte
+	calls int
+	err   error
+}
+
+func (f *fakeTarget) UploadModel(_ context.Context, folder, subfolder, filename string, size int64, r io.Reader) (string, error) {
+	f.calls++
+	if f.err != nil {
+		return "", f.err
+	}
+	b, err := io.ReadAll(r)
+	if err != nil || int64(len(b)) != size {
+		return "", errors.New("ModelCrudRejected", "the size does not match", "size", size, "read", len(b))
+	}
+	path := folder + "/" + filename
+	if subfolder != "" {
+		path = folder + "/" + subfolder + "/" + filename
+	}
+	if f.files == nil {
+		f.files = map[string][]byte{}
+	}
+	f.files[path] = b
+	return strings.TrimPrefix(path, folder+"/"), nil
+}
+
 func TestInstall(t *testing.T) {
 	site := newSite(t)
-	cache := t.TempDir()
-	m, err := site.adapter("tok").Download(t.Context(), 7, 0, cache)
+	m, err := site.adapter("tok").Download(t.Context(), 7, 0, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	comfy := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(comfy, "models", "loras"), 0o750); err != nil {
-		t.Fatal(err)
-	}
 	a := site.adapter("tok")
+	target := &fakeTarget{}
 
-	name, err := a.Install(m, comfy, "civitai/foxes")
+	name, err := a.Install(t.Context(), m, target, "civitai/foxes")
 	if err != nil || name != "civitai/foxes/7.safetensors" {
 		t.Fatalf("name = %q, err = %v", name, err)
 	}
-	got, err := os.ReadFile(filepath.Join(comfy, "models", "loras", "civitai", "foxes", "7.safetensors"))
-	if err != nil || string(got) != string(site.content) {
-		t.Errorf("installed file: %v", err)
-	}
-	// Again: the same name, no new copy (the file is already there).
-	before, _ := os.Stat(filepath.Join(comfy, "models", "loras", "civitai", "foxes", "7.safetensors"))
-	name, err = a.Install(m, comfy, "civitai/foxes")
-	after, _ := os.Stat(filepath.Join(comfy, "models", "loras", "civitai", "foxes", "7.safetensors"))
-	if err != nil || name != "civitai/foxes/7.safetensors" || !after.ModTime().Equal(before.ModTime()) {
-		t.Errorf("second install: %q %v", name, err)
+	if got := target.files["loras/civitai/foxes/7.safetensors"]; string(got) != string(site.content) {
+		t.Errorf("uploaded %d bytes, want %d", len(got), len(site.content))
 	}
 	// No sub-folder.
-	name, err = a.Install(m, comfy, "")
-	if err != nil || name != "7.safetensors" {
+	name, err = a.Install(t.Context(), m, target, "")
+	if err != nil || name != "7.safetensors" || target.files["loras/7.safetensors"] == nil {
 		t.Errorf("flat install: %q %v", name, err)
 	}
-	// No temporary file is left.
-	_ = filepath.WalkDir(filepath.Join(comfy, "models"), func(p string, d os.DirEntry, _ error) error {
-		if strings.Contains(d.Name(), ".tmp") {
-			t.Errorf("a temporary file was left: %s", p)
-		}
-		return nil
-	})
+	// A version that was asked for has its own name.
+	m.Requested = 71
+	name, err = a.Install(t.Context(), m, target, "")
+	if err != nil || name != "7-71.safetensors" || target.files["loras/7-71.safetensors"] == nil {
+		t.Errorf("version install: %q %v", name, err)
+	}
 }
 
 func TestInstallRefusals(t *testing.T) {
@@ -251,24 +268,21 @@ func TestInstallRefusals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	comfy := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(comfy, "models", "loras"), 0o750); err != nil {
-		t.Fatal(err)
-	}
 	a := site.adapter("tok")
+	target := &fakeTarget{}
 	for _, sub := range []string{"..", "../x", "a/../b", "/abs", "a//b", `a\b`, "C:x", "a/./b", "x\x00y"} {
-		_, err := a.Install(m, comfy, sub)
+		_, err := a.Install(t.Context(), m, target, sub)
 		_ = wantTag(t, err, "InvalidRequest")
 	}
-	_, err = a.Install(m, filepath.Join(comfy, "nowhere"), "x")
-	_ = wantTag(t, err, "InvalidRequest")
-	_, err = a.Install(m, "", "x")
-	_ = wantTag(t, err, "InvalidRequest")
-	_, err = a.Install(Model{ID: 7, FilePath: filepath.Join(comfy, "missing.safetensors")}, comfy, "x")
+	_, err = a.Install(t.Context(), Model{ID: 7, FilePath: filepath.Join(t.TempDir(), "missing.safetensors")}, target, "x")
 	_ = wantTag(t, err, "FileStoreFailure")
-	if entries, _ := os.ReadDir(filepath.Join(comfy, "models", "loras", "x")); len(entries) != 0 {
-		t.Errorf("a failed copy left %v", entries)
+	if target.calls != 0 {
+		t.Errorf("the server was contacted %d times for a request that was refused", target.calls)
 	}
+	// What the server says is not hidden.
+	target.err = errors.New("ModelCrudMissing", "no extension")
+	_, err = a.Install(t.Context(), m, target, "x")
+	_ = wantTag(t, err, "ModelCrudMissing")
 }
 
 func TestModelName(t *testing.T) {
@@ -306,5 +320,33 @@ func TestDownloadAVersion(t *testing.T) {
 		if appErr.Metadata["model_id"] != 7 || appErr.Metadata["version_id"] != version {
 			t.Errorf("version %d: metadata = %v", version, appErr.Metadata)
 		}
+	}
+}
+
+// A model goes from the cache to a ComfyUI server over HTTP, through the
+// comfyui-model-crud extension, in the chunks the server asks for.
+func TestInstallToAServerWithTheExtension(t *testing.T) {
+	ext := comfytest.New(0)
+	t.Cleanup(ext.Close)
+	server, err := comfy.NewServer(ext.URL, comfy.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := server.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	site := newSite(t)
+	m, err := site.adapter("tok").Download(t.Context(), 7, 0, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	name, err := site.adapter("tok").Install(t.Context(), m, server, "civitai")
+	if err != nil || name != "civitai/7.safetensors" {
+		t.Fatalf("name = %q, err = %v", name, err)
+	}
+	if got := ext.Models()["loras/civitai/7.safetensors"]; string(got) != string(site.content) {
+		t.Errorf("the server holds %d bytes, want %d", len(got), len(site.content))
 	}
 }

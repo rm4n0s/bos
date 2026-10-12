@@ -62,9 +62,10 @@ type CivitaiImport struct {
 	// Group is the group to create (ImportGroup); its flag for LoRAs is set.
 	Group  domain.Group
 	Models []CivitaiModel
-	// ComfyPath is the folder of the ComfyUI installation; the models go to
-	// <ComfyPath>/models/loras/<Subfolder>.
-	ComfyPath string
+	// Server is the code name of the ComfyUI server the models are uploaded to;
+	// they go to its loras/<Subfolder> folder, through its comfyui-model-crud
+	// extension.
+	Server    string
 	Subfolder string
 }
 
@@ -72,7 +73,7 @@ type CivitaiImport struct {
 // use it.
 func (s *CivitaiService) Wait() { s.wg.Wait() }
 
-func (s *CivitaiService) check(in *CivitaiImport) error {
+func (s *CivitaiService) check(ctx context.Context, in *CivitaiImport) error {
 	if s.Civitai == nil || !s.Civitai.Configured() || s.Dirs.CivitaiCache == "" {
 		return errors.New("CivitaiNotConfigured", "Civitai needs an API token (civitai_token, set in Settings → Civitai) and a cache folder (civitai_cache_dir)")
 	}
@@ -90,8 +91,28 @@ func (s *CivitaiService) check(in *CivitaiImport) error {
 			return errors.New("InvalidRequest", "a version id is a positive number", "model_id", m.ModelID, "version_id", m.VersionID)
 		}
 	}
-	_, err := civitai.CheckTarget(in.ComfyPath, in.Subfolder)
+	if err := civitai.CheckSubfolder(in.Subfolder); err != nil {
+		return err
+	}
+	// The server must exist and answer now; asking before the downloads saves
+	// them when it does not.
+	_, err := s.target(ctx, in.Server)
 	return err
+}
+
+// target is the connection to the server an import uploads to.
+func (s *CivitaiService) target(ctx context.Context, code string) (civitai.Target, error) {
+	if strings.TrimSpace(code) == "" {
+		return nil, errors.New("InvalidRequest", "the server to upload the models to is required", "field", "server")
+	}
+	srv, err := s.Store.Repos().Servers().GetByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if s.Fleet == nil {
+		return nil, errors.New("ServerUnreachable", "no connection to the servers is available", "server", srv.CodeName)
+	}
+	return s.Fleet.Client(ctx, *srv)
 }
 
 // ImportGroup creates a group and imports one item into it for every model:
@@ -99,7 +120,7 @@ func (s *CivitaiService) check(in *CivitaiImport) error {
 // positive prompt, and one LoRA entry (SPEC §9). It returns the new, still
 // empty group; the items arrive as the downloads finish.
 func (s *CivitaiService) ImportGroup(ctx context.Context, in CivitaiImport) (*domain.Group, error) {
-	if err := s.check(&in); err != nil {
+	if err := s.check(ctx, &in); err != nil {
 		return nil, err
 	}
 	in.Group.UseLora = true
@@ -112,9 +133,9 @@ func (s *CivitaiService) ImportGroup(ctx context.Context, in CivitaiImport) (*do
 }
 
 // AddItem imports one model as an item of an existing group.
-func (s *CivitaiService) AddItem(ctx context.Context, group domain.ID, m CivitaiModel, comfyPath, subfolder string) (*domain.Group, error) {
-	in := CivitaiImport{Models: []CivitaiModel{m}, ComfyPath: comfyPath, Subfolder: subfolder}
-	if err := s.check(&in); err != nil {
+func (s *CivitaiService) AddItem(ctx context.Context, group domain.ID, m CivitaiModel, server, subfolder string) (*domain.Group, error) {
+	in := CivitaiImport{Models: []CivitaiModel{m}, Server: server, Subfolder: subfolder}
+	if err := s.check(ctx, &in); err != nil {
 		return nil, err
 	}
 	g, err := s.groups.Get(ctx, group)
@@ -181,7 +202,13 @@ func (s *CivitaiService) importOne(ctx context.Context, group domain.ID, m Civit
 	if err != nil {
 		return nil, false, err
 	}
-	name, err := s.Civitai.Install(model, in.ComfyPath, in.Subfolder)
+	// The connection is asked for again: the server may have come back with a
+	// new one while the model was downloading.
+	target, err := s.target(ctx, in.Server)
+	if err != nil {
+		return nil, model.Skipped, err
+	}
+	name, err := s.Civitai.Install(ctx, model, target, in.Subfolder)
 	if err != nil {
 		return nil, model.Skipped, err
 	}

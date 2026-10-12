@@ -59,10 +59,10 @@ type fakeComfy struct {
 	// prompt writes output/<prompt id>.png below it, and Fetch fails when that
 	// file is not there.
 	comfyRoot string
-	// outputIsDir makes that "file" a folder that is not empty, which cannot be
-	// removed like a file.
-	outputIsDir bool
-	warnings    []comfy.NodeWarning
+	// deleteErr is what DeleteOutput answers with, when set.
+	deleteErr error
+	deleted   []string // the files DeleteOutput was asked to remove
+	warnings  []comfy.NodeWarning
 
 	next     int
 	prompts  map[string]workflow.Graph
@@ -118,7 +118,7 @@ func (f *fakeComfy) Wait(ctx context.Context, id string) (comfy.Result, error) {
 	f.active++
 	f.maxSeen = max(f.maxSeen, f.active)
 	gate, latency, waitErr := f.gate, f.latency, f.waitErr
-	filename, root, asDir := f.filename, f.comfyRoot, f.outputIsDir
+	filename, root := f.filename, f.comfyRoot
 	g := f.prompts[id]
 	f.mu.Unlock()
 	defer func() {
@@ -168,12 +168,6 @@ func (f *fakeComfy) Wait(ctx context.Context, id string) (comfy.Result, error) {
 			return comfy.Result{}, errors.NewErr("FileStoreFailure", err)
 		}
 		made := filepath.Join(root, "output", filename)
-		if asDir {
-			made = filepath.Join(made, "inside.txt")
-			if err := os.MkdirAll(filepath.Dir(made), 0o755); err != nil {
-				return comfy.Result{}, errors.NewErr("FileStoreFailure", err)
-			}
-		}
 		if err := os.WriteFile(made, []byte("made by "+id), 0o600); err != nil {
 			return comfy.Result{}, errors.NewErr("FileStoreFailure", err)
 		}
@@ -213,6 +207,29 @@ func (f *fakeComfy) Upload(_ context.Context, name string, r io.Reader) (string,
 	f.uploads = append(f.uploads, name)
 	f.uploaded[name] = b
 	return f.name + "/" + name, nil
+}
+
+// DeleteOutput removes the file below comfyRoot, like the extension does on the
+// server.
+func (f *fakeComfy) DeleteOutput(_ context.Context, o comfy.OutputFile) error {
+	f.mu.Lock()
+	root, err := f.comfyRoot, f.deleteErr
+	f.deleted = append(f.deleted, o.Filename)
+	f.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if root == "" || o.Type != "output" {
+		return nil
+	}
+	if err := os.Remove(filepath.Join(root, "output", o.Subfolder, o.Filename)); err != nil && !os.IsNotExist(err) {
+		return errors.NewErr("FileStoreFailure", err)
+	}
+	return nil
+}
+
+func (f *fakeComfy) UploadModel(context.Context, string, string, string, int64, io.Reader) (string, error) {
+	return "", nil
 }
 
 func (f *fakeComfy) ListModels(context.Context, string) ([]string, error) { return nil, nil }
@@ -324,13 +341,13 @@ func (r *rig) server(code string, concurrent int) (*domain.Server, *fakeComfy) {
 	return r.serverAt(code, concurrent, "")
 }
 
-// serverAt registers a server that has a ComfyUI folder. With a folder the fake
-// works on disk below it (see comfyRoot).
-func (r *rig) serverAt(code string, concurrent int, comfyPath string) (*domain.Server, *fakeComfy) {
+// serverAt registers a server whose fake works on disk below root (see
+// comfyRoot).
+func (r *rig) serverAt(code string, concurrent int, root string) (*domain.Server, *fakeComfy) {
 	r.t.Helper()
 	f := newFakeComfy(code)
-	f.comfyRoot = comfyPath
-	srv, err := r.svc.Servers.Create(ctx(r.t), domain.Server{Name: code, Host: "http://" + code + ":8188", CodeName: code, MaxConcurrentJobs: concurrent, ComfyUIPath: comfyPath})
+	f.comfyRoot = root
+	srv, err := r.svc.Servers.Create(ctx(r.t), domain.Server{Name: code, Host: "http://" + code + ":8188", CodeName: code, MaxConcurrentJobs: concurrent})
 	check(r.t, err)
 	r.mu.Lock()
 	r.fakes[srv.Host] = f

@@ -36,7 +36,6 @@ Calls `POST /api/v1/servers`.
 | Flag | Meaning |
 |---|---|
 | `--code-name` | the code name used in commands |
-| `--comfyui-path` | the folder of ComfyUI's installation, offered when LoRAs are imported |
 | `--file` | read the JSON body from this file (- for standard input); flags override it |
 | `--host` | the ComfyUI address, http://host:8188 |
 | `--local` | ComfyUI reads this machine's files |
@@ -52,7 +51,6 @@ Calls `PUT /api/v1/servers/{id}`.
 | Flag | Meaning |
 |---|---|
 | `--code-name` | the code name |
-| `--comfyui-path` | the folder of ComfyUI's installation |
 | `--file` | read the JSON body from this file (- for standard input); flags override it |
 | `--host` | the ComfyUI address |
 | `--local` | ComfyUI reads this machine's files |
@@ -302,13 +300,13 @@ Calls `POST /api/v1/groups/import-civitai`.
 | Flag | Meaning |
 |---|---|
 | `--code-name` | the code name used in commands |
-| `--comfyui-path` | the ComfyUI installation folder |
 | `--description` | a description |
 | `--file` | read the JSON body from this file (- for standard input); flags override it |
-| `--lora-subfolder` | the sub-folder of models/loras |
+| `--lora-subfolder` | the sub-folder of the loras folder |
 | `--model` | a model as id[/version][:model strength[:clip strength]], repeatable (no version: the newest) |
 | `--name` | the name |
 | `--tags` | group tags, separated by commas |
+| `--upload-to` | the code name of the server the LoRAs are uploaded to |
 
 ## item
 
@@ -396,11 +394,11 @@ Calls `POST /api/v1/groups/{id}/items/civitai`.
 | Flag | Meaning |
 |---|---|
 | `--clip-strength` | strength for the text encoder (default 1) |
-| `--comfyui-path` | the ComfyUI installation folder |
 | `--file` | read the JSON body from this file (- for standard input); flags override it |
-| `--lora-subfolder` | the sub-folder of models/loras |
+| `--lora-subfolder` | the sub-folder of the loras folder |
 | `--model-strength` | strength for the model (default 1) |
 | `--model` | the Civitai model id |
+| `--upload-to` | the code name of the server the LoRAs are uploaded to |
 | `--version` | the version of the model (default: the newest) |
 
 ## tag

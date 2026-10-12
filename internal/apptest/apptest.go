@@ -155,6 +155,18 @@ func (client) ListModels(_ context.Context, folder string) ([]string, error) {
 	}
 	return nil, nil
 }
+func (client) DeleteOutput(context.Context, comfy.OutputFile) error { return nil }
+
+// UploadModel takes the model and says where it went.
+func (client) UploadModel(_ context.Context, _, subfolder, filename string, _ int64, r io.Reader) (string, error) {
+	if _, err := io.Copy(io.Discard, r); err != nil {
+		return "", err
+	}
+	if subfolder == "" {
+		return filename, nil
+	}
+	return subfolder + "/" + filename, nil
+}
 func (client) Cancel(context.Context, string) error { return nil }
 func (client) Close() error                         { return nil }
 
@@ -178,6 +190,6 @@ func (FakeCivitai) Download(_ context.Context, id, version int, _ string) (civit
 }
 
 // Install implements civitai.Models.
-func (FakeCivitai) Install(m civitai.Model, _, subfolder string) (string, error) {
+func (FakeCivitai) Install(_ context.Context, m civitai.Model, _ civitai.Target, subfolder string) (string, error) {
 	return civitai.ModelName(m.ID, m.Requested, subfolder), nil
 }

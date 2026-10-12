@@ -9,10 +9,10 @@ import (
 func (a *API) serverRoutes() {
 	a.add(route{Method: "GET", Path: "/servers", Paged: true, Summary: "List servers with their live status", Run: a.listServers})
 	a.add(route{Method: "POST", Path: "/servers", Summary: "Create a server", Success: http.StatusCreated, Body: "json",
-		Errors: []string{"CodeNameInvalid", "ServerCodeNameTaken", "ServerHostInvalid", "ServerMaxJobsInvalid", "ServerComfyPathInvalid", "NameInvalid"}, Run: a.createServer})
+		Errors: []string{"CodeNameInvalid", "ServerCodeNameTaken", "ServerHostInvalid", "ServerMaxJobsInvalid", "NameInvalid"}, Run: a.createServer})
 	a.add(route{Method: "GET", Path: "/servers/{id}", Summary: "Get a server", Errors: []string{"ServerNotFound"}, Run: a.getServer})
 	a.add(route{Method: "PUT", Path: "/servers/{id}", Summary: "Replace the editable fields of a server", Body: "json",
-		Errors: []string{"ServerNotFound", "ServerCodeNameTaken", "ServerHostInvalid", "ServerMaxJobsInvalid", "ServerComfyPathInvalid", "NameInvalid"}, Run: a.updateServer})
+		Errors: []string{"ServerNotFound", "ServerCodeNameTaken", "ServerHostInvalid", "ServerMaxJobsInvalid", "NameInvalid"}, Run: a.updateServer})
 	a.add(route{Method: "DELETE", Path: "/servers/{id}", Summary: "Delete a server", Success: http.StatusNoContent,
 		Errors: []string{"ServerNotFound"}, Response: "none", Run: a.deleteServer})
 	a.add(route{Method: "GET", Path: "/servers/{id}/loras", Summary: "List the LoRAs installed on a server's ComfyUI",

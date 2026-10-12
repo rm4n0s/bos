@@ -79,10 +79,6 @@ type Server struct {
 	CodeName          string `json:"code_name"`
 	IsLocal           bool   `json:"is_local"`
 	MaxConcurrentJobs int    `json:"max_concurrent_jobs"`
-	// ComfyUIPath is the folder of the ComfyUI installation, as this program
-	// sees it. Optional; the LoRA imports of Civitai offer the servers that
-	// have one and copy the models below it (SPEC §3.1, §19).
-	ComfyUIPath string `json:"comfyui_path"`
 	Timestamps
 }
 

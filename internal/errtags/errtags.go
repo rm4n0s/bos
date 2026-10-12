@@ -65,7 +65,6 @@ func All() []Tag {
 		{Name: "OutputTypeInvalid", Group: Validation},
 		{Name: "ServerMaxJobsInvalid", Group: Validation},
 		{Name: "ServerHostInvalid", Group: Validation},
-		{Name: "ServerComfyPathInvalid", Group: Validation},
 		{Name: "FixerTitleRequired", Group: Validation},
 		{Name: "GeneratorTitleRequired", Group: Validation},
 		{Name: "ItemControlNetInvalid", Group: Validation},
@@ -109,6 +108,9 @@ func All() []Tag {
 		{Name: "ComfyUIInterrupted", Group: ComfyUI},
 		{Name: "ComfyUIPromptLost", Group: ComfyUI},
 		{Name: "ComfyUICallCancelled", Group: ComfyUI},
+		{Name: "ModelCrudMissing", Group: ComfyUI},
+		{Name: "ModelCrudDisabled", Group: ComfyUI},
+		{Name: "ModelCrudRejected", Group: ComfyUI},
 
 		{Name: "CivitaiNotConfigured", Group: Civitai},
 		{Name: "CivitaiModelNotFound", Group: Civitai},

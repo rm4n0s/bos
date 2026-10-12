@@ -35,7 +35,6 @@ type serverRecord struct {
 	CodeName          string `gorm:"column:code_name"`
 	IsLocal           bool   `gorm:"column:is_local"`
 	MaxConcurrentJobs int    `gorm:"column:max_concurrent_jobs"`
-	ComfyUIPath       string `gorm:"column:comfyui_path"`
 	Stamps
 }
 
@@ -43,12 +42,12 @@ func (serverRecord) TableName() string { return "servers" }
 
 func serverToRecord(v *domain.Server) serverRecord {
 	return serverRecord{ID: v.ID, Name: v.Name, Host: v.Host, CodeName: v.CodeName, IsLocal: v.IsLocal,
-		MaxConcurrentJobs: v.MaxConcurrentJobs, ComfyUIPath: v.ComfyUIPath, Stamps: stampsOf(v.Timestamps)}
+		MaxConcurrentJobs: v.MaxConcurrentJobs, Stamps: stampsOf(v.Timestamps)}
 }
 
 func (r serverRecord) domain() domain.Server {
 	return domain.Server{ID: r.ID, Name: r.Name, Host: r.Host, CodeName: r.CodeName, IsLocal: r.IsLocal,
-		MaxConcurrentJobs: r.MaxConcurrentJobs, ComfyUIPath: r.ComfyUIPath, Timestamps: r.Stamps.domain()}
+		MaxConcurrentJobs: r.MaxConcurrentJobs, Timestamps: r.Stamps.domain()}
 }
 
 // ---- generators ----

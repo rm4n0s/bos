@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -26,7 +25,8 @@ type fakeCivitai struct {
 	downloads  []int
 	versions   []int // the version asked for with each download, 0 for the newest
 	installed  []string
-	gate       chan struct{} // when set, Download waits for it
+	targets    []civitai.Target // the connection each install was given
+	gate       chan struct{}    // when set, Download waits for it
 	entered    chan int
 }
 
@@ -58,7 +58,7 @@ func (f *fakeCivitai) Download(ctx context.Context, id, version int, dir string)
 	return m, nil
 }
 
-func (f *fakeCivitai) Install(m civitai.Model, comfy, sub string) (string, error) {
+func (f *fakeCivitai) Install(_ context.Context, m civitai.Model, target civitai.Target, sub string) (string, error) {
 	if f.installErr != nil {
 		return "", f.installErr
 	}
@@ -66,6 +66,7 @@ func (f *fakeCivitai) Install(m civitai.Model, comfy, sub string) (string, error
 	defer f.mu.Unlock()
 	name := civitai.ModelName(m.ID, m.Requested, sub)
 	f.installed = append(f.installed, name)
+	f.targets = append(f.targets, target)
 	return name, nil
 }
 
@@ -78,7 +79,8 @@ type civitaiEnv struct {
 	fake   *fakeCivitai
 	log    *events.Log
 	sleeps []time.Duration
-	comfy  string
+	// serverCode is the code name of the server the imports upload to.
+	serverCode string
 }
 
 func newCivitaiEnv(t *testing.T, mutate ...func(*Deps)) *civitaiEnv {
@@ -86,8 +88,7 @@ func newCivitaiEnv(t *testing.T, mutate ...func(*Deps)) *civitaiEnv {
 	fake := &fakeCivitai{configured: true, models: map[int]civitai.Model{
 		7: fox(7, "Dancing Fox", false, "dancing fox", "sparkles"), 8: fox(8, "Sleepy Owl", true, "owl"), 9: fox(9, "Third", false),
 	}, failures: map[int]error{}}
-	ce := &civitaiEnv{fake: fake, log: events.NewLog(100, nil), comfy: t.TempDir()}
-	check(t, os.MkdirAll(filepath.Join(ce.comfy, "models", "loras"), 0o750))
+	ce := &civitaiEnv{fake: fake, log: events.NewLog(100, nil), serverCode: "gpu1"}
 	var mu sync.Mutex
 	ce.env = newEnv(t, func(d *Deps) {
 		d.Civitai, d.Events, d.Pause = fake, ce.log, 15*time.Second
@@ -102,11 +103,13 @@ func newCivitaiEnv(t *testing.T, mutate ...func(*Deps)) *civitaiEnv {
 			m(d)
 		}
 	})
+	_, err := ce.Servers.Create(ctx(t), domain.Server{Name: "Main", Host: "http://gpu1:8188", CodeName: "gpu1"})
+	check(t, err)
 	return ce
 }
 
 func (c *civitaiEnv) imp(models ...int) CivitaiImport {
-	in := CivitaiImport{Group: domain.Group{Name: "Foxes", CodeName: "foxes"}, ComfyPath: c.comfy, Subfolder: "civitai"}
+	in := CivitaiImport{Group: domain.Group{Name: "Foxes", CodeName: "foxes"}, Server: c.serverCode, Subfolder: "civitai"}
 	for _, id := range models {
 		in.Models = append(in.Models, CivitaiModel{ModelID: id, StrengthModel: 0.8, StrengthClip: 0.6})
 	}
@@ -147,6 +150,17 @@ func TestImportGroup(t *testing.T) {
 		t.Errorf("a model without trigger words has no prompt: %q", items.Items[2].PositivePrompt)
 	}
 
+	// Every model went to the connection of the server that was asked for.
+	gpu1 := c.fleet.clients["http://gpu1:8188"]
+	if len(c.fake.targets) != 3 || gpu1 == nil {
+		t.Fatalf("%d installs, client %v", len(c.fake.targets), gpu1)
+	}
+	for _, target := range c.fake.targets {
+		if target != civitai.Target(gpu1) {
+			t.Errorf("installed to %v, want the client of gpu1", target)
+		}
+	}
+
 	// A pause before the second model; none before the third, because the
 	// second was already in the cache.
 	if len(c.sleeps) != 1 || c.sleeps[0] != 15*time.Second {
@@ -165,7 +179,6 @@ func TestImportGroup(t *testing.T) {
 	}
 
 	// The imported items are usable in a command, numeric code names included.
-	c.server(t, "gpu1")
 	c.generator(t, "anime")
 	p := c.project(t, "p")
 	cmd, err := c.Commands.Add(ctx(t), p.ID, CommandInput{Name: "x", Code: "gpu1 -$ anime: foxes(7)"})
@@ -212,10 +225,10 @@ func TestImportInstallFailureAndDuplicateItem(t *testing.T) {
 
 	// Importing a model that is already in the group says so.
 	c.fake.installErr = nil
-	_, err = c.Civitai.AddItem(ctx(t), g.ID, CivitaiModel{ModelID: 7, StrengthModel: 1, StrengthClip: 1}, c.comfy, "civitai")
+	_, err = c.Civitai.AddItem(ctx(t), g.ID, CivitaiModel{ModelID: 7, StrengthModel: 1, StrengthClip: 1}, c.serverCode, "civitai")
 	check(t, err)
 	c.Civitai.Wait()
-	_, err = c.Civitai.AddItem(ctx(t), g.ID, CivitaiModel{ModelID: 7, StrengthModel: 1, StrengthClip: 1}, c.comfy, "civitai")
+	_, err = c.Civitai.AddItem(ctx(t), g.ID, CivitaiModel{ModelID: 7, StrengthModel: 1, StrengthClip: 1}, c.serverCode, "civitai")
 	check(t, err)
 	c.Civitai.Wait()
 	if got := strings.Join(c.messages(), "|"); !strings.Contains(got, "Model 7: an item with this code name already exists") {
@@ -245,8 +258,8 @@ func TestImportRefusals(t *testing.T) {
 		{"too many", with(func(i *CivitaiImport) { i.Models = many }), "InvalidRequest"},
 		{"bad id", with(func(i *CivitaiImport) { i.Models[0].ModelID = 0 }), "InvalidRequest"},
 		{"bad subfolder", with(func(i *CivitaiImport) { i.Subfolder = "../escape" }), "InvalidRequest"},
-		{"no ComfyUI path", with(func(i *CivitaiImport) { i.ComfyPath = "" }), "InvalidRequest"},
-		{"ComfyUI path without loras", with(func(i *CivitaiImport) { i.ComfyPath = t.TempDir() }), "InvalidRequest"},
+		{"no server", with(func(i *CivitaiImport) { i.Server = "" }), "InvalidRequest"},
+		{"unknown server", with(func(i *CivitaiImport) { i.Server = "nope" }), "ServerNotFound"},
 		{"bad group name", with(func(i *CivitaiImport) { i.Group.CodeName = "bad name" }), "CodeNameInvalid"},
 	}
 	for _, tc := range tests {
@@ -273,7 +286,7 @@ func TestImportRefusals(t *testing.T) {
 		t.Error("a refused import downloaded something")
 	}
 
-	_, err = c.Civitai.AddItem(ctx(t), 999, CivitaiModel{ModelID: 7}, c.comfy, "x")
+	_, err = c.Civitai.AddItem(ctx(t), 999, CivitaiModel{ModelID: 7}, c.serverCode, "x")
 	wantRoute(t, err, "GroupService.Get", "GroupNotFound")
 }
 
@@ -287,7 +300,7 @@ func TestImportNeedsConfiguration(t *testing.T) {
 			c := newCivitaiEnv(t, mutate)
 			_, err := c.Civitai.ImportGroup(ctx(t), c.imp(7))
 			wantRoute(t, err, "CivitaiService.check", "CivitaiNotConfigured")
-			_, err = c.Civitai.AddItem(ctx(t), 1, CivitaiModel{ModelID: 7}, c.comfy, "x")
+			_, err = c.Civitai.AddItem(ctx(t), 1, CivitaiModel{ModelID: 7}, c.serverCode, "x")
 			wantRoute(t, err, "CivitaiService.check", "CivitaiNotConfigured")
 			if groups, _ := c.Groups.List(ctx(t), "", domain.Page{}); groups.Total != 0 {
 				t.Error("a refused import created a group")
@@ -389,5 +402,29 @@ func TestImportAVersion(t *testing.T) {
 	_, err = c.Civitai.ImportGroup(ctx(t), in)
 	if appErr, ok := errors.FromError(err); !ok || appErr.Tag != "InvalidRequest" {
 		t.Errorf("a negative version: %v", err)
+	}
+}
+
+// An import needs a server that answers, and says so before anything is
+// downloaded.
+func TestImportNeedsAnAvailableServer(t *testing.T) {
+	c := newCivitaiEnv(t)
+	down := errors.New("ServerUnreachable", "the server is not available")
+	c.fleet.err = down
+	// What the connection says is passed on untouched.
+	_, err := c.Civitai.ImportGroup(ctx(t), c.imp(7))
+	if err != error(down) { //nolint:errorlint // the same error value must come back
+		t.Errorf("err = %v, want the fleet's own error", err)
+	}
+	_, err = c.Civitai.AddItem(ctx(t), 1, CivitaiModel{ModelID: 7}, c.serverCode, "x")
+	if err != error(down) { //nolint:errorlint // the same error value must come back
+		t.Errorf("err = %v, want the fleet's own error", err)
+	}
+
+	c = newCivitaiEnv(t, func(d *Deps) { d.Fleet = nil })
+	_, err = c.Civitai.ImportGroup(ctx(t), c.imp(7))
+	wantRoute(t, err, "CivitaiService.target", "ServerUnreachable")
+	if len(c.fake.downloads) != 0 {
+		t.Errorf("downloaded %v", c.fake.downloads)
 	}
 }

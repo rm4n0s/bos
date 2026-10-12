@@ -154,6 +154,11 @@ type fakeClient struct {
 	err   error
 }
 
+func (c *fakeClient) DeleteOutput(context.Context, comfy.OutputFile) error { return nil }
+func (c *fakeClient) UploadModel(context.Context, string, string, string, int64, io.Reader) (string, error) {
+	return "", errors.New("Unsupported", "the fake client only lists models")
+}
+
 func (c *fakeClient) Ping(context.Context) error { return nil }
 func (c *fakeClient) QueuePrompt(context.Context, workflow.Graph) (string, []comfy.NodeWarning, error) {
 	return "", nil, errors.New("Unsupported", "the fake client only lists models")

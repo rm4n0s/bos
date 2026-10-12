@@ -16,7 +16,7 @@ import (
 // asserts the documented success code of each route (SPEC §20, acceptance 26).
 // It ends by checking that no registered route was left out.
 func TestEveryRoute(t *testing.T) {
-	a, comfy := withCivitai(t)
+	a, server := withCivitai(t)
 	ok := func(r reply, status int) reply { t.Helper(); return a.expect(r, status, "") }
 
 	ok(a.do("GET", "/healthz", nil), 200)
@@ -26,12 +26,9 @@ func TestEveryRoute(t *testing.T) {
 		if r.Header.Get("Location") != "/api/v1/servers/1" || r.json()["online"] != true {
 			t.Errorf("created = %v, Location = %q", r.json(), r.Header.Get("Location"))
 		}
-		two := ok(a.do("POST", "/api/v1/servers", map[string]any{"name": "GPU 2", "host": "http://gpu2:8188", "code_name": "gpu2", "comfyui_path": "/home/me/ComfyUI"}), 201).json()
-		if two["comfyui_path"] != "/home/me/ComfyUI" || r.json()["comfyui_path"] != "" {
-			t.Errorf("the ComfyUI folder: %v and %v", two["comfyui_path"], r.json()["comfyui_path"])
-		}
-		if back := ok(a.do("GET", "/api/v1/servers/2", nil), 200).json(); back["comfyui_path"] != "/home/me/ComfyUI" {
-			t.Errorf("read back %v", back["comfyui_path"])
+		two := ok(a.do("POST", "/api/v1/servers", map[string]any{"name": "GPU 2", "host": "http://gpu2:8188", "code_name": "gpu2"}), 201).json()
+		if _, there := two["comfyui_path"]; there {
+			t.Errorf("a server still has a ComfyUI folder: %v", two)
 		}
 		list := ok(a.do("GET", "/api/v1/servers", nil), 200).json()
 		if list["total"] != float64(2) || list["page"] != float64(1) || list["page_size"] != float64(20) || list["total_pages"] != float64(1) {
@@ -130,10 +127,10 @@ func TestEveryRoute(t *testing.T) {
 		}
 
 		civ := ok(a.do("POST", "/api/v1/groups/import-civitai", map[string]any{
-			"name": "Foxes", "code_name": "foxes", "comfyui_path": comfy, "models": []map[string]any{{"model_id": 7}},
+			"name": "Foxes", "code_name": "foxes", "server": server, "models": []map[string]any{{"model_id": 7}},
 		}), 202).json()
 		a.api.Services.Civitai.Wait()
-		ok(a.do("POST", "/api/v1/groups/"+jsonNumber(civ["id"].(float64))+"/items/civitai", map[string]any{"model_id": 8, "comfyui_path": comfy}), 202)
+		ok(a.do("POST", "/api/v1/groups/"+jsonNumber(civ["id"].(float64))+"/items/civitai", map[string]any{"model_id": 8, "server": server}), 202)
 		a.api.Services.Civitai.Wait()
 		ok(a.do("DELETE", "/api/v1/groups/"+jsonNumber(civ["id"].(float64)), nil), 204)
 	})

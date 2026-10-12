@@ -1,6 +1,6 @@
 // Package civitai is the Civitai port and its adapter over gocivitailib
-// (SPEC §9, §19). It downloads models into the cache and installs them into a
-// ComfyUI installation.
+// (SPEC §9, §19). It downloads models into the cache and uploads them to a
+// ComfyUI server.
 package civitai
 
 import (
@@ -21,10 +21,10 @@ type Models interface {
 	// that version instead, below <dir>/versions/<versionID>, so versions of
 	// one model do not overwrite each other.
 	Download(ctx context.Context, modelID, versionID int, dir string) (Model, error)
-	// Install copies a downloaded model into the LoRA folder of a ComfyUI
-	// installation, below the sub-folder, and returns the name ComfyUI knows
-	// it by: `<subfolder>/<id>.safetensors`.
-	Install(m Model, comfyPath, subfolder string) (name string, err error)
+	// Install uploads a downloaded model to the LoRA folder of a ComfyUI
+	// server, below the sub-folder, and returns the name ComfyUI knows it by:
+	// `<subfolder>/<id>.safetensors`.
+	Install(ctx context.Context, m Model, target Target, subfolder string) (name string, err error)
 	// Configured reports whether downloads can be attempted.
 	Configured() bool
 }
