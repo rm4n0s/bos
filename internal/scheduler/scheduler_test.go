@@ -283,7 +283,8 @@ func TestLogsWhatIsSentToComfyUI(t *testing.T) {
 		Sampler  string
 		Positive group
 		Negative group
-		Workflow string
+		Workflow json.RawMessage
+		Loras    []string
 	}
 	sent := map[int64]entry{}
 	var debugLines, fixerLines int
@@ -301,8 +302,12 @@ func TestLogsWhatIsSentToComfyUI(t *testing.T) {
 			}
 		case "workflow sent to ComfyUI":
 			debugLines++
-			if !strings.Contains(e.Workflow, `"class_type"`) {
-				t.Errorf("the debug line has no workflow: %.80s", line)
+			// The workflow is an object of nodes, not a string with backslashes.
+			var nodes map[string]struct {
+				ClassType string `json:"class_type"`
+			}
+			if err := json.Unmarshal(e.Workflow, &nodes); err != nil || len(nodes) == 0 {
+				t.Errorf("the debug line has no workflow object: %.120s (%v)", line, err)
 			}
 		}
 	}

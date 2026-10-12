@@ -233,6 +233,9 @@ func (s *Scheduler) logQueued(ctx context.Context, r *runner, g workflow.Graph, 
 	if job.Seed != nil {
 		base = append(base, "seed", *job.Seed)
 	}
+	if loras := loadedLoRAs(g); len(loras) > 0 {
+		base = append(base, "loras", loras)
+	}
 	samplers := workflow.EffectivePrompts(g)
 	if len(samplers) == 0 {
 		s.Logger.Info("sending a prompt to ComfyUI", append(base, "sampler", "none found")...)
@@ -244,9 +247,29 @@ func (s *Scheduler) logQueued(ctx context.Context, r *runner, g workflow.Graph, 
 	}
 	if s.Logger.Enabled(ctx, slog.LevelDebug) {
 		if raw, err := json.Marshal(g); err == nil {
-			s.Logger.Debug("workflow sent to ComfyUI", append(base, "workflow", string(raw))...)
+			// Raw JSON, so the log line holds the workflow as an object and not as
+			// one string full of backslashes.
+			s.Logger.Debug("workflow sent to ComfyUI", append(base, "workflow", json.RawMessage(raw))...)
 		}
 	}
+}
+
+// loadedLoRAs lists the LoRA loaders of the finished workflow, read back from
+// it like the prompts: file, then the strengths for the model and the text
+// encoder ("none" for a loader that has no text-encoder strength).
+func loadedLoRAs(g workflow.Graph) []string {
+	var out []string
+	for _, n := range g.Nodes() {
+		if n.ClassType != "LoraLoader" && n.ClassType != "LoraLoaderModelOnly" {
+			continue
+		}
+		clip := "none"
+		if raw, ok := n.Inputs["strength_clip"]; ok {
+			clip = string(raw)
+		}
+		out = append(out, strings.Trim(string(n.Inputs["lora_name"]), `"`)+" "+string(n.Inputs["strength_model"])+"/"+clip)
+	}
+	return out
 }
 
 // promptGroup describes the node a prompt comes from as one log attribute.

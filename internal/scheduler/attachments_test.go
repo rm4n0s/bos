@@ -1,6 +1,8 @@
 package scheduler
 
 import (
+	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -139,5 +141,48 @@ func TestLoRAsOfAllSelectedItemsAreChainedInTheWorkflow(t *testing.T) {
 	}
 	if loaders != 3 {
 		t.Errorf("%d LoRA loaders in the workflow, want 3", loaders)
+	}
+}
+
+// The log shows the LoRAs that are in the workflow, and at debug the whole
+// workflow, as an object, with their loader nodes.
+func TestLogShowsTheLoRAsOfTheWorkflow(t *testing.T) {
+	var logs syncBuffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	r := newRig(t, func(d *Deps) { d.Logger = logger })
+	r.server("gpu1", 1)
+	w := r.world(false)
+	_, err := r.svc.Items.Create(ctx(t), w.group.ID, domain.Item{CodeName: "look", PositivePrompt: "look", LoRAs: []domain.LoRA{{Name: "styles/fox", StrengthModel: 0.8, StrengthClip: 0.6}}})
+	check(t, err)
+	cmd := r.command(w, "gpu1 -$ anime: chars(look)")
+	r.start()
+	r.run(cmd)
+	r.waitStatus(cmd, domain.StatusFinished)
+
+	var info, debug bool
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		var e struct {
+			Msg      string
+			Step     string
+			Loras    []string
+			Workflow map[string]struct {
+				ClassType string                     `json:"class_type"`
+				Inputs    map[string]json.RawMessage `json:"inputs"`
+			}
+		}
+		check(t, json.Unmarshal([]byte(line), &e))
+		switch {
+		case e.Msg == "sending a prompt to ComfyUI" && e.Step == "generation":
+			info = slices.Equal(e.Loras, []string{"styles/fox.safetensors 0.8/0.6"})
+		case e.Msg == "workflow sent to ComfyUI" && e.Step == "generation":
+			for _, n := range e.Workflow {
+				if n.ClassType == "LoraLoader" && string(n.Inputs["lora_name"]) == `"styles/fox.safetensors"` {
+					debug = true
+				}
+			}
+		}
+	}
+	if !info || !debug {
+		t.Errorf("LoRAs on the info line: %v; LoraLoader in the debug workflow: %v\n%s", info, debug, logs.String())
 	}
 }
