@@ -1,11 +1,12 @@
-// Package lorainjector injects LoRA nodes into a ComfyUI workflow in API
-// format. A checkpoint workflow gets a LoraLoader per LoRA, patching MODEL and
-// CLIP; a split workflow (a UNETLoader and a separate CLIPLoader, as Z-Image
-// and Flux use) gets a LoraLoaderModelOnly, patching MODEL only. The LoRAs are
-// chained, each one reading the output of the one before.
+// The LoRA injector adds LoRA nodes to a ComfyUI workflow in API format. A
+// checkpoint workflow gets a LoraLoader per LoRA, patching MODEL and CLIP; a
+// split workflow (a UNETLoader and a separate CLIPLoader, as Z-Image and Flux
+// use) gets a LoraLoaderModelOnly, patching MODEL only. The LoRAs are chained,
+// each one reading the output of the one before.
 //
 // Every failure is an InjectorFailed error (SPEC §17.2).
-package lorainjector
+
+package workflow
 
 import (
 	"encoding/json"
@@ -165,8 +166,8 @@ func (inj *LoRAInjector) findCLIPLoader() string {
 	return ""
 }
 
-// inputRef represents a ComfyUI node reference: [sourceID, outputIndex].
-type inputRef struct {
+// loraRef represents a ComfyUI node reference: [sourceID, outputIndex].
+type loraRef struct {
 	SourceID    string
 	OutputIndex int
 }
@@ -174,10 +175,10 @@ type inputRef struct {
 // parseInputRef tries to decode a raw input value as [nodeID, outputIndex].
 // ComfyUI node IDs may be encoded as either a JSON string ("4") or a JSON
 // number (4), so we try both. Returns (ref, true) on success.
-func parseInputRef(raw json.RawMessage) (inputRef, bool) {
+func parseInputRef(raw json.RawMessage) (loraRef, bool) {
 	var arr []json.RawMessage
 	if err := json.Unmarshal(raw, &arr); err != nil || len(arr) < 2 {
-		return inputRef{}, false
+		return loraRef{}, false
 	}
 
 	// Try the node ID as a string first, then fall back to number.
@@ -186,20 +187,20 @@ func parseInputRef(raw json.RawMessage) (inputRef, bool) {
 		// Maybe it's a plain JSON number — convert to string.
 		var n json.Number
 		if err2 := json.Unmarshal(arr[0], &n); err2 != nil {
-			return inputRef{}, false
+			return loraRef{}, false
 		}
 		srcID = n.String()
 	}
 
 	var outIdx int
 	if err := json.Unmarshal(arr[1], &outIdx); err != nil {
-		return inputRef{}, false
+		return loraRef{}, false
 	}
-	return inputRef{SourceID: srcID, OutputIndex: outIdx}, true
+	return loraRef{SourceID: srcID, OutputIndex: outIdx}, true
 }
 
-// encodeInputRef marshals an inputRef back to [sourceID, outputIndex].
-func encodeInputRef(ref inputRef) (json.RawMessage, error) {
+// encodeInputRef marshals an loraRef back to [sourceID, outputIndex].
+func encodeInputRef(ref loraRef) (json.RawMessage, error) {
 	b, err := json.Marshal([]interface{}{ref.SourceID, ref.OutputIndex})
 	if err != nil {
 		return nil, failedBy(err, "cannot encode a link", "node", ref.SourceID)
@@ -211,7 +212,7 @@ func encodeInputRef(ref inputRef) (json.RawMessage, error) {
 type nodeInputRef struct {
 	NodeID   string
 	InputKey string
-	Ref      inputRef
+	Ref      loraRef
 }
 
 // findNodesUsingModel returns all (nodeID, inputKey) pairs whose input
@@ -352,7 +353,7 @@ func (inj *LoRAInjector) addLoRASplitWorkflow(cfg LoRAConfig, insertAfterNode st
 		if d.NodeID == nodeID {
 			continue
 		}
-		ref, err := encodeInputRef(inputRef{SourceID: nodeID, OutputIndex: 0})
+		ref, err := encodeInputRef(loraRef{SourceID: nodeID, OutputIndex: 0})
 		if err != nil {
 			return "", err
 		}
@@ -408,7 +409,7 @@ func (inj *LoRAInjector) addLoRACheckpointWorkflow(cfg LoRAConfig, insertAfterNo
 			continue
 		}
 		if d.Ref.OutputIndex == 0 || d.Ref.OutputIndex == 1 {
-			ref, err := encodeInputRef(inputRef{SourceID: nodeID, OutputIndex: d.Ref.OutputIndex})
+			ref, err := encodeInputRef(loraRef{SourceID: nodeID, OutputIndex: d.Ref.OutputIndex})
 			if err != nil {
 				return "", err
 			}

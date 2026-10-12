@@ -1,4 +1,4 @@
-package lorainjector
+package workflow
 
 import (
 	"encoding/json"
