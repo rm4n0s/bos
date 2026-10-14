@@ -15,7 +15,7 @@ What you can do with a command:
 | **Recreate** | Deletes the jobs and makes them again from the stored text (a `sample` without a seed gives the same ones, because its seed was stored). Handy after you changed groups |
 | **Edit** | Changing the name or description is immediate. Changing the **text** deletes the old jobs and results and makes new ones |
 | **Move / renumber** | Commands are numbered 1, 2, 3…; moving one shifts the others |
-| **Download** | Only for a **finished** command: a ZIP of every result plus `summary.json` with each job's prompts and LoRAs |
+| **Download** | A ZIP of the results of the jobs that are **finished** so far (the command may still be running) plus `summary.json` with all the information of those jobs: prompts, LoRAs, seed, server, settings, warnings. Refused while no job is finished |
 | **Delete** | Deletes its jobs and files. A command that is queued or running must be stopped first |
 
 Deleting a project deletes all its commands, jobs and result files, and is refused while any of its commands is queued or running.

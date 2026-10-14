@@ -123,6 +123,7 @@ type CommandStore interface {
 	Create(ctx context.Context, v *domain.Command, insertAt int) error
 	Update(ctx context.Context, v *domain.Command) error
 	SetStatus(ctx context.Context, id domain.ID, status domain.Status) error
+	SetDownloadFile(ctx context.Context, id domain.ID, path string) error
 	Get(ctx context.Context, id domain.ID) (*domain.Command, error)
 	ListByProject(ctx context.Context, project domain.ID, p domain.Page) (domain.Paged[domain.CommandSummary], error)
 	AllByProject(ctx context.Context, project domain.ID) ([]domain.Command, error)

@@ -307,10 +307,10 @@
                 }
               }
             },
-            "description": "Error tags: CommandNotFinished"
+            "description": "Error tags: CommandNoResults"
           }
         },
-        "summary": "Download a ZIP of the results and a summary of the prompts"
+        "summary": "Download a ZIP of the results of the finished jobs and a JSON file with all their information"
       }
     },
     "/commands/{id}/jobs": {

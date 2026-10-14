@@ -231,7 +231,7 @@ var commands = []command{
 	{Resource: "command", Verb: "run", Summary: "Queue the idle jobs of a command (--wait to follow it to the end)", Method: "POST", Path: "/commands/{id}/run", Args: []string{"id"}, Result: resultOne, Special: "wait"},
 	{Resource: "command", Verb: "stop", Summary: "Return the queued jobs of a command to idle", Method: "POST", Path: "/commands/{id}/stop", Args: []string{"id"}, Result: resultOne},
 	{Resource: "command", Verb: "recreate", Summary: "Delete the jobs of a command and make them again", Method: "POST", Path: "/commands/{id}/recreate", Args: []string{"id"}, Result: resultOne},
-	{Resource: "command", Verb: "download", Summary: "Save the ZIP of the results of a finished command", Method: "GET", Path: "/commands/{id}/download", Args: []string{"id"}, Result: resultBytes},
+	{Resource: "command", Verb: "download", Summary: "Save the ZIP of the results of the finished jobs of a command", Method: "GET", Path: "/commands/{id}/download", Args: []string{"id"}, Result: resultBytes},
 
 	// jobs
 	{Resource: "job", Verb: "list", Summary: "List the jobs of a command", Method: "GET", Path: "/commands/{id}/jobs", Args: []string{"command"}, Paged: true, Result: resultList,

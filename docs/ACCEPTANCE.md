@@ -18,7 +18,7 @@ Run them all with `go test -race ./...`.
 | 7 | LoRA injection, both workflow styles | `TestInjectLoRAsCheckpointStyle`, `TestInjectLoRAsSplitStyle` |
 | 8 | A job with two fixers | `TestFixerStepsRunInOrderEachOnItsServer`, `TestAcceptanceWholeProgram` |
 | 9 | A failure halts the queued jobs | `TestAWorkflowFailureHaltsTheBatch` |
-| 10 | Download of an unfinished and a finished command | `TestDownloadRefusals`, `TestDownloadArchivesTheResults`, `TestAcceptanceWholeProgram` |
+| 10 | Download of a command with no finished job, of one that is only partly finished, and of a finished one | `TestDownloadRefusals`, `TestDownloadArchivesTheResults`, `TestDownloadOfACommandThatIsNotFinished`, `TestAcceptanceWholeProgram` |
 | 11 | Templates | `TestExpandTemplates`, `TestRemovePlaceholders` |
 | 12 | Deletion rules | `TestDeleteGroupCascades`, `TestDeleteGroupRemovesItsFiles`, `TestDeleteProjectCascades`, `TestDeleteCommandAndProject`, `TestUpdateRemovesFilesTheItemNoLongerUses` |
 | 13 | Events come in order, across servers | `TestConcurrentAppendsAreOrdered`, `TestAfterReturnsWhatCameAfter`, `TestAcceptanceWholeProgram` |

@@ -35,7 +35,7 @@
       <button type="button" data-on:click="@post('/ui/commands/{{.ID}}/run?page={{$.Pager.Page}}')">Run</button>
       <button type="button" class="secondary" data-on:click="@post('/ui/commands/{{.ID}}/stop?page={{$.Pager.Page}}')">Stop</button>
       <button type="button" class="secondary" data-on:click="@post('/ui/commands/{{.ID}}/recreate?page={{$.Pager.Page}}')">Recreate</button>
-      {{if eq (statusOf .Status) "finished"}}<a href="/commands/{{.ID}}/download"><button type="button" class="secondary">Download</button></a>{{end}}
+      {{template "command_download" .}}
       <button type="button" class="secondary" data-on:click="@get('/ui/commands/{{.ID}}/edit')">Edit</button>
       {{template "delete_button" (dict "ID" .ID "URL" (printf "/ui/commands/%d?page=%d" .ID $.Pager.Page))}}
     </td>
@@ -47,6 +47,9 @@
 </div>{{end}}
 
 {{define "command_progress"}}<span id="cmd-progress-{{.ID}}"><span class="badge {{statusOf .Status}}">{{.Status}}</span> <span class="muted">{{.FinishedJobs}}/{{.TotalJobs}}</span></span>{{end}}
+
+{{/* Download is offered as soon as one job is finished, so it follows the progress. */}}
+{{define "command_download"}}<span id="cmd-download-{{.ID}}">{{if .FinishedJobs}}<a href="/commands/{{.ID}}/download"><button type="button" class="secondary" title="The results of the {{.FinishedJobs}} finished job(s) and their information">Download</button></a>{{end}}</span>{{end}}
 
 {{define "command_form"}}
 <h2>{{if .ID}}Edit command{{else}}Add command{{end}}</h2>

@@ -90,6 +90,15 @@ func (r *CommandRepo) SetStatus(ctx context.Context, id domain.ID, status domain
 	return affected(res, "write command", "CommandNotFound", "command", id)
 }
 
+// SetDownloadFile remembers the path of a command's export archive. It writes
+// that column only, so a command that is running keeps the status the scheduler
+// gives it.
+func (r *CommandRepo) SetDownloadFile(ctx context.Context, id domain.ID, path string) error {
+	res := r.conn(ctx).Model(&commandRecord{}).Where("id = ?", id).
+		Updates(map[string]any{"download_file": path, "updated_at": r.now()})
+	return affected(res, "write command", "CommandNotFound", "command", id)
+}
+
 // Get returns one command.
 func (r *CommandRepo) Get(ctx context.Context, id domain.ID) (*domain.Command, error) {
 	rec, err := find[commandRecord](r.conn(ctx).Where("id = ?", id), "CommandNotFound", "command", id, "read command")

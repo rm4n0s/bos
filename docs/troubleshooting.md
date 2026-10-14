@@ -334,11 +334,11 @@ Not an error but often asked:
 **What to do.** Wait for it, stop it, or recreate its jobs to make new idle ones.
 
 
-### `CommandNotFinished`
+### `CommandNoResults`
 
-**Why.** You asked to download a command that is not finished.
+**Why.** You asked to download a command that has no finished job yet, so there is nothing to put in the archive.
 
-**What to do.** Wait until all its jobs are finished. A command with failed jobs is not finished: fix or run them again.
+**What to do.** Wait until at least one job is finished. A command does not have to be finished: the archive holds the jobs that are finished when you ask.
 
 
 ### `CommandBusy`

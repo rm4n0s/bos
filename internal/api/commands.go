@@ -30,8 +30,8 @@ func (a *API) commandRoutes() {
 		Errors: []string{"CommandNotFound"}, Run: a.stopCommand})
 	a.add(route{Method: "POST", Path: "/commands/{id}/recreate", Summary: "Delete the jobs of a command and create them again", Success: http.StatusAccepted,
 		Errors: append([]string{"CommandNotFound", "CommandBusy"}, cmdErrs...), Run: a.recreateCommand})
-	a.add(route{Method: "GET", Path: "/commands/{id}/download", Summary: "Download a ZIP of the results and a summary of the prompts",
-		Response: "file", Errors: []string{"CommandNotFound", "CommandNotFinished", "FileNotFound"}, Run: a.downloadCommand})
+	a.add(route{Method: "GET", Path: "/commands/{id}/download", Summary: "Download a ZIP of the results of the finished jobs and a JSON file with all their information",
+		Response: "file", Errors: []string{"CommandNotFound", "CommandNoResults", "FileNotFound"}, Run: a.downloadCommand})
 }
 
 func (a *API) listCommands(w http.ResponseWriter, r *http.Request) error {

@@ -15,31 +15,36 @@ import (
 // summaryName is the JSON file inside an export archive.
 const summaryName = "summary.json"
 
-// summaryEntry describes one result in the archive (SPEC §7.2).
+// summaryEntry describes one finished job in the archive (SPEC §7.2): all the
+// job's information, with ResultPath changed to the name of its file inside the
+// archive.
 type summaryEntry struct {
-	JobID          domain.ID     `json:"job_id"`
-	File           string        `json:"file"`
-	PositivePrompt string        `json:"positive_prompt"`
-	NegativePrompt string        `json:"negative_prompt"`
-	LoRAs          []domain.LoRA `json:"loras"`
+	domain.Job
 }
 
-// Download writes the export archive of a finished command: every job's result
-// file and a JSON summary of the prompts and LoRAs. It remembers the archive's
-// path on the command and returns it. A command that is not finished fails with
-// CommandNotFinished.
+// Download writes the export archive of a command: the result file of every
+// finished job and a JSON summary with all the information of those jobs. The
+// command need not be finished; the archive holds what is finished when it is
+// made. It remembers the archive's path on the command and returns it. A command
+// with no finished job fails with CommandNoResults.
 func (s *CommandService) Download(ctx context.Context, id domain.ID) (string, error) {
 	r := s.Store.Repos()
 	cmd, err := r.Commands().Get(ctx, id)
 	if err != nil {
 		return "", err
 	}
-	if cmd.Status != domain.StatusFinished {
-		return "", errors.New("CommandNotFinished", "only a finished command can be downloaded", "command_id", id, "status", string(cmd.Status))
-	}
-	jobs, err := r.Jobs().AllByCommand(ctx, id)
+	all, err := r.Jobs().AllByCommand(ctx, id)
 	if err != nil {
 		return "", err
+	}
+	jobs := make([]domain.Job, 0, len(all))
+	for i := range all {
+		if all[i].Status == domain.StatusFinished && all[i].ResultPath != "" {
+			jobs = append(jobs, all[i])
+		}
+	}
+	if len(jobs) == 0 {
+		return "", errors.New("CommandNoResults", "the command has no finished job to download", "command_id", id, "status", string(cmd.Status))
 	}
 	path := filepath.Join(s.Dirs.Downloads, "command-"+strconv.FormatInt(id, 10)+".zip")
 
@@ -62,8 +67,7 @@ func (s *CommandService) Download(ctx context.Context, id domain.ID) (string, er
 	}
 	if cmd.DownloadFile != path {
 		old := cmd.DownloadFile
-		cmd.DownloadFile = path
-		if err := r.Commands().Update(ctx, cmd); err != nil {
+		if err := r.Commands().SetDownloadFile(ctx, id, path); err != nil {
 			return "", err
 		}
 		if old != "" {
@@ -91,11 +95,9 @@ func (s *CommandService) writeArchive(ctx context.Context, w io.Writer, jobs []d
 		if err := s.addResult(zw, name, j.ResultPath); err != nil {
 			return err
 		}
-		loras := j.LoRAs
-		if loras == nil {
-			loras = []domain.LoRA{}
-		}
-		summary = append(summary, summaryEntry{JobID: j.ID, File: name, PositivePrompt: j.PositivePrompt, NegativePrompt: j.NegativePrompt, LoRAs: loras})
+		entry := summaryEntry{Job: *j}
+		entry.ResultPath = name
+		summary = append(summary, entry)
 	}
 	sw, err := zw.Create(summaryName)
 	if err != nil {

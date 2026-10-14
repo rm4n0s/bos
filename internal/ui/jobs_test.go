@@ -251,8 +251,9 @@ func TestToastStream(t *testing.T) {
 		u.env.Events.Append(events.Event{Type: events.Finished, JobID: j.ID, CommandID: cmd, ProjectID: 1, Server: "gpu1"})
 	}
 	u.env.Events.Append(events.Event{Type: events.Error, JobID: jobs[2].ID, CommandID: cmd, ProjectID: 1, Server: "gpu1"})
-	got := s.until(`id="cmd-progress-` + itoa(cmd) + `"`)
-	mustContain(t, "toasts", got, `class="toast finished"`, "2 jobs finished.", `class="toast error"`, "1 job failed: #3.", `cmd-progress-`+itoa(cmd), "1/3")
+	got := s.until(`id="cmd-download-` + itoa(cmd) + `"`)
+	mustContain(t, "toasts", got, `class="toast finished"`, "2 jobs finished.", `class="toast error"`, "1 job failed: #3.", `cmd-progress-`+itoa(cmd), "1/3",
+		`id="cmd-download-`+itoa(cmd)+`"`, `href="/commands/`+itoa(cmd)+`/download"`)
 
 	// A server going away says so and redraws its badge.
 	u.env.Fleet.SetDown(srv.Items[0].ID, true)

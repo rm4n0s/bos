@@ -168,16 +168,27 @@ func TestCommandScreen(t *testing.T) {
 	mustContain(t, "stop", u.datastar("POST", "/ui/commands/1/stop", struct{}{}).patches(), "Stopped what was waiting.", `badge idle`)
 	mustContain(t, "recreate", u.datastar("POST", "/ui/commands/1/recreate", struct{}{}).patches(), "The jobs were made again.")
 
-	// A finished command can be downloaded.
-	if r := u.get("/commands/1/download"); r.Status != 409 || !strings.Contains(r.Body, "finished") {
-		t.Errorf("download of an unfinished command: %d %q", r.Status, r.Body)
+	// With no finished job there is nothing to download and no button.
+	if r := u.get("/commands/1/download"); r.Status != 409 || !strings.Contains(r.Body, "no finished job") {
+		t.Errorf("download of a command with no results: %d %q", r.Status, r.Body)
 	}
+	mustNotContain(t, "page without results", u.get("/projects/"+itoa(project)+"/commands").Body, `href="/commands/1/download"`)
 	jobs, _ := u.env.DB.Repos().Jobs.AllByCommand(t.Context(), 1)
-	for _, j := range jobs {
+	finish := func(j domain.Job) {
 		check(t, os.MkdirAll(filepath.Dir(j.ResultPath), 0o750))
 		check(t, os.WriteFile(j.ResultPath, png1(), 0o600))
 		j.Status = domain.StatusFinished
 		check(t, u.env.DB.Repos().Jobs.Update(t.Context(), &j))
+	}
+
+	// A finished job is enough, though the command itself is not finished.
+	for _, j := range jobs {
+		finish(j)
+	}
+	mustContain(t, "page with results", u.get("/projects/"+itoa(project)+"/commands").Body, `href="/commands/1/download"`, `badge idle`, "1/1")
+	part := u.get("/commands/1/download")
+	if part.Status != 200 || !strings.HasPrefix(part.Body, "PK") {
+		t.Errorf("download of a command that is not finished: %d %q", part.Status, part.Header.Get("Content-Type"))
 	}
 	check(t, u.env.DB.Repos().Commands.SetStatus(t.Context(), 1, domain.StatusFinished))
 	page := u.get("/projects/" + itoa(project) + "/commands").Body

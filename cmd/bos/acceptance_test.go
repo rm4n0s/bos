@@ -180,8 +180,8 @@ func TestAcceptanceWholeProgram(t *testing.T) {
 		t.Fatalf("add made %d jobs, status %v", len(p.jobs(1)), cmd["status"])
 	}
 
-	// 10: an unfinished command cannot be downloaded.
-	if status, out := p.call("GET", "/commands/1/download", nil); status != 409 || out["error"].(map[string]any)["tag"] != "CommandNotFinished" {
+	// 10: a command with no finished job cannot be downloaded.
+	if status, out := p.call("GET", "/commands/1/download", nil); status != 409 || out["error"].(map[string]any)["tag"] != "CommandNoResults" {
 		t.Fatalf("download before the end: %d %v", status, out)
 	}
 

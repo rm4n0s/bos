@@ -611,7 +611,7 @@ Calls `POST /api/v1/commands/{id}/recreate`.
 
 ### `bosctl command download ID [flags]`
 
-Save the ZIP of the results of a finished command.
+Save the ZIP of the results of the finished jobs of a command.
 
 Calls `GET /api/v1/commands/{id}/download`.
 

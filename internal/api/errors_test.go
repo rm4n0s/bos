@@ -93,7 +93,7 @@ func TestErrorEnvelope(t *testing.T) {
 		{"repl invalid", "POST", "/api/v1/repl/run", map[string]any{"server": "gpu1", "generator": "anime", "items": "not valid"}, 422, "ReplInvalid"},
 		{"repl unknown server", "POST", "/api/v1/repl/run", map[string]any{"server": "nope", "generator": "anime"}, 404, "ServerNotFound"},
 
-		{"command not finished", "GET", "/api/v1/commands/1/download", nil, 409, "CommandNotFinished"},
+		{"command not finished", "GET", "/api/v1/commands/1/download", nil, 409, "CommandNoResults"},
 		{"job not runnable", "POST", "/api/v1/jobs/1/stop", nil, 409, "JobNotRunnable"},
 		{"loras of a missing server", "GET", "/api/v1/servers/99/loras", nil, 404, "ServerNotFound"},
 	}

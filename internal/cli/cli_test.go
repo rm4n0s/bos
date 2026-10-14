@@ -541,9 +541,9 @@ func TestDownloadsAreSaved(t *testing.T) {
 		t.Errorf("file get: %v", err)
 	}
 	// A refused download writes nothing.
-	s.answers["GET /api/v1/commands/5/download"] = answer{409, `{"error":{"tag":"CommandNotFinished","message":"only a finished command can be downloaded"}}`, nil}
+	s.answers["GET /api/v1/commands/5/download"] = answer{409, `{"error":{"tag":"CommandNoResults","message":"only a finished command can be downloaded"}}`, nil}
 	code, _, errOut = s.bosctl("command", "download", "5", "--output", filepath.Join(dir, "no.zip"))
-	if code != 1 || !strings.Contains(errOut, "CommandNotFinished") {
+	if code != 1 || !strings.Contains(errOut, "CommandNoResults") {
 		t.Errorf("refused download: %d %q", code, errOut)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "no.zip")); err == nil {

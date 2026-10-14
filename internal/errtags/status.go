@@ -45,7 +45,7 @@ var statuses = map[string]int{
 	"CommandSettingInvalid": http.StatusUnprocessableEntity, "CommandKeyDuplicated": http.StatusUnprocessableEntity,
 	"CommandTooLarge": http.StatusUnprocessableEntity,
 
-	"CommandBusy": http.StatusConflict, "CommandNotRunnable": http.StatusConflict, "CommandNotFinished": http.StatusConflict,
+	"CommandBusy": http.StatusConflict, "CommandNotRunnable": http.StatusConflict, "CommandNoResults": http.StatusConflict,
 	"JobNotRunnable": http.StatusConflict, "JobBusy": http.StatusConflict, "ReplInvalid": http.StatusUnprocessableEntity,
 
 	"WorkflowInvalid": http.StatusUnprocessableEntity, "WorkflowTitleDuplicated": http.StatusUnprocessableEntity,

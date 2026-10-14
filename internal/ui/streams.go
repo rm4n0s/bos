@@ -246,6 +246,9 @@ func (u *UI) drawToasts(r *http.Request, s *stream, batch []events.Event, gap bo
 		if err := s.render("command_progress", sum); err != nil {
 			return err
 		}
+		if err := s.render("command_download", sum); err != nil {
+			return err
+		}
 	}
 	return nil
 }

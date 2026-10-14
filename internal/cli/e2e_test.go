@@ -189,7 +189,7 @@ func TestCLIAgainstTheRealAPI(t *testing.T) {
 
 	// Download refused, then done once the command is finished.
 	code, _, errOut = r.run("command", "download", "1", "--output", filepath.Join(dir, "x.zip"))
-	if code != 1 || !strings.Contains(errOut, "CommandNotFinished") {
+	if code != 1 || !strings.Contains(errOut, "CommandNoResults") {
 		t.Errorf("download: %d %q", code, errOut)
 	}
 

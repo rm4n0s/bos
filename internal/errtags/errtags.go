@@ -87,7 +87,7 @@ func All() []Tag {
 
 		{Name: "CommandBusy", Group: State},
 		{Name: "CommandNotRunnable", Group: State},
-		{Name: "CommandNotFinished", Group: State},
+		{Name: "CommandNoResults", Group: State},
 		{Name: "JobNotRunnable", Group: State},
 		{Name: "JobBusy", Group: State},
 		{Name: "ReplInvalid", Group: State},
