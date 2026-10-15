@@ -69,6 +69,8 @@
   {{if .SeedText}}<li>seed <code>{{.SeedText}}</code></li>{{end}}
   <li>attempts {{.Job.Attempts}}</li>
   {{if .Job.ServerHost}}<li>server {{.Job.ServerHost}}</li>{{end}}
+  <li>created {{when .Job.CreatedAt}}</li>
+  <li>updated {{when .Job.UpdatedAt}}</li>
 </ul>
 {{if .Job.LoRAs}}<p>LoRAs: {{range .Job.LoRAs}}<span class="chip">{{.Name}} {{.StrengthModel}}/{{.StrengthClip}}</span>{{end}}</p>{{end}}
 {{end}}

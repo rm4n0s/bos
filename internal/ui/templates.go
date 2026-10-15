@@ -151,11 +151,14 @@ func (u *UI) funcs() template.FuncMap {
 	}
 }
 
-func formatTime(t time.Time) string {
+// formatTime writes a <time> element: the UTC text is the fallback, and
+// static/localtime.js replaces it with the time in the viewer's timezone.
+func formatTime(t time.Time) template.HTML {
 	if t.IsZero() {
 		return ""
 	}
-	return t.UTC().Format("2006-01-02 15:04")
+	t = t.UTC()
+	return template.HTML(`<time datetime="` + t.Format(time.RFC3339) + `">` + t.Format("2006-01-02 15:04") + ` UTC</time>`) //nolint:gosec // built from a formatted time only
 }
 
 // fileURL turns the stored path of a file into its URL under /files, or "" if

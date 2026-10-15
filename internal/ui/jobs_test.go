@@ -3,6 +3,7 @@ package ui
 import (
 	"bufio"
 	"encoding/json"
+	"html/template"
 	"net/http"
 	"strings"
 	"testing"
@@ -71,7 +72,8 @@ func TestJobGrid(t *testing.T) {
 	// The detail dialog: prompts, trace, warnings.
 	r = u.datastar("GET", "/ui/jobs/2/open", struct{}{})
 	mustContain(t, "detail", r.patches(), "selector #job-detail-body", "the workflow is wrong", "goroutine trace here", "node 5: missing",
-		`<textarea name="positive_prompt" rows="4">b</textarea>`, "Changing a prompt starts the job over")
+		`<textarea name="positive_prompt" rows="4">b</textarea>`, "Changing a prompt starts the job over",
+		`<li>created <time datetime="20`, `<li>updated <time datetime="20`)
 	if r.signals()["jobs"].(map[string]any)["open"] != true {
 		t.Errorf("signals = %v", r.signals())
 	}
@@ -358,4 +360,27 @@ func TestPictureListIsTheWholeCollection(t *testing.T) {
 	if u.get("/ui/commands/999/jobs/pictures").Status != 404 || u.get("/ui/commands/x/jobs/pictures").Status != 404 {
 		t.Error("a missing command must be a 404")
 	}
+}
+
+func TestTimesAreLocalisedByTheBrowser(t *testing.T) {
+	tests := []struct {
+		name string
+		in   time.Time
+		want template.HTML
+	}{
+		{"zero", time.Time{}, ""},
+		{"utc", time.Date(2026, 10, 15, 14, 32, 7, 0, time.UTC), `<time datetime="2026-10-15T14:32:07Z">2026-10-15 14:32 UTC</time>`},
+		{"other zone", time.Date(2026, 10, 15, 14, 32, 0, 0, time.FixedZone("EEST", 3*3600)), `<time datetime="2026-10-15T11:32:00Z">2026-10-15 11:32 UTC</time>`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := formatTime(tc.in); got != tc.want {
+				t.Errorf("formatTime = %q, want %q", got, tc.want)
+			}
+		})
+	}
+
+	u := newTestUI(t)
+	mustContain(t, "layout", u.get("/projects").Body, `src="/static/localtime.js"`)
+	mustContain(t, "script", u.get("/static/localtime.js").Body, "time[datetime]", "MutationObserver")
 }
