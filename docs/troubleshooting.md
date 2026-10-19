@@ -411,7 +411,7 @@ Not an error but often asked:
 
 **Why.** The program could not add something (a LoRA, a ControlNet, an IP-Adapter, a region) to the workflow for a job.
 
-**What to do.** The job's error says which and why: usually a node the workflow does not have, a text node that has no input for the prompt (it needs `text`, or `prompt`; a region prompt needs `text`), or custom nodes missing on the server. The job fails; fix the workflow or the item.
+**What to do.** The job's error says which and why: usually a node the workflow does not have, a text node that has no input for the prompt (it needs `text`, or `prompt`, or `value` for a string primitive; a region prompt needs `text`), or custom nodes missing on the server. The job fails; fix the workflow or the item.
 
 
 ### `RegionInvalid`

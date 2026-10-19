@@ -1,0 +1,386 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "krea2_turbo_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": {
+      "title": "Load Diffusion Model (Krea 2 Turbo)"
+    }
+  },
+  "10": {
+    "_meta": {
+      "title": "BOS CLIP Vision 1"
+    },
+    "class_type": "CLIPVisionLoader",
+    "inputs": {
+      "clip_name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors"
+    }
+  },
+  "11": {
+    "_meta": {
+      "title": "BOS IPAdapter Reference 1"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/ref.png"
+    }
+  },
+  "12": {
+    "_meta": {
+      "title": "BOS IPAdapter Model 1"
+    },
+    "class_type": "IPAdapterModelLoader",
+    "inputs": {
+      "ipadapter_file": "ip-adapter_sd15.bin"
+    }
+  },
+  "13": {
+    "_meta": {
+      "title": "BOS Apply IPAdapter 1"
+    },
+    "class_type": "IPAdapterAdvanced",
+    "inputs": {
+      "clip_vision": [
+        "10",
+        0
+      ],
+      "combine_embeds": "concat",
+      "embeds_scaling": "V only",
+      "end_at": 1,
+      "image": [
+        "11",
+        0
+      ],
+      "ipadapter": [
+        "12",
+        0
+      ],
+      "model": [
+        "14",
+        0
+      ],
+      "start_at": 0,
+      "weight": 0.6,
+      "weight_type": "linear"
+    }
+  },
+  "14": {
+    "_meta": {
+      "title": "Load LoRA - style_a.safetensors"
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "lora_name": "style_a.safetensors",
+      "model": [
+        "1",
+        0
+      ],
+      "strength_model": 0.8
+    }
+  },
+  "15": {
+    "_meta": {
+      "title": "BOS ControlNet Image openpose 1"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/pose.png"
+    }
+  },
+  "16": {
+    "_meta": {
+      "title": "BOS Preprocessor openpose 1"
+    },
+    "class_type": "OpenposePreprocessor",
+    "inputs": {
+      "detect_body": "enable",
+      "detect_face": "enable",
+      "detect_hand": "enable",
+      "image": [
+        "15",
+        0
+      ]
+    }
+  },
+  "17": {
+    "_meta": {
+      "title": "BOS Preview openpose 1"
+    },
+    "class_type": "PreviewImage",
+    "inputs": {
+      "images": [
+        "16",
+        0
+      ]
+    }
+  },
+  "18": {
+    "_meta": {
+      "title": "BOS ControlNet Model openpose 1"
+    },
+    "class_type": "ControlNetLoader",
+    "inputs": {
+      "control_net_name": "cn.safetensors"
+    }
+  },
+  "19": {
+    "_meta": {
+      "title": "BOS Apply ControlNet openpose 1"
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "control_net": [
+        "18",
+        0
+      ],
+      "end_percent": 1,
+      "image": [
+        "16",
+        0
+      ],
+      "negative": [
+        "5",
+        0
+      ],
+      "positive": [
+        "27",
+        0
+      ],
+      "start_percent": 0,
+      "strength": 0.9
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+      "type": "krea2",
+      "device": "default"
+    },
+    "_meta": {
+      "title": "Load Text Encoder (Qwen3-VL 4B)"
+    }
+  },
+  "20": {
+    "_meta": {
+      "title": "BOS Region Prompt red"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "red prompt"
+    }
+  },
+  "21": {
+    "_meta": {
+      "title": "BOS Region Mask red"
+    },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "bos/red.png"
+    }
+  },
+  "22": {
+    "_meta": {
+      "title": "BOS Region Mask Channel red"
+    },
+    "class_type": "ImageToMask",
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "21",
+        0
+      ]
+    }
+  },
+  "23": {
+    "_meta": {
+      "title": "BOS Region Set Mask red"
+    },
+    "class_type": "ConditioningSetMask",
+    "inputs": {
+      "conditioning": [
+        "20",
+        0
+      ],
+      "mask": [
+        "22",
+        0
+      ],
+      "set_cond_area": "default",
+      "strength": 1
+    }
+  },
+  "24": {
+    "_meta": {
+      "title": "BOS Region Combine red"
+    },
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": [
+        "4",
+        0
+      ],
+      "conditioning_2": [
+        "23",
+        0
+      ]
+    }
+  },
+  "25": {
+    "_meta": {
+      "title": "BOS Region Prompt r"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "rect"
+    }
+  },
+  "26": {
+    "_meta": {
+      "title": "BOS Region Set Area r"
+    },
+    "class_type": "ConditioningSetArea",
+    "inputs": {
+      "conditioning": [
+        "25",
+        0
+      ],
+      "height": 100,
+      "strength": 1,
+      "width": 100,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "27": {
+    "_meta": {
+      "title": "BOS Region Combine r"
+    },
+    "class_type": "ConditioningCombine",
+    "inputs": {
+      "conditioning_1": [
+        "24",
+        0
+      ],
+      "conditioning_2": [
+        "26",
+        0
+      ]
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "4": {
+    "_meta": {
+      "title": "Positive Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "alice, red hair"
+    }
+  },
+  "5": {
+    "_meta": {
+      "title": "Negative Prompt (unused at CFG 1)"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "ugly"
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "Empty Latent"
+    },
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "batch_size": 1,
+      "height": 1024,
+      "width": 768
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "KSampler"
+    },
+    "class_type": "KSampler",
+    "inputs": {
+      "cfg": 1.0,
+      "denoise": 1.0,
+      "latent_image": [
+        "6",
+        0
+      ],
+      "model": [
+        "13",
+        0
+      ],
+      "negative": [
+        "19",
+        1
+      ],
+      "positive": [
+        "19",
+        0
+      ],
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "seed": 4242,
+      "steps": 28
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "Krea2-Turbo",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
+}

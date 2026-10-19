@@ -142,12 +142,37 @@ func TestSetPromptsStillUsesTextWhereTheNodeHasIt(t *testing.T) {
 func TestSetPromptsRefusesANodeWithoutATextInput(t *testing.T) {
 	g := mustParse(t, `{
 	  "1":{"class_type":"CLIPTextEncode","_meta":{"title":"Positive"},"inputs":{"clip":["9",0]}},
-	  "2":{"class_type":"PrimitiveString","_meta":{"title":"Negative"},"inputs":{"value":""}}}`)
+	  "2":{"class_type":"ConditioningZeroOut","_meta":{"title":"Negative"},"inputs":{"conditioning":["1",0]}}}`)
 	appErr := wantTagMeta(t, SetPrompts(g, "Positive", "x", "", ""), "SetPrompts->noPromptInput", "InjectorFailed")
 	if appErr.Metadata["node"] != "1" {
 		t.Errorf("metadata = %v", appErr.Metadata)
 	}
 	wantTag(t, SetPrompts(g, "", "", "Negative", "x"), "SetPrompts->noPromptInput", "InjectorFailed")
+}
+
+// MOSS-Image has an editable string primitive in front of an optional prompt
+// upsampler and the text encoder. Naming the primitive writes its `value`; the
+// encoder, whose `text` is a link, still takes the text directly.
+func TestSetPromptsWritesAStringPrimitive(t *testing.T) {
+	for _, title := range []string{"Positive Prompt (edit me)", "Positive Encode"} {
+		g := example(t, "creators/moss.json")
+		check(t, SetPrompts(g, title, "a fox", "Negative Prompt", "blurry"))
+		id, input := "10", "value"
+		if title == "Positive Encode" {
+			id, input = "4", "text"
+		}
+		if got := inputOf(t, g, id, input); got != `"a fox"` {
+			t.Errorf("%s: %s = %s", title, input, got)
+		}
+		if got := inputOf(t, g, "5", "text"); got != `"blurry"` {
+			t.Errorf("%s: negative = %s", title, got)
+		}
+	}
+
+	// Only the string primitives count: a primitive of another kind with a
+	// `value` input still has nowhere for a prompt.
+	g := mustParse(t, `{"1":{"class_type":"PrimitiveInt","_meta":{"title":"Positive"},"inputs":{"value":1}}}`)
+	wantTag(t, SetPrompts(g, "Positive", "x", "", ""), "SetPrompts->noPromptInput", "InjectorFailed")
 }
 
 func TestPromptsGoWithThePositiveNode(t *testing.T) {

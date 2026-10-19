@@ -65,12 +65,22 @@ const (
 	inputNegativeAlt  = "negative_prompt"
 )
 
+// inputPrimitiveValue is the input of the string primitives (`PrimitiveString`,
+// `PrimitiveStringMultiline`), which workflows use as one editable prompt that
+// feeds a text encoder, or a prompt upsampler in front of it.
+const inputPrimitiveValue = "value"
+
 // promptInput is the input of a node that takes a prompt of its own: `text`, or
-// else `prompt`.
+// else `prompt`, or the `value` of a string primitive.
 func promptInput(n Node) (string, bool) {
 	for _, name := range []string{inputPositiveText, inputPositiveAlt} {
 		if _, ok := n.Inputs[name]; ok {
 			return name, true
+		}
+	}
+	if strings.HasPrefix(n.ClassType, "PrimitiveString") {
+		if _, ok := n.Inputs[inputPrimitiveValue]; ok {
+			return inputPrimitiveValue, true
 		}
 	}
 	return "", false
