@@ -301,5 +301,5 @@ func (g Graph) samplersSharing(first Node, input string) []Node {
 }
 
 func noSampler(injector string) *errors.Error {
-	return errors.New("NoSamplerInWorkflow", "the workflow has no KSampler or KSamplerAdvanced node", "injector", injector)
+	return errors.New("NoSamplerInWorkflow", "the workflow has no KSampler, KSamplerAdvanced or SamplerCustomAdvanced node", "injector", injector)
 }

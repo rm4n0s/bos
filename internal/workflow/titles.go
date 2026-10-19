@@ -94,15 +94,17 @@ func NegativeGoesWithPositive(g Graph, positiveTitle string) bool {
 
 // noPromptInput is the failure of a node that has nowhere to put a prompt.
 func noPromptInput(n Node, want string) error {
-	return errors.New("InjectorFailed", "the node has no input for the prompt",
-		"reason", "no prompt input", "node", n.ID, "class_type", n.ClassType, "wanted", want)
+	return errors.New("InjectorFailed", "the node has no input for the prompt: clear the prompt node title of the generator or fixer, or choose a text encoder",
+		"reason", "no prompt input", "node", n.ID, "class_type", n.ClassType, "title", n.Title, "wanted", want)
 }
 
 // SetPrompts writes the positive and negative prompt into the nodes with the
 // configured titles (SPEC §8.2, step 1). An empty title leaves that prompt out,
 // except that a positive node with a `negative_prompt` input takes the negative
 // prompt too. A node that has no input for its prompt is an error: the prompt
-// would otherwise go nowhere and ComfyUI would run the text in the file.
+// would otherwise go nowhere and ComfyUI would run the text in the file. The
+// exception is a negative node without a text input when the negative prompt is
+// empty: there is no text to lose.
 func SetPrompts(g Graph, positiveTitle, positive, negativeTitle, negative string) error {
 	if err := CheckTitles(g, positiveTitle, negativeTitle); err != nil {
 		return err
@@ -140,6 +142,10 @@ func SetPrompts(g Graph, positiveTitle, positive, negativeTitle, negative string
 		return noPromptInput(n, inputNegativeAlt)
 	case ok:
 		return setNodeInput(g, n, input, negative)
+	case strings.TrimSpace(negative) == "":
+		// A node that takes no text (a ConditioningZeroOut) has nothing to lose
+		// when the job has no negative prompt.
+		return nil
 	default:
 		return noPromptInput(n, inputPositiveText+" or "+inputPositiveAlt)
 	}

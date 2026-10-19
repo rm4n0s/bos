@@ -2,6 +2,8 @@ package service
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -195,5 +197,22 @@ func TestGeneratorNeedsAPositivePromptNode(t *testing.T) {
 	check(t, err)
 	if g.PositivePromptTitle != "Positive" || g.NegativePromptTitle != "" {
 		t.Errorf("created with %q / %q", g.PositivePromptTitle, g.NegativePromptTitle)
+	}
+}
+
+// FLUX.2 Klein zeroes its negative with a ConditioningZeroOut, which has no
+// text: the generator takes no negative prompt node from it, so a job does not
+// fail with InjectorFailed.
+func TestGeneratorOfKleinHasNoNegativePromptNode(t *testing.T) {
+	e := newEnv(t)
+	w, err := os.ReadFile(filepath.Join("..", "..", "examples", "workflows", "creators", "flux2_klein_9b.json"))
+	check(t, err)
+	g, err := e.Generators.Create(ctx(t), domain.Generator{Name: "Klein", CodeName: "klein", Workflow: w})
+	check(t, err)
+	if g.PositivePromptTitle != "Positive Prompt" || g.NegativePromptTitle != "" {
+		t.Errorf("created with %q / %q", g.PositivePromptTitle, g.NegativePromptTitle)
+	}
+	if g.OutputAttributes["steps"].Int != 4 || g.OutputAttributes["width"].Int != 1024 {
+		t.Errorf("attributes = %v", g.OutputAttributes)
 	}
 }

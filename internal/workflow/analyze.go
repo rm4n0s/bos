@@ -35,13 +35,13 @@ var outputNodes = []outputNode{
 
 // dimensionNodes are the nodes that carry the size, in priority order.
 var dimensionNodes = []string{
-	"EmptyLatentImage", "EmptySD3LatentImage", "EmptyLatentImageSD3",
+	"EmptyLatentImage", "EmptySD3LatentImage", "EmptyLatentImageSD3", "EmptyFlux2LatentImage",
 	"EmptyMochiLatentVideo", "EmptyHunyuanLatentVideo", "EmptyLTXVLatentVideo",
 	"EmptyWanLatentVideo", "EmptyCogVideoLatentVideo", "EmptyFluxLatentVideo",
 	"ImageScale", "ImageResize", "LatentUpscale",
 }
 
-var imageLatentNodes = []string{"EmptyLatentImage", "EmptySD3LatentImage", "EmptyLatentImageSD3"}
+var imageLatentNodes = []string{"EmptyLatentImage", "EmptySD3LatentImage", "EmptyLatentImageSD3", "EmptyFlux2LatentImage"}
 
 var videoLatentNodes = []string{
 	"EmptyMochiLatentVideo", "EmptyHunyuanLatentVideo", "EmptyLTXVLatentVideo",
@@ -64,7 +64,8 @@ type Analysis struct {
 	PromptTitles []string
 	// PositiveTitle and NegativeTitle are the suggested prompt nodes: the first
 	// node whose title starts with "positive" or "negative" (in any case), a
-	// text encoder before a node of another kind. Empty when there is none.
+	// text encoder before a node of another kind that has a `text` or `prompt`
+	// input. Empty when there is none.
 	PositiveTitle, NegativeTitle string
 	// LoadImageTitles and SaveImageTitles are the candidates for a fixer's
 	// image-input and image-output nodes.
@@ -136,7 +137,7 @@ func Analyze(g Graph) (*Analysis, error) {
 	switch found.typ {
 	case domain.OutputImage:
 		analyzeDimensions(nodes, a.Attributes)
-		analyzeImage(nodes, a.Attributes)
+		analyzeImage(g, a.Attributes)
 	case domain.OutputVideo:
 		analyzeDimensions(nodes, a.Attributes)
 		analyzeVideo(nodes, a.Attributes)
@@ -179,7 +180,9 @@ func promptTitleStartingWith(nodes []Node, word string) string {
 		if strings.Contains(n.ClassType, "TextEncode") {
 			return n.Title
 		}
-		if other == "" {
+		// A node of another kind is only suggested when a prompt can be written
+		// into it: not a ConditioningZeroOut named "Negative", which has no text.
+		if _, ok := promptInput(n); ok && other == "" {
 			other = n.Title
 		}
 	}
@@ -214,27 +217,29 @@ func analyzeDimensions(nodes []Node, attrs domain.OutputAttributes) {
 	}
 }
 
-func analyzeImage(nodes []Node, attrs domain.OutputAttributes) {
-	for _, n := range nodes {
+func analyzeImage(g Graph, attrs domain.OutputAttributes) {
+	for _, n := range g.Nodes() {
 		if slices.Contains(imageLatentNodes, n.ClassType) {
 			if v, ok := attrOf(n.Inputs["batch_size"]); ok && v.Kind == domain.AttrInt && v.Int > 0 {
 				attrs["batch_size"] = v
 			}
 		}
-		if n.ClassType == classKSampler || n.ClassType == classKSamplerAdvanced {
-			keys := []string{"steps", "cfg", "sampler_name", "scheduler", "denoise", "seed"}
-			if n.ClassType == classKSamplerAdvanced {
-				keys = []string{"steps", "cfg", "sampler_name", "scheduler"}
+	}
+	// The sampling settings are where ApplyAttributes writes them. A KSampler
+	// has `denoise` and `seed` and a KSamplerAdvanced does not: the seed of the
+	// latter is its `noise_seed`, and its denoise is left out.
+	for _, sampler := range g.samplerSlots() {
+		for _, key := range samplerKeys {
+			s, ok := sampler[key]
+			if !ok {
+				continue
 			}
-			for _, key := range keys {
-				if v, ok := attrOf(n.Inputs[key]); ok {
-					attrs[key] = v
-				}
+			node, err := g.Node(s.Node)
+			if err != nil {
+				continue
 			}
-			if n.ClassType == classKSamplerAdvanced {
-				if v, ok := attrOf(n.Inputs["noise_seed"]); ok {
-					attrs["seed"] = v
-				}
+			if v, ok := attrOf(node.Inputs[s.Input]); ok {
+				attrs[key] = v
 			}
 		}
 	}

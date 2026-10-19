@@ -1,0 +1,189 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "flux-2-klein-9b.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": {
+      "title": "Load Diffusion Model (Klein 9B)"
+    }
+  },
+  "10": {
+    "_meta": {
+      "title": "CFGGuider"
+    },
+    "class_type": "CFGGuider",
+    "inputs": {
+      "cfg": 1.0,
+      "model": [
+        "14",
+        0
+      ],
+      "negative": [
+        "5",
+        0
+      ],
+      "positive": [
+        "4",
+        0
+      ]
+    }
+  },
+  "11": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "9",
+        0
+      ],
+      "guider": [
+        "10",
+        0
+      ],
+      "sampler": [
+        "8",
+        0
+      ],
+      "sigmas": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "12": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "11",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "13": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "Flux2-Klein-9B",
+      "images": [
+        "12",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "14": {
+    "_meta": {
+      "title": "Load LoRA - style_a.safetensors"
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "lora_name": "style_a.safetensors",
+      "model": [
+        "1",
+        0
+      ],
+      "strength_model": 0.8
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_3_8b_fp8mixed.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "_meta": {
+      "title": "Load Text Encoder (Qwen3 8B)"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "4": {
+    "_meta": {
+      "title": "Positive Prompt"
+    },
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "alice, red hair"
+    }
+  },
+  "5": {
+    "class_type": "ConditioningZeroOut",
+    "inputs": {
+      "conditioning": [
+        "4",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Negative (zeroed)"
+    }
+  },
+  "6": {
+    "_meta": {
+      "title": "Empty Latent"
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "inputs": {
+      "batch_size": 1,
+      "height": 1024,
+      "width": 768
+    }
+  },
+  "7": {
+    "_meta": {
+      "title": "Flux2Scheduler"
+    },
+    "class_type": "Flux2Scheduler",
+    "inputs": {
+      "height": 1024,
+      "steps": 8,
+      "width": 768
+    }
+  },
+  "8": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "9": {
+    "_meta": {
+      "title": "RandomNoise"
+    },
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 4242
+    }
+  }
+}

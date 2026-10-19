@@ -402,7 +402,7 @@ Not an error but often asked:
 
 ### `NoSamplerInWorkflow`
 
-**Why.** A job needs to write a seed or settings, but the workflow has no `KSampler` or `KSamplerAdvanced`.
+**Why.** A job needs to write a seed or settings, but the workflow has no `KSampler`, `KSamplerAdvanced` or `SamplerCustomAdvanced`.
 
 **What to do.** Use a workflow with a sampler, or do not set attributes on this generator.
 

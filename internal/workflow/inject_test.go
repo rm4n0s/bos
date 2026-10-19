@@ -387,6 +387,17 @@ func TestFullPipelineOnExampleCreators(t *testing.T) {
 			a, err := Analyze(g)
 			check(t, err)
 			titles := a.PromptTitles
+			if len(g.samplers()) == 0 {
+				// A guider-based workflow (FLUX.2 Klein) has one text node and
+				// takes no IP-Adapter, ControlNet or region.
+				check(t, SetPrompts(g, a.PositiveTitle, "alice, red hair", a.NegativeTitle, ""))
+				check(t, ApplyAttributes(g, attrs("steps", 8, "width", 768, "height", 1024)))
+				check(t, SetSeed(g, 4242))
+				check(t, InjectLoRAs(g, twoLoRAs[:1]))
+				assertWellFormed(t, g)
+				golden(t, "pipeline_"+strings.TrimSuffix(strings.ReplaceAll(name, "/", "_"), ".json"), g)
+				return
+			}
 			if len(titles) != 2 {
 				t.Fatalf("prompt titles = %v", titles)
 			}

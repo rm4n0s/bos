@@ -38,27 +38,27 @@ func samplerInput(class, key string) (string, bool) {
 
 // ApplyAttributes writes the effective output attributes into the graph
 // (SPEC §8.2, step 2): steps, cfg, sampler_name, scheduler, denoise and seed
-// into every sampler, and width, height and batch size into the empty-latent
+// into every sampler (for a SamplerCustomAdvanced, into the noise, guider,
+// sampler-select and scheduler nodes it reads), and width, height and batch size into the empty-latent
 // nodes; for video, also the frame count into the video latent nodes and the
 // frame rate into the video output node. Only attributes that are present are
 // written. A graph without a sampler fails with NoSamplerInWorkflow when a
 // sampler attribute was asked for.
 func ApplyAttributes(g Graph, attrs domain.OutputAttributes) error {
 	needSampler := slices.ContainsFunc(samplerKeys, func(k string) bool { _, ok := attrs[k]; return ok })
-	samplers := g.samplers()
-	if needSampler && len(samplers) == 0 {
+	slots := g.samplerSlots()
+	if needSampler && len(slots) == 0 {
 		return noSampler("attributes")
 	}
-	for _, s := range samplers {
-		for _, key := range samplerKeys {
+	for _, sampler := range slots {
+		for _, key := range slices.Concat(samplerKeys, sigmasSizeInputs) {
 			a, ok := attrs[key]
-			if !ok {
+			s, applies := sampler[key]
+			if !ok || !applies {
 				continue
 			}
-			if input, applies := samplerInput(s.ClassType, key); applies {
-				if _, err := comfyui.EditWorkflowByNodeID(g, s.ID, input, attrValue(a)); err != nil {
-					return errors.NewErr("InjectorFailed", err).SetMetadata("reason", "cannot edit sampler", "node", s.ID, "input", input)
-				}
+			if _, err := comfyui.EditWorkflowByNodeID(g, s.Node, s.Input, attrValue(a)); err != nil {
+				return errors.NewErr("InjectorFailed", err).SetMetadata("reason", "cannot edit sampler", "node", s.Node, "input", s.Input)
 			}
 		}
 	}
@@ -126,17 +126,19 @@ func editInput(g Graph, id, key string, value any) error {
 }
 
 // SetSeed writes a seed into every sampler: `seed` of a KSampler and
-// `noise_seed` of a KSamplerAdvanced. A 64-bit seed keeps its exact value. It
+// `noise_seed` of a KSamplerAdvanced or of the RandomNoise node a
+// SamplerCustomAdvanced reads. A 64-bit seed keeps its exact value. It
 // fails with NoSamplerInWorkflow when there is no sampler (SPEC §18.5).
 func SetSeed(g Graph, seed uint64) error {
-	samplers := g.samplers()
-	if len(samplers) == 0 {
+	slots := g.samplerSlots()
+	if len(slots) == 0 {
 		return noSampler("seed")
 	}
-	for _, s := range samplers {
-		input, _ := samplerInput(s.ClassType, "seed")
-		if err := editInput(g, s.ID, input, seed); err != nil {
-			return err
+	for _, sampler := range slots {
+		if s, ok := sampler["seed"]; ok {
+			if err := editInput(g, s.Node, s.Input, seed); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
